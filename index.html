@@ -13,7 +13,7 @@
   --accent:#2f6fed; --accent-2:#e7effe; --accent-text:#ffffff;
   --soon-bg:#fff1d6; --soon-text:#8a5a00;
   --danger:#d93838;
-  --canvas:#ffffff; --grid-minor:#f0f2f5; --grid-major:#e2e6ec;
+  --canvas:#ffffff; --pasteboard:#e8ebf0; --grid-minor:#f0f2f5; --grid-major:#e2e6ec;
   --sel:#2f6fed; --guide:#e5487c; --port:#2f6fed; --target:#19a974;
   --shadow:0 6px 24px rgba(20,25,40,.14);
   --menu-h:44px; --toolbar-h:40px; --pagebar-h:34px; --left-w:232px; --right-w:268px;
@@ -28,7 +28,7 @@
   --text:#e6e9ef; --text-2:#aab2c0; --text-3:#9aa3b2;
   --accent:#5b8ff9; --accent-2:#22324f; --accent-text:#ffffff;
   --soon-bg:#3b2f17; --soon-text:#f3c66b;
-  --canvas:#f3f4f6; --grid-minor:#e7e9ed; --grid-major:#d6dae1;
+  --canvas:#f3f4f6; --pasteboard:#2b313b; --grid-minor:#e7e9ed; --grid-major:#d6dae1;
   --shadow:0 6px 24px rgba(0,0,0,.45);
 }
 /* ========================================================================= */
@@ -128,6 +128,11 @@ button{cursor:pointer}
 .ov-sel-line{fill:none;stroke:var(--sel);opacity:.28;pointer-events:none;stroke-linecap:round;stroke-linejoin:round}
 .ov-group{fill:none;stroke:var(--sel);pointer-events:none}
 .ov-handle{fill:#fff;stroke:var(--sel)}
+.ov-rot{cursor:pointer}
+.ov-rot circle{fill:#fff;stroke:var(--sel)}
+.ov-rot path{stroke:var(--sel);stroke-linecap:round;stroke-linejoin:round}
+.ov-rot:hover circle{fill:var(--sel)} .ov-rot:hover path{stroke:#fff}
+.ov-rot-stem{stroke:var(--sel)}
 .ov-handle[data-handle="nw"],.ov-handle[data-handle="se"]{cursor:nwse-resize}
 .ov-handle[data-handle="ne"],.ov-handle[data-handle="sw"]{cursor:nesw-resize}
 .ov-handle[data-handle="n"],.ov-handle[data-handle="s"]{cursor:ns-resize}
@@ -145,6 +150,20 @@ button{cursor:pointer}
 .ov-dot{fill:#fff;stroke:var(--target);pointer-events:none}
 .ov-dot.on{fill:var(--target)}
 .ov-portlab{fill:var(--text);paint-order:stroke;stroke:var(--panel);stroke-width:3px;pointer-events:none;font-family:system-ui,sans-serif}
+.has-sheet{background:var(--pasteboard)!important}
+.sheet{filter:drop-shadow(0 1px 3px rgba(15,23,42,.18))}
+.on-locked{pointer-events:none}
+.layer-list{display:grid;gap:4px}
+.layer-row{display:grid;grid-template-columns:22px minmax(0,1fr) 28px;gap:3px 4px;align-items:center;padding:3px;border-radius:var(--r-sm);border:1px solid transparent}
+.layer-row.on{background:var(--accent-2);border-color:var(--accent)}
+.layer-row input[type=text]{min-width:0;height:26px;padding:0 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel);font-size:var(--fs-sm)}
+.lay-btns{grid-column:2/-1;display:flex;gap:3px;justify-content:flex-end}
+.lay-n{font-size:var(--fs-xs);color:var(--text-3);text-align:center}
+.lay-act{width:22px;height:22px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;padding:0}
+.lay-act .dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--text-3)}
+.layer-row.on .lay-act .dot{background:var(--accent);border-color:var(--accent)}
+.btn.icon.sm{width:26px;height:26px;padding:0;justify-content:center}
+.btn.icon.sm[aria-pressed="true"]{background:var(--hover);color:var(--accent)}
 .dev-ports{display:grid;gap:2px;max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:4px 6px}
 .dev-port{display:grid;grid-template-columns:44px 1fr;gap:6px;font-size:12px;line-height:1.35}
 .dev-port b{font-weight:600}
@@ -408,7 +427,8 @@ button{cursor:pointer}
 
   <aside id="left" aria-label="Shape library">
     <div class="lib-search"><input id="libSearch" type="search" placeholder="Search shapes" aria-label="Search shapes" autocomplete="off">
-      <label class="lib-view">Show <select id="libView" aria-label="Library view"><option value="auto" title="Pictures for shapes, names for the Rockwell device lists">Auto</option><option value="icons">Pictures</option><option value="labeled">Pictures and names</option><option value="names">Names only</option></select></label></div>
+      <label class="lib-view">Show <select id="libView" aria-label="Library view"><option value="auto" title="Pictures for shapes, names for the Rockwell device lists">Auto</option><option value="icons">Pictures</option><option value="labeled">Pictures and names</option><option value="names">Names only</option></select></label>
+      <label class="lib-view">Place at <select id="placeRot" aria-label="Rotation for new shapes"><option value="0">0° (as drawn)</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label></div>
     <div id="libList"></div>
   </aside>
 
@@ -418,6 +438,7 @@ button{cursor:pointer}
         <pattern id="gridMinor" patternUnits="userSpaceOnUse" width="10" height="10"><path id="gridMinorPath" d="M10 0L0 0 0 10" fill="none" stroke="var(--grid-minor)" stroke-width="1"/></pattern>
         <pattern id="gridMajor" patternUnits="userSpaceOnUse" width="50" height="50"><path id="gridMajorPath" d="M50 0L0 0 0 50" fill="none" stroke="var(--grid-major)" stroke-width="1"/></pattern>
       </defs>
+      <g id="sheet"></g>
       <rect id="gridMinorRect" width="100%" height="100%" fill="url(#gridMinor)"/>
       <rect id="gridMajorRect" width="100%" height="100%" fill="url(#gridMajor)"/>
       <g id="viewport"><g id="content"></g><g id="overlay"></g></g>
@@ -444,7 +465,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.8.0';
+const APP_VERSION='1.9.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -584,6 +605,10 @@ const ICONS={
   vBot:'M4 20h16M12 4v12M8 12l4 4 4-4',
   link:'M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1',
   lock:'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
+  eye:'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
+  eyeOff:'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2',
+  up:'M12 19V5M6 11l6-6 6 6', down:'M12 5v14M6 13l6 6 6-6',
+  rotate:'M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5',
   unlock:'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 6.8-1.2',
   emoji:'M11 20a8 8 0 1 1 8-8M8.5 14.5a3.5 3.5 0 0 0 5 0M9 9.5h.01M14 9.5h.01M18 15v6M15 18h6',
   more:'M5 12h.01M12 12h.01M19 12h.01',
@@ -647,7 +672,7 @@ function geom(type,w,h,st){
       decor=[{d:circ(ax,ay,av),f:'none'},{d:circ(ax,ay-av*0.3,av*0.3),f:'stroke'},{d:`M${r2(ax-av*0.6)} ${r2(ay+av*0.62)}Q${r2(ax)} ${r2(ay-av*0.02)} ${r2(ax+av*0.6)} ${r2(ay+av*0.62)}Z`,f:'stroke'}];
       tb={x:h*0.92,y:0,w:Math.max(10,w-h*0.97),h}; break; }
     case 'org_role': d=roundRect(w,h,4); decor=[{d:`M0 4Q0 0 4 0H${r2(w-4)}Q${r2(w)} 0 ${r2(w)} 4V7H0Z`,f:'stroke'}]; tb={x:0,y:7,w,h:h-7}; break;
-    default: { const lg=libGeom(type,w,h); if(lg) return lg; const g=symGeom(type,w,h); if(g) return g; d=roundRect(w,h,0); }
+    default: { const lg=libGeom(type,w,h); if(lg) return lg; const eg=elecGeom(type,w,h); if(eg) return eg; const g=symGeom(type,w,h); if(g) return g; d=roundRect(w,h,0); }
   }
   return {d,decor,tb};
 }
@@ -1194,7 +1219,7 @@ function renderEntityText(g,it){
 // Swimlane templates insert a title band and lanes as one group.
 function buildSwimlanes(def,x,y){
   const t=def.tpl, n=t.n, gid=uid(), out=[], st=k=>Object.assign({},DEF_SHAPE_STYLE,LIB_MAP[k].style);
-  const mk=(type,sx,sy,w,h,text,style)=>{ const s={id:uid(),kind:'shape',type,x:r2(sx),y:r2(sy),w,h,text,style,groupId:gid}; out.push(s); return s; };
+  const mk=(type,sx,sy,w,h,text,style)=>{ const s={id:uid(),kind:'shape',type,x:r2(sx),y:r2(sy),w,h,text,style,layer:activeLayerId(),groupId:gid}; out.push(s); return s; };
   if(t.dir==='h'){ const W=720, LH=140, TH=34, x0=x-W/2, y0=y-(TH+LH*n)/2;
     mk('rect',x0,y0,W,TH,'Pool',Object.assign({},DEF_SHAPE_STYLE,{fill:'#e2e8f0',stroke:'#64748b',bold:true,fontSize:14}));
     for(let i=0;i<n;i++) mk('lane_h',x0,y0+TH+LH*i,W,LH,'Lane '+(i+1),st('lane_h')); }
@@ -1483,6 +1508,189 @@ function raPorts(s){
 }
 function raPort(s,pid){ return raPorts(s).find(p=>p.id===pid)||null; }
 
+/* ============================== more electrical symbols and safety devices ============================== */
+function elecGeom(type,w,h){
+  const D=(d,f,dash,o)=>Object.assign({d,f:f||'none',dash:!!dash},o||{});
+  const sym=(d,o)=>Object.assign({d,decor:[],glyphs:[],tb:{x:0,y:0,w,h},label:true,hit:true,ports:null},o||{});
+  const blk=(d,o)=>Object.assign({d,decor:[],glyphs:[],tb:{x:4,y:4,w:w-8,h:h-8},label:false,hit:false,ports:null},o||{});
+  const R=(x,y,ww,hh)=>`M${r2(x)} ${r2(y)}H${r2(x+ww)}V${r2(y+hh)}H${r2(x)}Z`;
+  const m=Math.min(w,h), cx=w/2, cy=h/2;
+  // Contact plates (NO) or plates with slash (NC) between leads, at height y, plate half-height k.
+  const contact=(y,k,nc,x0,x1)=>{ x0=x0==null?0:x0; x1=x1==null?w:x1; const a=x0+(x1-x0)*.4, b=x0+(x1-x0)*.6;
+    return PL([x0,y],[a,y])+PL([a,y-k],[a,y+k])+PL([b,y-k],[b,y+k])+PL([b,y],[x1,y])+(nc?PL([a-(x1-x0)*.1,y+k*1.1],[b+(x1-x0)*.1,y-k*1.1]):''); };
+  // Switch blade between two terminal circles (NEMA style), actuator stem from the blade middle.
+  const blade=(ty,nc)=>{ const r=m*.06, a=w*.3, b=w*.7;
+    const d=PL([0,ty],[a-r,ty])+circ(a,ty,r)+circ(b,ty,r)+PL([b+r,ty],[w,ty]);
+    const bl=nc?PL([a+r*.8,ty+r*.6],[w*.78,ty+r*2.6]):PL([a+r*.8,ty-r*.6],[w*.78,ty-h*.3]);
+    const mx=w*.52, my=nc?ty+r*1.7:ty-h*.17;
+    return {d:d+bl,mx,my}; };
+  const posOpen=(x,y,r)=>circ(x,y,r)+PL([x-r*.55,y+r*.45],[x+r*.55,y-r*.45])+PL([x+r*.05,y-r*.5],[x+r*.55,y-r*.45],[x+r*.5,y+r*.05]);
+  switch(type){
+    // ---- timed contacts (NEMA, TC = timed closed, TO = timed open) ----
+    case 'e_tnotc': case 'e_tnoto': case 'e_tnctc': case 'e_tncto': {
+      const nc=type==='e_tnctc'||type==='e_tncto', closes=type==='e_tnotc'||type==='e_tnctc', ty=h*.72, k=h*.2;
+      const arc=closes?`M${r2(w*.36)} ${r2(h*.22)}Q${r2(cx)} ${r2(h*.02)} ${r2(w*.64)} ${r2(h*.22)}`:`M${r2(w*.36)} ${r2(h*.08)}Q${r2(cx)} ${r2(h*.28)} ${r2(w*.64)} ${r2(h*.08)}`;
+      return sym(contact(ty,k,nc),{decor:[D(PL([cx,ty-k],[cx,closes?h*.12:h*.18])+arc)],glyphs:[{t:closes?'TC':'TO',x:w*.84,y:h*.2,s:h*.2}],ports:{W:[0,ty],E:[w,ty]}}); }
+    // ---- operators ----
+    case 'e_pbmush': case 'e_pbmush_no': { const nc=type==='e_pbmush', ty=nc?h*.55:h*.78, r=m*.06;
+      const d=PL([0,ty],[w*.3-r,ty])+circ(w*.3,ty,r)+circ(w*.7,ty,r)+PL([w*.7+r,ty],[w,ty]);
+      const bar=nc?h*.72:h*.55;
+      return sym(d+PL([w*.2,bar],[w*.8,bar])+PL([cx,bar],[cx,h*.22]),{decor:[D(`M${r2(w*.28)} ${r2(h*.22)}A${r2(w*.22)} ${r2(h*.18)} 0 0 1 ${r2(w*.72)} ${r2(h*.22)}Z`,'stroke')],ports:{W:[0,ty],E:[w,ty]}}); }
+    case 'e_ss2': case 'e_ss3': { const n=type==='e_ss2'?2:3, r=m*.05, lx=w*.3, ys=n===2?[h*.3,h*.7]:[h*.2,h*.5,h*.8];
+      let d=PL([0,cy],[lx-r,cy])+circ(lx,cy,r); ys.forEach(y=>{ d+=circ(w*.72,y,r)+PL([w*.72+r,y],[w,y]); });
+      return sym(d+PL([lx+r*.7,cy-r*.7],[w*.7,ys[0]+r*1.5]),{glyphs:ys.map((y,i)=>({t:String(i+1),x:w*.6,y:y-h*.1,s:h*.13})),ports:{W:[0,cy],E:[w,ys[0]]}}); }
+    // ---- process and position switches (NEMA) ----
+    case 'e_ls_nc': { const ty=h*.7, b=blade(ty,true); return sym(b.d,{decor:[D(PL([b.mx,b.my],[b.mx,h*.2])+poly([[b.mx-w*.07,h*.2],[b.mx+w*.07,h*.2],[b.mx,h*.06]]))],ports:{W:[0,ty],E:[w,ty]}}); }
+    case 'e_ps_no': case 'e_ps_nc': case 'e_ts_no': case 'e_ts_nc': case 'e_fs_no': case 'e_fs_nc': case 'e_flow_no': case 'e_flow_nc': case 'e_foot_no': {
+      const nc=/_nc$/.test(type), ty=h*.78, b=blade(ty,nc), top=h*.2, k=type.split('_')[1], dec=[];
+      const stem=PL([b.mx,b.my],[b.mx,top]);
+      if(k==='ps') dec.push(D(stem+`M${r2(b.mx-w*.12)} ${r2(top)}A${r2(w*.12)} ${r2(h*.14)} 0 0 1 ${r2(b.mx+w*.12)} ${r2(top)}Z`));
+      if(k==='ts') dec.push(D(stem+`M${r2(b.mx)} ${r2(top)}q${r2(w*.06)} ${r2(-h*.05)} ${r2(w*.12)} 0t${r2(w*.12)} 0t${r2(w*.12)} 0`));
+      if(k==='fs') dec.push(D(stem+circ(b.mx,top-h*.08,m*.09)));
+      if(k==='flow') dec.push(D(stem),D(poly([[b.mx,top],[b.mx+w*.2,top+h*.08],[b.mx,top+h*.16]]),'stroke'));
+      if(k==='foot') dec.push(D(stem+PL([b.mx-w*.15,top],[b.mx+w*.15,top-h*.1])));
+      return sym(b.d,{decor:dec,ports:{W:[0,ty],E:[w,ty]}}); }
+    case 'e_prox': case 'e_prox_nc': { const nc=type==='e_prox_nc', ty=cy;
+      return sym(poly([[cx,h*.02],[w*.98,cy],[cx,h*.98],[w*.02,cy]]),{decor:[D(contact(ty,h*.16,nc,w*.22,w*.78)),D(PL([0,ty],[w*.02,ty])+PL([w*.98,ty],[w,ty]))],ports:{W:[0,ty],E:[w,ty],N:[cx,h*.02],S:[cx,h*.98]}}); }
+    case 'e_pe': return sym(poly([[cx,h*.02],[w*.98,cy],[cx,h*.98],[w*.02,cy]]),{decor:[D(PL([w*.62,h*.18],[w*.78,h*.04])+PL([w*.72,h*.04],[w*.78,h*.04],[w*.78,h*.1])+PL([w*.72,h*.22],[w*.88,h*.08])+PL([w*.82,h*.08],[w*.88,h*.08],[w*.88,h*.14]))],glyphs:[{t:'PE',x:cx,y:cy,s:h*.22,b:true}]});
+    // ---- outputs and power ----
+    case 'e_sol': { let hum=''; for(let i=0;i<3;i++){ const x=w*(.32+i*.12); hum+=`M${r2(x)} ${r2(cy)}A${r2(w*.06)} ${r2(h*.3)} 0 0 1 ${r2(x+w*.12)} ${r2(cy)}`; }
+      return sym(PL([0,cy],[w*.32,cy])+hum+PL([w*.68,cy],[w,cy])); }
+    case 'e_horn': return sym(PL([0,cy],[w*.3,cy])+R(w*.3,h*.3,w*.12,h*.4)+`M${r2(w*.42)} ${r2(h*.3)}L${r2(w*.78)} ${r2(h*.05)}V${r2(h*.95)}L${r2(w*.42)} ${r2(h*.7)}`,{ports:{W:[0,cy],E:[w*.78,cy]}});
+    case 'e_plug': return sym(PL([0,cy],[w*.32,cy])+`M${r2(w*.48)} ${r2(h*.15)}L${r2(w*.32)} ${r2(cy)}L${r2(w*.48)} ${r2(h*.85)}`+PL([w*.52,cy],[w,cy])+PL([w*.44,cy],[w*.62,cy])+poly([[w*.62,h*.3],[w*.62,h*.7],[w*.52,cy]]));
+    case 'e_cb3': case 'e_disc3': case 'e_ms3': case 'e_ol3': {
+      const ys=[h*.18,h*.5,h*.82], r=m*.04; let d='';
+      for(const y of ys){
+        if(type==='e_ms3') d+=contact(y,h*.1,false);
+        else if(type==='e_ol3') d+=PL([0,y],[w*.3,y],[w*.3,y-h*.08],[w*.5,y-h*.08],[w*.5,y+h*.08],[w*.7,y+h*.08],[w*.7,y],[w,y]);
+        else { d+=PL([0,y],[w*.25-r,y])+circ(w*.25,y,r)+circ(w*.75,y,r)+PL([w*.75+r,y],[w,y]);
+          d+=type==='e_cb3'?`M${r2(w*.25)} ${r2(y-r)}Q${r2(cx)} ${r2(y-h*.2)} ${r2(w*.75)} ${r2(y-r)}`:PL([w*.25+r*.7,y-r*.7],[w*.72,y-h*.13]); } }
+      return sym(d,{decor:type==='e_ol3'?[]:[D(PL([cx,h*.05],[cx,h*.95]),'none',true)],ports:{W:[0,cy],E:[w,cy]}}); }
+    case 'e_motor3': { const r=m*.36; return sym(circ(cx,h*.62,r)+PL([w*.3,0],[w*.3,h*.62-r*.8])+PL([cx,0],[cx,h*.62-r])+PL([w*.7,0],[w*.7,h*.62-r*.8]),{glyphs:[{t:'M',x:cx,y:h*.56,s:r*.8,b:true},{t:'3~',x:cx,y:h*.76,s:r*.5}],ports:{N:[cx,0],S:[cx,h*.62+r],W:[cx-r,h*.62],E:[cx+r,h*.62]}}); }
+    case 'e_psu': return sym(R(0,0,w,h),{decor:[D(PL([0,h],[w,0]))],glyphs:[{t:'~',x:w*.27,y:h*.27,s:h*.3},{t:'=',x:w*.73,y:h*.7,s:h*.3}],label:true,hit:false});
+    case 'e_diode': return sym(PL([0,cy],[w*.35,cy])+poly([[w*.35,h*.15],[w*.35,h*.85],[w*.62,cy]])+PL([w*.62,h*.15],[w*.62,h*.85])+PL([w*.62,cy],[w,cy]));
+    case 'e_led': return sym(PL([0,h*.6],[w*.35,h*.6])+poly([[w*.35,h*.35],[w*.35,h*.85],[w*.6,h*.6]])+PL([w*.6,h*.35],[w*.6,h*.85])+PL([w*.6,h*.6],[w,h*.6]),{decor:[D(PL([w*.55,h*.28],[w*.68,h*.08])+PL([w*.62,h*.08],[w*.68,h*.08],[w*.68,h*.14])+PL([w*.66,h*.32],[w*.79,h*.12])+PL([w*.73,h*.12],[w*.79,h*.12],[w*.79,h*.18]))],ports:{W:[0,h*.6],E:[w,h*.6]}});
+    case 'e_batt': return sym(PL([0,cy],[w*.42,cy])+PL([w*.42,h*.1],[w*.42,h*.9])+PL([w*.58,h*.3],[w*.58,h*.7])+PL([w*.58,cy],[w,cy]),{glyphs:[{t:'+',x:w*.3,y:h*.2,s:h*.24}]});
+    case 'e_amm': case 'e_volt': { const r=m*.36; return sym(PL([0,cy],[cx-r,cy])+circ(cx,cy,r)+PL([cx+r,cy],[w,cy]),{glyphs:[{t:type==='e_amm'?'A':'V',x:cx,y:cy,s:r*1.1,b:true}]}); }
+    case 'e_heater': { let z=''; for(let i=0;i<4;i++){ const x=w*(.25+i*.125); z+=R(x,h*.25,w*.125,h*.5); } return sym(PL([0,cy],[w*.25,cy])+z+PL([w*.75,cy],[w,cy])); }
+    case 'e_ct': { const r=m*.32; return sym(PL([0,cy],[w,cy])+circ(cx,cy,r),{decor:[D(circ(cx-r*1.15,cy-r*.9,m*.05),'stroke')]}); }
+    case 'e_coil_iec': return sym(PL([cx,0],[cx,h*.25])+R(w*.2,h*.25,w*.6,h*.5)+PL([cx,h*.75],[cx,h]),{ports:{N:[cx,0],S:[cx,h],W:[w*.2,cy],E:[w*.8,cy]}});
+    // ---- safety devices: schematic ----
+    case 's_estop': case 's_estop2': { const two=type==='s_estop2', rows=two?[h*.42,h*.82]:[h*.68], lk=w*.26; let d='', top=rows[0]-h*.12;
+      for(const y of rows){ d+=PL([0,y],[w*.42,y])+PL([w*.42,y],[w*.74,y+h*.1])+PL([w*.7,y-h*.04],[w*.7,y+h*.05])+PL([w*.7,y],[w,y]); }
+      const linkY0=h*.14, bot=rows[rows.length-1]+h*.04;
+      return sym(d,{decor:[D(PL([w*.58,linkY0],[w*.58,bot]),'none',true),D(posOpen(w*.58,(linkY0+rows[0])/2+h*.03,m*.11)),
+        D(`M${r2(w*.4)} ${r2(linkY0)}A${r2(w*.18)} ${r2(h*.13)} 0 0 1 ${r2(w*.76)} ${r2(linkY0)}Z`,'stroke'),D(PL([w*.36,linkY0+h*.04],[w*.3,linkY0+h*.1],[w*.36,linkY0+h*.16]))],ports:{W:[0,rows[0]],E:[w,rows[0]]}}); }
+    case 's_guard': case 's_guard2': { const two=type==='s_guard2', rows=two?[h*.42,h*.82]:[h*.68]; let d='';
+      for(const y of rows){ d+=PL([0,y],[w*.42,y])+PL([w*.42,y],[w*.74,y+h*.1])+PL([w*.7,y-h*.04],[w*.7,y+h*.05])+PL([w*.7,y],[w,y]); }
+      const t0=h*.12, bot=rows[rows.length-1]+h*.04;
+      return sym(d,{decor:[D(PL([w*.58,t0+h*.08],[w*.58,bot]),'none',true),D(posOpen(w*.58,(t0+rows[0])/2+h*.05,m*.11)),D(poly([[w*.5,t0],[w*.66,t0],[w*.58,t0+h*.1]]))],ports:{W:[0,rows[0]],E:[w,rows[0]]}}); }
+    case 's_mirror': { const ys=[h*.15,h*.38,h*.61], ay=h*.86; let d=''; for(const y of ys) d+=contact(y,h*.08,false); d+=contact(ay,h*.08,true);
+      return sym(d,{decor:[D(PL([cx,h*.04],[cx,h*.97]),'none',true)],glyphs:[{t:'M',x:w*.86,y:ay-h*.14,s:h*.13,b:true}],ports:{W:[0,ys[0]],E:[w,ys[0]]}}); }
+    // ---- safety devices: blocks and pictorials ----
+    case 's_relay': { const top=['A1','S11','S12','S21','S22','13','23'], bot=['A2','S33','S34','14','24'];
+      const gl=top.map((t,i)=>({t,x:w*(i+.5)/top.length,y:h*.16,s:Math.min(9,h*.11)})).concat(bot.map((t,i)=>({t,x:w*(i+.5)/bot.length,y:h*.84,s:Math.min(9,h*.11)})));
+      return blk(R(0,0,w,h),{decor:[D(R(0,0,w,h*.06),'stroke',false,{op:.6,ns:true})],glyphs:gl,tb:{x:4,y:h*.26,w:w-8,h:h*.48}}); }
+    case 's_ctrl': return blk(RR4(w,h),{decor:[D(R(0,0,w,h*.16),'stroke',false,{op:.18,ns:true}),D(PL([0,h*.16],[w,h*.16]))],tb:{x:4,y:h*.18,w:w-8,h:h*.8}});
+    case 's_glock': return blk(R(0,0,w,h),{decor:[D(R(w*.1,h*.48,w*.22,h*.32)+`M${r2(w*.14)} ${r2(h*.48)}V${r2(h*.36)}A${r2(w*.07)} ${r2(h*.1)} 0 0 1 ${r2(w*.28)} ${r2(h*.36)}V${r2(h*.48)}`),D(R(w*.74,h*.25,w*.16,h*.5)+PL([w*.32,cy],[w*.74,cy]),'none',true)],tb:{x:w*.34,y:4,w:w*.38,h:h-8}});
+    case 's_coded': return blk(R(0,h*.15,w*.46,h*.7),{d:R(0,h*.15,w*.46,h*.7)+R(w*.62,h*.25,w*.38,h*.5),decor:[D(`M${r2(w*.48)} ${r2(h*.4)}q${r2(w*.03)} ${r2(h*.1)} 0 ${r2(h*.2)}M${r2(w*.53)} ${r2(h*.34)}q${r2(w*.05)} ${r2(h*.16)} 0 ${r2(h*.32)}`)],tb:{x:2,y:h*.15,w:w*.44,h:h*.7},hit:true});
+    case 's_enable': return blk(RR4(w,h),{decor:[D(R(w*.3,h*.08,w*.4,h*.18),'stroke',false,{op:.35})],glyphs:[{t:'1  2  3',x:cx,y:h*.86,s:h*.14,b:true}],tb:{x:4,y:h*.3,w:w-8,h:h*.4}});
+    case 's_twohand': return blk(RR4(w,h),{decor:[D(`M${r2(w*.12)} ${r2(h*.42)}A${r2(w*.14)} ${r2(h*.16)} 0 0 1 ${r2(w*.4)} ${r2(h*.42)}Z M${r2(w*.6)} ${r2(h*.42)}A${r2(w*.14)} ${r2(h*.16)} 0 0 1 ${r2(w*.88)} ${r2(h*.42)}Z`,'stroke'),D(PL([w*.26,h*.42],[w*.26,h*.56])+PL([w*.74,h*.42],[w*.74,h*.56])+PL([w*.1,h*.56],[w*.42,h*.56])+PL([w*.58,h*.56],[w*.9,h*.56]))],tb:{x:4,y:h*.62,w:w-8,h:h*.34}});
+    case 's_mat': { let hh=''; const k=h*.5; for(let x=6;x+k<=w-4;x+=10) hh+=PL([x,h-4],[x+k,4]); return blk(R(0,0,w,h),{decor:[D(hh,'none',false,{op:.5})],hit:true}); }
+    case 's_edge': { let hh=''; for(let x=4;x<w-2;x+=8) hh+=PL([x,h*.8],[x+5,h*.2]); return blk(`M${r2(h/2)} 0H${r2(w-h/2)}A${r2(h/2)} ${r2(h/2)} 0 0 1 ${r2(w-h/2)} ${r2(h)}H${r2(h/2)}A${r2(h/2)} ${r2(h/2)} 0 0 1 ${r2(h/2)} 0Z`,{decor:[D(hh)],label:true,tb:{x:0,y:0,w,h},hit:true}); }
+    case 's_lc': { const cw=w*.14; let beams=''; for(let i=1;i<8;i++){ const y=h*(i/8); beams+=PL([cw,y],[w-cw,y]); }
+      return sym(R(0,0,cw,h)+R(w-cw,0,cw,h),{decor:[D(beams,'none',true)],glyphs:[{t:'E',x:cw/2,y:h*.08,s:Math.min(cw*.8,12),b:true},{t:'R',x:w-cw/2,y:h*.08,s:Math.min(cw*.8,12),b:true}],ports:{W:[0,cy],E:[w,cy],N:[cx,0],S:[cx,h]}}); }
+    case 's_scan': return sym(R(cx-w*.12,h*.72,w*.24,h*.26),{decor:[D(`M${r2(cx)} ${r2(h*.72)}L${r2(w*.02)} ${r2(h*.6)}A${r2(w*.5)} ${r2(h*.58)} 0 0 1 ${r2(w*.98)} ${r2(h*.6)}Z`,'none',true),D(`M${r2(cx)} ${r2(h*.72)}L${r2(w*.2)} ${r2(h*.5)}A${r2(w*.34)} ${r2(h*.4)} 0 0 1 ${r2(w*.8)} ${r2(h*.5)}Z`,'stroke',false,{op:.12,ns:true})],ports:{S:[cx,h],N:[cx,h*.1],W:[w*.02,h*.6],E:[w*.98,h*.6]}});
+    case 's_sto': return blk(R(0,0,w,h),{decor:[D(PL([0,h],[w,0]),'none',false,{op:.4}),D(R(w*.08,h*.66,w*.36,h*.24),'stroke',false,{op:.15,ns:true})],glyphs:[{t:'~',x:w*.25,y:h*.24,s:h*.24},{t:'~',x:w*.75,y:h*.5,s:h*.24},{t:'STO',x:w*.26,y:h*.78,s:Math.min(h*.16,11),b:true}],tb:{x:w*.5,y:h*.6,w:w*.48,h:h*.36}});
+    case 's_valve': { const sq=Math.min(h*.6,w*.3), x0=w*.36, y0=(h-sq)/2;
+      return sym(R(x0,y0,sq,sq)+R(x0+sq,y0,sq,sq),{decor:[D(PL([x0+sq*.3,y0+sq],[x0+sq*.3,y0])+PL([x0+sq*.3,y0],[x0+sq*.22,y0+sq*.14])+PL([x0+sq*.3,y0],[x0+sq*.38,y0+sq*.14])+PL([x0+sq*1.2,y0+sq],[x0+sq*1.8,y0])),
+        D(R(w*.02,y0,w*.14,sq*.45)+R(w*.02,y0+sq*.55,w*.14,sq*.45)+PL([w*.16,cy],[x0,cy])),D(PL([w*.08,y0+sq*.05],[w*.1,y0+sq*.4])+PL([w*.08,y0+sq*.6],[w*.1,y0+sq*.95]))],glyphs:[]}); }
+    case 's_stack': { const n=3, sh=h*.8/n; let seg=''; for(let i=0;i<n;i++) seg+=R(w*.22,i*sh,w*.56,sh);
+      return sym(seg+R(w*.3,h*.8,w*.4,h*.1)+R(w*.12,h*.9,w*.76,h*.1),{glyphs:[{t:'R',x:cx,y:sh*.5,s:sh*.45,b:true},{t:'A',x:cx,y:sh*1.5,s:sh*.45,b:true},{t:'G',x:cx,y:sh*2.5,s:sh*.45,b:true}]}); }
+    case 's_loto': return sym(R(w*.12,h*.42,w*.5,h*.42)+`M${r2(w*.2)} ${r2(h*.42)}V${r2(h*.28)}A${r2(w*.17)} ${r2(h*.18)} 0 0 1 ${r2(w*.54)} ${r2(h*.28)}V${r2(h*.42)}`,{decor:[D(circ(w*.37,h*.6,m*.05),'stroke'),D(PL([w*.62,h*.55],[w*.74,h*.55])+R(w*.74,h*.42,w*.24,h*.42)+circ(w*.8,h*.5,m*.03))]});
+    case 's_key': return sym(R(0,0,w,h),{decor:[D(circ(w*.3,cy,m*.18)+PL([w*.48,cy],[w*.86,cy])+PL([w*.74,cy],[w*.74,cy+h*.16])+PL([w*.84,cy],[w*.84,cy+h*.12]))]});
+    case 's_fence': { let p=''; const n=Math.max(2,Math.round(w/60)); for(let i=0;i<=n;i++) p+=R(Math.min(w-h,i*(w-h)/n),0,h,h);
+      let x=''; for(let i=0;i<w;i+=8) x+=PL([i,h*.25],[i+4,h*.75]); return sym(R(0,h*.3,w,h*.4),{decor:[D(x,'none',false,{op:.6}),D(p,'stroke')],label:false,ports:{W:[0,cy],E:[w,cy]}}); }
+    case 's_gdoor': return sym(R(0,h-6,w*.08,6)+R(w*.92,h-6,w*.08,6),{decor:[D(PL([w*.08,h-3],[w*.08,h*.05])),D(`M${r2(w*.08)} ${r2(h*.05)}A${r2(w*.84)} ${r2(h*.95-3)} 0 0 1 ${r2(w*.92)} ${r2(h-3)}`,'none',true)],label:false});
+    case 's_warn': return sym(poly([[cx,h*.04],[w*.98,h*.96],[w*.02,h*.96]]),{glyphs:[{t:'!',x:cx,y:h*.66,s:h*.5,b:true}]});
+  }
+  return null;
+}
+function RR4(w,h){ return roundRect(w,h,4); }
+const ELEC_GEOM_TYPES=['e_tnotc','e_tnoto','e_tnctc','e_tncto','e_pbmush','e_pbmush_no','e_ss2','e_ss3','e_ls_nc','e_ps_no','e_ps_nc','e_ts_no','e_ts_nc','e_fs_no','e_fs_nc','e_flow_no','e_flow_nc','e_foot_no','e_prox','e_prox_nc','e_pe',
+  'e_sol','e_horn','e_plug','e_cb3','e_disc3','e_ms3','e_ol3','e_motor3','e_psu','e_diode','e_led','e_batt','e_amm','e_volt','e_heater','e_ct','e_coil_iec',
+  's_estop','s_estop2','s_guard','s_guard2','s_mirror','s_relay','s_ctrl','s_glock','s_coded','s_enable','s_twohand','s_mat','s_edge','s_lc','s_scan','s_sto','s_valve','s_stack','s_loto','s_key','s_fence','s_gdoor','s_warn'];
+const B_NEMA2='North American ladder-diagram style. The symbol family (float, flow, foot, limit, pressure, temperature switches, timed contacts TC/TO, selector switches, mushroom-head pushbuttons) is listed in Eaton MZ081001EN, Comparison of NEMA and IEC schematic diagrams. This drawing was not compared against that chart or against IEEE 315 / NFPA 79.';
+const B_ESTOP='IEC 60617 symbol S00258, "Switch, emergency stop": mushroom-head activated, with positive opening operation of the break contact and maintain position. Elements match that description; drawing proportions were not compared against the official graphic.';
+const B_ESTOP2='Two break contacts on one emergency-stop actuator, drawn by extending IEC 60617 S00258 (mushroom head, positive opening per S00226, maintain position). Not a published symbol; drawing not verified.';
+const B_GUARD='Position switch with a break contact and positive opening operation, as named in IEC 60617 (positive operation qualifier S00226). Drawing not compared against the official graphic.';
+const B_SAFEBLK='Generic block or pictorial. No single standard schematic symbol exists for this device; label it per your drawing legend.';
+const B_SRELAY='Generic block. Terminal names (A1, A2, S11, S12, S21, S22, S33, S34, 13, 14, 23, 24) are typical of many safety relays but vary by manufacturer; edit them to match the data sheet.';
+const B_MIRROR='Contactor with three main contacts and an auxiliary break contact marked M for a mirror contact. Generic drawing, not verified against IEC 60947-4-1 Annex F marking.';
+const SF={fill:'#ffffff',stroke:'#1f2430',fontSize:11,valign:'top'}, SFB={fill:'#fffbea',stroke:'#92400e',fontSize:11,valign:'middle'};
+(function addElectrical(){
+  const cat=LIB.find(c=>c.cat==='Electrical'), A=(key,name,type,w,h,o)=>Object.assign({key,name,type,w,h,style:EL,basis:B_NEMA2},o||{});
+  cat.items.push(
+    A('e_tnotc','Timed contact, NO, timed closed (on-delay)','e_tnotc',60,40),
+    A('e_tnoto','Timed contact, NO, timed open (off-delay)','e_tnoto',60,40),
+    A('e_tnctc','Timed contact, NC, timed closed (off-delay)','e_tnctc',60,40),
+    A('e_tncto','Timed contact, NC, timed open (on-delay)','e_tncto',60,40),
+    A('e_pbmush','Pushbutton, mushroom head, NC','e_pbmush',60,46),
+    A('e_pbmush_no','Pushbutton, mushroom head, NO','e_pbmush_no',60,46),
+    A('e_ss2','Selector switch, 2-position','e_ss2',60,46),
+    A('e_ss3','Selector switch, 3-position','e_ss3',60,56),
+    A('e_ls_nc','Limit switch, normally closed','e_ls_nc',60,40),
+    A('e_ps_no','Pressure switch, NO','e_ps_no',60,46), A('e_ps_nc','Pressure switch, NC','e_ps_nc',60,46),
+    A('e_ts_no','Temperature switch, NO','e_ts_no',60,46), A('e_ts_nc','Temperature switch, NC','e_ts_nc',60,46),
+    A('e_fs_no','Float (level) switch, NO','e_fs_no',60,50), A('e_fs_nc','Float (level) switch, NC','e_fs_nc',60,50),
+    A('e_flow_no','Flow switch, NO','e_flow_no',60,46), A('e_flow_nc','Flow switch, NC','e_flow_nc',60,46),
+    A('e_foot_no','Foot switch, NO','e_foot_no',60,46),
+    A('e_prox','Proximity switch, NO','e_prox',50,40,{basis:B_SAFEBLK}), A('e_prox_nc','Proximity switch, NC','e_prox_nc',50,40,{basis:B_SAFEBLK}),
+    A('e_pe','Photoelectric sensor','e_pe',50,44,{basis:B_SAFEBLK}),
+    A('e_coil_iec','Coil, IEC style (rectangle)','e_coil_iec',30,56,{basis:B_IEC}),
+    A('e_sol','Solenoid','e_sol',60,30,{basis:B_ANSI}),
+    A('e_horn','Horn / buzzer','e_horn',50,40,{basis:B_ANSI}),
+    A('e_plug','Plug and receptacle','e_plug',60,30,{basis:B_ANSI}),
+    A('e_cb3','Circuit breaker, 3-pole','e_cb3',60,70,{basis:B_ANSI}),
+    A('e_disc3','Disconnect switch, 3-pole','e_disc3',60,70,{basis:B_ANSI}),
+    A('e_ms3','Contactor main contacts, 3-pole','e_ms3',60,70,{basis:B_ANSI}),
+    A('e_ol3','Overload heaters, 3-pole','e_ol3',60,70,{basis:B_ANSI}),
+    A('e_motor3','Motor, 3-phase','e_motor3',56,70,{style:ELW,basis:B_ANSI}),
+    A('e_psu','Power supply, AC to DC','e_psu',70,60,{style:ELW,text:'24 VDC',basis:B_IEC}),
+    A('e_diode','Diode','e_diode',50,24,{basis:B_ANSI}), A('e_led','LED','e_led',50,34,{basis:B_ANSI}),
+    A('e_batt','Battery / DC source','e_batt',50,30,{basis:B_ANSI}),
+    A('e_amm','Ammeter','e_amm',60,40,{style:ELW,basis:B_ANSI}), A('e_volt','Voltmeter','e_volt',60,40,{style:ELW,basis:B_ANSI}),
+    A('e_heater','Heating element','e_heater',60,24,{basis:B_ANSI}),
+    A('e_ct','Current transformer','e_ct',60,40,{basis:B_ANSI})
+  );
+  const S2=(key,name,type,w,h,o)=>Object.assign({key,name,type,w,h,style:SF,basis:B_SAFEBLK},o||{});
+  LIB.splice(LIB.indexOf(cat)+1,0,{cat:'Electrical safety devices',items:[
+    S2('s_estop','Emergency stop, IEC (positive opening, latching)','s_estop',64,56,{basis:B_ESTOP}),
+    S2('s_estop2','Emergency stop, 2 channels','s_estop2',64,80,{basis:B_ESTOP2}),
+    S2('s_guard','Guard interlock switch, positive opening NC','s_guard',64,56,{basis:B_GUARD}),
+    S2('s_guard2','Guard interlock switch, 2 channels','s_guard2',64,80,{basis:B_GUARD}),
+    S2('s_glock','Guard locking switch (solenoid lock)','s_glock',140,56,{style:SFB,text:'Guard lock'}),
+    S2('s_coded','Coded non-contact safety switch','s_coded',120,46,{style:SFB,text:'Sensor'}),
+    S2('s_enable','Enabling switch, 3-position','s_enable',70,60,{style:SFB,text:'Enable'}),
+    S2('s_twohand','Two-hand control','s_twohand',100,64,{style:SFB,text:'Two-hand'}),
+    S2('s_lc','Safety light curtain (emitter and receiver)','s_lc',100,130,{style:Object.assign({},SF,{stroke:'#92400e'})}),
+    S2('s_scan','Safety laser scanner','s_scan',110,80,{style:Object.assign({},SF,{stroke:'#92400e'})}),
+    S2('s_mat','Safety mat','s_mat',120,70,{style:Object.assign({},SFB,{fill:'#fff7d6'}),text:'Safety mat'}),
+    S2('s_edge','Safety edge','s_edge',140,16,{style:Object.assign({},SF,{stroke:'#92400e'})}),
+    S2('s_relay','Safety relay','s_relay',150,90,{style:SFB,text:'Safety relay',basis:B_SRELAY}),
+    S2('s_ctrl','Safety controller','s_ctrl',130,100,{style:Object.assign({},SFB,{valign:'middle'}),text:'Safety controller'}),
+    S2('s_mirror','Safety contactor with mirror contact','s_mirror',60,80,{basis:B_MIRROR}),
+    S2('s_sto','Drive with Safe Torque Off','s_sto',100,80,{style:SFB,text:'VFD'}),
+    S2('s_valve','Safety valve, redundant solenoids','s_valve',110,50),
+    S2('s_stack','Stack light (tower light)','s_stack',30,70),
+    S2('s_loto','Lockout point','s_loto',46,40),
+    S2('s_key','Trapped key / key exchange','s_key',50,40,{style:SFB}),
+    S2('s_fence','Perimeter guard fence (plan view)','s_fence',240,10,{style:Object.assign({},SF,{fill:'#ffffff',stroke:'#92400e'})}),
+    S2('s_gdoor','Guard door (plan view)','s_gdoor',80,70,{style:Object.assign({},SF,{stroke:'#92400e'})}),
+    S2('s_warn','Hazard warning triangle','s_warn',44,40,{style:Object.assign({},SF,{fill:'#facc15',stroke:'#1f2430'})})
+  ]});
+})();
+
 const SYMBOL_INFO={}; LIB.forEach(c=>c.items.forEach(i=>{ if(i.basis&&!i.line) SYMBOL_INFO[i.type]={basis:i.basis,verified:!!i.verified,cat:c.cat}; }));
 const INST_TYPES=new Set(['p_inst','p_inst_cr','p_inst_aux','p_inst_bp','p_shared','p_shared_cr','p_plc_cr','p_comp_cr']);
 GEOM_TYPES.push(...Object.keys(SYMBOL_INFO),'n_router','n_switch','n_firewall','n_server','n_pc','n_laptop','n_ap','n_printer','n_phone','n_camera','n_rack','n_plc','n_hmi','n_indswitch','n_io','n_drive','n_media');
@@ -1495,10 +1703,10 @@ TYPE_NAMES.rect='Rectangle'; TYPE_NAMES.ellipse='Ellipse'; TYPE_NAMES.image='Pic
 
 function makeShape(key,x,y){
   const def=LIB_MAP[key]||LIB_MAP.rect;
-  return Object.assign({id:uid(),kind:'shape',type:def.type,x:r2(x),y:r2(y),w:def.w,h:def.h,text:def.text||'',style:Object.assign({},DEF_SHAPE_STYLE,def.style||{})},def.props||{});
+  return Object.assign({id:uid(),kind:'shape',type:def.type,x:r2(x),y:r2(y),w:def.w,h:def.h,text:def.text||'',style:Object.assign({},DEF_SHAPE_STYLE,def.style||{}),layer:activeLayerId()},def.props||{});
 }
 function makeLine(from,to,extra){
-  return Object.assign({id:uid(),kind:'line',from,to,route:S.prefs.route||'orthogonal',startArrow:'none',endArrow:'arrow',labels:[],style:Object.assign({},DEF_LINE_STYLE)},extra||{});
+  return Object.assign({id:uid(),kind:'line',from,to,route:S.prefs.route||'orthogonal',startArrow:'none',endArrow:'arrow',labels:[],style:Object.assign({},DEF_LINE_STYLE),layer:activeLayerId()},extra||{});
 }
 
 /* ============================== state ============================== */
@@ -1511,7 +1719,7 @@ let V={tx:80,ty:60,z:1};
 
 function defaultPrefs(){
   const narrow=(window.innerWidth||1200)<820;
-  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',recent:[],endings:END_DEFAULT.slice(),dragMode:'pan'};
+  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,recent:[],endings:END_DEFAULT.slice(),dragMode:'pan'};
 }
 function loadPrefs(){
   const p=defaultPrefs(); const raw=store.get(KEY_PREFS);
@@ -1522,16 +1730,127 @@ function loadPrefs(){
   if(!Array.isArray(p.recent)) p.recent=[]; p.recent=p.recent.filter(c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c)).slice(0,8);
   if(!Array.isArray(p.collapsed)) p.collapsed=[]; p.collapsed=p.collapsed.filter(c=>typeof c==='string').slice(0,40);
   if(!['auto','icons','labeled','names'].includes(p.libView)) p.libView='auto';
+  if(![0,90,180,270].includes(p.placeRot)) p.placeRot=0;
   if(!Array.isArray(p.opened)) p.opened=[]; p.opened=p.opened.filter(c=>typeof c==='string').slice(0,40);
   return p;
 }
 function savePrefs(){ store.set(KEY_PREFS,JSON.stringify(S.prefs)); }
 
 /* ============================== document model ============================== */
-function newPage(name){ return {id:uid(),name:name||'Page 1',items:[]}; }
+function newPage(name){ const l=newLayer('Layer 1'); return {id:uid(),name:name||'Page 1',items:[],layers:[l],activeLayer:l.id}; }
 function newDoc(){ const p=newPage('Page 1'); return {schema:SCHEMA,app:'linework',title:'Untitled diagram',pages:[p],activePage:p.id}; }
 function page(){ const d=S.doc; return d.pages.find(p=>p.id===d.activePage)||d.pages[0]; }
 function items(){ return page().items; }
+/* ============================== page size, background and layers ============================== */
+// Sizes in inches or millimetres; the canvas works at 96 px per inch and PDF at 72 pt per inch.
+const PAGE_SIZES={
+  letter:{n:'Letter, 8.5 x 11 in',w:8.5,h:11,u:'in'}, legal:{n:'Legal, 8.5 x 14 in',w:8.5,h:14,u:'in'},
+  tabloid:{n:'Tabloid / ANSI B, 11 x 17 in',w:11,h:17,u:'in'}, ansiC:{n:'ANSI C, 17 x 22 in',w:17,h:22,u:'in'},
+  ansiD:{n:'ANSI D, 22 x 34 in',w:22,h:34,u:'in'}, ansiE:{n:'ANSI E, 34 x 44 in',w:34,h:44,u:'in'},
+  a4:{n:'A4, 210 x 297 mm',w:210,h:297,u:'mm'}, a3:{n:'A3, 297 x 420 mm',w:297,h:420,u:'mm'}, a2:{n:'A2, 420 x 594 mm',w:420,h:594,u:'mm'},
+  a1:{n:'A1, 594 x 841 mm',w:594,h:841,u:'mm'}, a0:{n:'A0, 841 x 1189 mm',w:841,h:1189,u:'mm'}
+};
+const PX_IN=96;
+function pageSizePx(pg){
+  pg=pg||page(); const z=pg.size&&PAGE_SIZES[pg.size.k]; if(!z) return null;
+  const f=z.u==='in'?PX_IN:PX_IN/25.4; let w=Math.round(z.w*f), h=Math.round(z.h*f);
+  if(pg.size.o==='landscape'){ const t=w; w=h; h=t; }
+  return {w,h};
+}
+function newLayer(name){ return {id:uid(),name:name||'Layer 1',visible:true,locked:false}; }
+function ensureLayers(pg){
+  if(!Array.isArray(pg.layers)||!pg.layers.length) pg.layers=[newLayer('Layer 1')];
+  if(!pg.layers.some(l=>l.id===pg.activeLayer)) pg.activeLayer=pg.layers[0].id;
+  return pg.layers;
+}
+function activeLayerId(pg){ pg=pg||page(); ensureLayers(pg); return pg.activeLayer; }
+function layerOf(it,pg){ pg=pg||page(); const ls=ensureLayers(pg); return ls.find(l=>l.id===it.layer)||ls[0]; }
+// Visible items in the order they draw: layer by layer, containers first within each layer.
+function renderList(pg){
+  pg=pg||page(); const ls=ensureLayers(pg), idx=new Map(ls.map((l,i)=>[l.id,i])), buckets=ls.map(()=>[]);
+  for(const it of pg.items) buckets[idx.has(it.layer)?idx.get(it.layer):0].push(it);
+  const out=[]; ls.forEach((l,i)=>{ if(l.visible) out.push(...drawOrder(buckets[i])); });
+  return out;
+}
+// Items the pointer can reach: visible and not on a locked layer.
+function pickList(pg){ pg=pg||page(); return renderList(pg).filter(it=>!layerOf(it,pg).locked); }
+const selectable=it=>{ const l=layerOf(it); return l.visible&&!l.locked; };
+function renderSheet(){
+  const g=$('#sheet'), pg=page(), sz=pageSizePx(pg), bg=pg.bg;
+  stage.classList.toggle('has-sheet',!!sz);
+  stage.style.background=!sz&&bg?bg:'';
+  g.replaceChildren(...(sz?[sv('rect',{x:0,y:0,width:sz.w,height:sz.h,class:'sheet',fill:bg||'#ffffff'})]:[]));
+}
+function layerCmd(action,id){
+  const pg=page(), ls=ensureLayers(pg), L=ls.find(l=>l.id===id), i=ls.indexOf(L);
+  switch(action){
+    case 'add': { const n=newLayer('Layer '+(ls.length+1)); ls.push(n); pg.activeLayer=n.id; break; }
+    case 'active': if(L) pg.activeLayer=L.id; break;
+    case 'vis': if(L){ L.visible=!L.visible; if(!L.visible||L.locked) S.sel=new Set([...S.sel].filter(x=>{ const it=byId(x); return it&&selectable(it); })); } break;
+    case 'lock': if(L){ L.locked=!L.locked; S.sel=new Set([...S.sel].filter(x=>{ const it=byId(x); return it&&selectable(it); })); } break;
+    case 'up': if(i<ls.length-1){ ls.splice(i,1); ls.splice(i+1,0,L); } break;
+    case 'down': if(i>0){ ls.splice(i,1); ls.splice(i-1,0,L); } break;
+    case 'del': {
+      if(!L) return; if(ls.length<2){ toast('A page needs at least one layer.'); return; }
+      const gone=new Set(pg.items.filter(it=>layerOf(it,pg)===L).map(it=>it.id));
+      pg.items=pg.items.filter(it=>!gone.has(it.id)).map(it=>{ if(isLine(it)) for(const k of ['from','to']) if(it[k].id&&gone.has(it[k].id)){ const R=routeLine(it); const p=k==='from'?R.pts[0]:R.pts[R.pts.length-1]; it[k]={x:r2(p.x),y:r2(p.y)}; } return it; });
+      ls.splice(i,1); if(pg.activeLayer===L.id) pg.activeLayer=ls[Math.max(0,i-1)].id; S.sel.clear();
+      commit(); invalidate(); toast('Deleted "'+L.name+'"'+(gone.size?' and '+gone.size+' item'+(gone.size>1?'s':''):'')+'. Undo with Ctrl+Z.'); return;
+    }
+    default: return;
+  }
+  commit(); invalidate();
+}
+function moveSelToLayer(id){
+  const L=ensureLayers(page()).find(l=>l.id===id); if(!L) return;
+  const sel=unlockedSel(); if(!sel.length) return;
+  sel.forEach(it=>{ it.layer=L.id; }); if(!L.visible||L.locked) S.sel.clear();
+  commit(); invalidate(); toast(sel.length+' item'+(sel.length>1?'s':'')+' moved to '+L.name);
+}
+function layerSection(){
+  const pg=page(), ls=ensureLayers(pg), counts=new Map(ls.map(l=>[l.id,0]));
+  for(const it of pg.items){ const l=layerOf(it,pg); counts.set(l.id,counts.get(l.id)+1); }
+  const rows=ls.slice().reverse().map(l=>el('div',{class:'layer-row'+(l.id===pg.activeLayer?' on':''),'data-layer':l.id},
+    el('button',{type:'button',class:'lay-act','data-cmd':'layer:active:'+l.id,title:'Make this the active layer (new items go here)','aria-label':'Make '+l.name+' the active layer','aria-pressed':String(l.id===pg.activeLayer)},el('span',{class:'dot'})),
+    el('input',{type:'text','data-prop':'layerName:'+l.id,value:l.name,maxlength:60,'aria-label':'Layer name'}),
+    el('span',{class:'lay-n',text:String(counts.get(l.id)),title:'Items on this layer'}),
+    el('div',{class:'lay-btns'},
+    el('button',{type:'button',class:'btn icon sm','data-cmd':'layer:vis:'+l.id,title:l.visible?'Hide layer':'Show layer','aria-label':(l.visible?'Hide ':'Show ')+l.name,'aria-pressed':String(!l.visible)},icon(l.visible?'eye':'eyeOff',15)),
+    el('button',{type:'button',class:'btn icon sm','data-cmd':'layer:lock:'+l.id,title:l.locked?'Unlock layer':'Lock layer','aria-label':(l.locked?'Unlock ':'Lock ')+l.name,'aria-pressed':String(!!l.locked)},icon(l.locked?'lock':'unlock',15)),
+    el('button',{type:'button',class:'btn icon sm','data-cmd':'layer:up:'+l.id,title:'Move layer up','aria-label':'Move '+l.name+' up'},icon('up',15)),
+    el('button',{type:'button',class:'btn icon sm','data-cmd':'layer:down:'+l.id,title:'Move layer down','aria-label':'Move '+l.name+' down'},icon('down',15)),
+    el('button',{type:'button',class:'btn icon sm','data-cmd':'layer:del:'+l.id,title:'Delete layer','aria-label':'Delete '+l.name},icon('trash',15)))));
+  return section('Layers',el('div',{class:'layer-list'},rows),
+    el('button',{type:'button',class:'btn','data-cmd':'layer:add:',style:{marginTop:'6px'}},icon('plus',15),'Add layer'),
+    el('p',{class:'muted small',style:{marginTop:'6px'},text:'The top layer draws in front. New items go on the active layer (filled dot). Hidden layers are left out of exports; items on locked layers cannot be selected.'}));
+}
+function pageSection(){
+  const pg=page(), sz=pg.size, k=sz&&PAGE_SIZES[sz.k]?sz.k:'';
+  return section('Page',
+    row('Name',el('input',{type:'text','data-prop':'pageName',value:pg.name,maxlength:80,'aria-label':'Page name'})),
+    row('Size',selIn('pageSize',k,[['','Infinite canvas'],...Object.keys(PAGE_SIZES).map(x=>[x,PAGE_SIZES[x].n])],'Page size')),
+    k?row('Orientation',seg('pageOrient',sz.o==='landscape'?'landscape':'portrait',[{v:'portrait',l:'Portrait',t:'Portrait'},{v:'landscape',l:'Landscape',t:'Landscape'}])):null,
+    row('Background',colorIn('pageBg',pg.bg||'#ffffff','Page background color'),chk('pageBgNone',!pg.bg,'Default')),
+    row('Grid',chk('pref:grid',S.prefs.grid,'Show')),
+    row('Snapping',chk('pref:snap',S.prefs.snap,'Grid'),chk('pref:guides',S.prefs.guides,'Guides')),
+    row('Items',el('span',{class:'muted',text:items().length+' on this page'})),
+    k?el('p',{class:'muted small',style:{marginTop:'4px'},text:'The page starts at the top-left corner of the white sheet. SVG, PNG and PDF exports use the page area.'}):null);
+}
+function sanPageExtras(p,its){
+  const o={};
+  if(p.size&&typeof p.size==='object'&&PAGE_SIZES[p.size.k]) o.size={k:p.size.k,o:p.size.o==='landscape'?'landscape':'portrait'};
+  if(typeof p.bg==='string'&&COLOR_RE.test(p.bg)) o.bg=p.bg;
+  const seen=new Set();
+  o.layers=(Array.isArray(p.layers)?p.layers:[]).filter(l=>l&&typeof l==='object').slice(0,50).map(l=>{
+    let id=(typeof l.id==='string'&&l.id)?l.id.slice(0,64):uid(); if(seen.has(id)) id=uid(); seen.add(id);
+    return {id,name:str(l.name).slice(0,60)||'Layer',visible:l.visible!==false,locked:l.locked===true}; });
+  if(!o.layers.length) o.layers=[newLayer('Layer 1')];
+  o.activeLayer=o.layers.some(l=>l.id===p.activeLayer)?p.activeLayer:o.layers[0].id;
+  const ids=new Set(o.layers.map(l=>l.id));
+  for(const it of its) if(!ids.has(it.layer)) it.layer=o.layers[0].id;
+  return o;
+}
+
 function byId(id){ const its=items(); for(let i=0;i<its.length;i++) if(its[i].id===id) return its[i]; return null; }
 const isShape=i=>i&&i.kind==='shape', isLine=i=>i&&i.kind==='line';
 function selItems(){ return items().filter(i=>S.sel.has(i.id)); }
@@ -1592,12 +1911,12 @@ function sanitizeItem(it){
       route:ROUTES.includes(it.route)?it.route:'orthogonal',
       startArrow:ARROWS.includes(it.startArrow)?it.startArrow:'none',
       endArrow:ARROWS.includes(it.endArrow)?it.endArrow:'arrow',
-      labels:sanLabels(it),style:sanStyle(it.style,DEF_LINE_STYLE),groupId:gid,...sanAttrs(it),signal:SIGNALS[it.signal]?it.signal:undefined,
+      labels:sanLabels(it),style:sanStyle(it.style,DEF_LINE_STYLE),layer:typeof it.layer==='string'?it.layer.slice(0,64):undefined,groupId:gid,...sanAttrs(it),signal:SIGNALS[it.signal]?it.signal:undefined,
       waypoints:(Array.isArray(it.waypoints)&&it.waypoints.length&&it.route!=='straight'&&it.route!=='curved')?it.waypoints.slice(0,60).filter(q=>q&&Number.isFinite(+q.x)&&Number.isFinite(+q.y)).map(q=>({x:num(q.x,0),y:num(q.y,0)})):undefined};
   }
   return {id,kind:'shape',type:GEOM_TYPES.includes(it.type)?it.type:'rect',
     x:num(it.x,0),y:num(it.y,0),w:Math.max(4,num(it.w,100)),h:Math.max(4,num(it.h,60)),
-    text:str(it.text).slice(0,10000),style:sanStyle(it.style,DEF_SHAPE_STYLE),groupId:gid,
+    text:str(it.text).slice(0,10000),style:sanStyle(it.style,DEF_SHAPE_STYLE),layer:typeof it.layer==='string'?it.layer.slice(0,64):undefined,groupId:gid,
     rot:[90,180,270].includes(it.rot)?it.rot:undefined,flip:it.flip===true?true:undefined,...sanAttrs(it),
     img:(it.type==='image'&&typeof it.img==='string')?it.img.slice(0,64):undefined,
     family:['mindmap','org'].includes(it.family)?it.family:undefined,
@@ -1624,7 +1943,7 @@ function migrate(raw){
     const shapeIds=new Set(its.filter(isShape).map(s=>s.id));
     for(const L of its) if(isLine(L)) for(const k of ['from','to']) if(L[k].id&&!shapeIds.has(L[k].id)) L[k]={x:0,y:0};
     let pid=(typeof p.id==='string'&&p.id)?p.id:uid(); if(seenPages.has(pid)) pid=uid(); seenPages.add(pid);
-    return {id:pid,name:str(p.name).slice(0,80)||('Page '+(i+1)),items:its};
+    return Object.assign({id:pid,name:str(p.name).slice(0,80)||('Page '+(i+1)),items:its},sanPageExtras(p,its));
   });
   const active=pages.some(p=>p.id===d.activePage)?d.activePage:pages[0].id;
   return {schema:SCHEMA,app:'linework',title:str(d.title).slice(0,200)||'Untitled diagram',pages,activePage:active};
@@ -1632,6 +1951,7 @@ function migrate(raw){
 
 /* ============================== history & persistence ============================== */
 function commit(){
+  { const pg=page(), ids=new Set(ensureLayers(pg).map(l=>l.id)); for(const it of pg.items) if(!ids.has(it.layer)) it.layer=pg.activeLayer; }
   const H=S.history, snap=JSON.stringify(S.doc);
   if(H.stack[H.idx]===snap) return false;
   H.stack.length=H.idx+1; H.stack.push(snap);
@@ -2125,12 +2445,14 @@ function drawOrder(list){
 }
 function renderContent(){
   const frag=document.createDocumentFragment();
-  for(const it of drawOrder(items())){ const n=isShape(it)?renderShape(it):renderLine(it); if(n) frag.appendChild(n); }
+  renderSheet(); const pg=page();
+  for(const it of renderList(pg)){ const n=isShape(it)?renderShape(it):renderLine(it); if(n){ if(layerOf(it,pg).locked) n.classList.add('on-locked'); frag.appendChild(n); } }
   contentG.replaceChildren(frag);
   const hint=$('#emptyHint'); if(hint) hint.hidden=items().length>0;
 }
 function applyView(){
   viewportG.setAttribute('transform',`translate(${r2(V.tx)} ${r2(V.ty)}) scale(${V.z})`);
+  $('#sheet').setAttribute('transform',`translate(${r2(V.tx)} ${r2(V.ty)}) scale(${V.z})`);
   const s=GRID*V.z, M=s*5;
   const pm=$('#gridMinor'), pM=$('#gridMajor');
   pm.setAttribute('width',s); pm.setAttribute('height',s); pm.setAttribute('x',r2(V.tx)); pm.setAttribute('y',r2(V.ty));
@@ -2160,6 +2482,14 @@ function renderOverlay(){
   if(sel.length===1&&isShape(sel[0])&&!sel[0].locked&&!S.editing&&!(op&&op.type==='move'&&op.moved)){
     const s=sel[0], hs=8/z, hx={nw:[0,0],n:[.5,0],ne:[1,0],e:[1,.5],se:[1,1],s:[.5,1],sw:[0,1],w:[0,.5]};
     for(const k in hx) out.push(sv('rect',{x:r2(s.x+s.w*hx[k][0]-hs/2),y:r2(s.y+s.h*hx[k][1]-hs/2),width:r2(hs),height:r2(hs),rx:r2(1.5/z),class:'ov-handle','data-handle':k,'stroke-width':r2(1.2/z)}));
+  }
+  // Rotate button above the selection: click turns each shape 90 degrees, Shift-click turns it back.
+  if(sel.some(i=>isShape(i)&&!i.locked)&&!S.editing&&!(op&&op.type!=='pan')){
+    const b=sel.length===1?sel[0]:geoBBox(sel), cx=b.x+b.w/2, cy=b.y-24/z, r=10/z, k=r2(0.62/z);
+    out.push(sv('g',{class:'ov-rot','data-rotate':'1'},sv('title',null,'Rotate 90\u00b0 (Alt+R). Shift-click to rotate the other way.'),
+      sv('line',{x1:r2(cx),y1:r2(cy+r),x2:r2(cx),y2:r2(b.y),class:'ov-rot-stem','stroke-width':r2(1/z)}),
+      sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(r),'stroke-width':r2(1.2/z)}),
+      sv('path',{d:ICONS.rotate,transform:`translate(${r2(cx-12*k)} ${r2(cy-12*k)}) scale(${k})`,fill:'none','stroke-width':2.2})));
   }
   if(sel.length===1&&isShape(sel[0])&&sel[0].family&&!sel[0].locked&&!S.editing&&!(op&&op.type!=='pan')){
     const s=sel[0], mm=s.family==='mindmap', cx=mm?s.x+s.w+40/z:s.x+s.w/2, cy=mm?s.y+s.h/2:s.y+s.h+40/z, r=9/z;
@@ -2220,9 +2550,9 @@ function zoomAt(z,sx,sy){
 }
 function zoomBy(f){ const s=stageSize(); zoomAt(V.z*f,s.w/2,s.h/2); }
 function fitView(){
-  const s=stageSize(), its=items();
-  if(!its.length){ V.z=1; V.tx=80; V.ty=60; }
-  else { const b=bboxOf(its), pad=48, z=clamp(Math.min((s.w-pad*2)/Math.max(b.w,1),(s.h-pad*2)/Math.max(b.h,1)),0.1,1.5); V.z=z; V.tx=(s.w-b.w*z)/2-b.x*z; V.ty=(s.h-b.h*z)/2-b.y*z; }
+  const s=stageSize(), its=items(), sz=pageSizePx();
+  if(!its.length&&!sz){ V.z=1; V.tx=80; V.ty=60; }
+  else { const b=sz?(its.length?(q=>{ const x0=Math.min(0,q.x), y0=Math.min(0,q.y); return {x:x0,y:y0,w:Math.max(sz.w,q.x+q.w)-x0,h:Math.max(sz.h,q.y+q.h)-y0}; })(bboxOf(its)):{x:0,y:0,w:sz.w,h:sz.h}):bboxOf(its), pad=48, z=clamp(Math.min((s.w-pad*2)/Math.max(b.w,1),(s.h-pad*2)/Math.max(b.h,1)),0.1,1.5); V.z=z; V.tx=(s.w-b.w*z)/2-b.x*z; V.ty=(s.h-b.h*z)/2-b.y*z; }
   invalidate({content:true,overlay:true,chrome:true});
 }
 function viewCenterWorld(){ const s=stageSize(); return {x:(s.w/2-V.tx)/V.z,y:(s.h/2-V.ty)/V.z}; }
@@ -2236,7 +2566,7 @@ function expandGroups(ids){
   return set;
 }
 function shapeAt(w,pad,exclude){
-  const its=drawOrder(items());
+  const its=pickList();
   for(let i=its.length-1;i>=0;i--){ const s=its[i]; if(!isShape(s)||s.id===exclude) continue; if(w.x>=s.x-pad&&w.x<=s.x+s.w+pad&&w.y>=s.y-pad&&w.y<=s.y+s.h+pad) return s; }
   return null;
 }
@@ -2278,10 +2608,12 @@ function addShape(key,x,y,props){
   setSel([s.id]); commit(); invalidate();
   return s;
 }
-function addFromLib(key,x,y){
+function addFromLib(key,x,y,rot){
   if(x==null){ const c=viewCenterWorld(), k=(S.addCount++%8)*20; x=c.x+k; y=c.y+k; }
   if(LIB_MAP[key]&&LIB_MAP[key].tpl) return buildSwimlanes(LIB_MAP[key],x,y)[0];
-  return addShape(key,x,y);
+  const s=addShape(key,x,y), turns=Math.round(((rot==null?S.prefs.placeRot:rot)||0)/90);
+  if(turns%4){ rotateShapes([s],turns); commit(); invalidate(); }
+  return s;
 }
 function addLine(from,to,extra){ const L=makeLine(from,to,extra); items().push(L); commit(); invalidate(); return L; }
 function copySel(){
@@ -2366,10 +2698,17 @@ function remapSides(ids,map,rev){
 }
 function cleanXf(s){ if(!s.rot) delete s.rot; if(!s.flip) delete s.flip; }
 // Rotate 90 degrees clockwise about the center; pinned connectors move with their side.
-function rotateSel(){
+// Each shape turns about its own center in 90 degree steps (steps 3 = counterclockwise).
+function rotateShapes(sh,steps){
+  steps=((steps%4)+4)%4;
+  for(let k=0;k<steps;k++){
+    for(const s of sh){ const cx=s.x+s.w/2, cy=s.y+s.h/2, nw=s.h, nh=s.w; s.w=nw; s.h=nh; s.x=r2(cx-nw/2); s.y=r2(cy-nh/2); s.rot=((s.rot||0)+90)%360; cleanXf(s); }
+    remapSides(new Set(sh.map(s=>s.id)),ROT_SIDE,['E','W']);
+  }
+}
+function rotateSel(ccw){
   const sh=unlockedSel().filter(isShape); if(!sh.length){ toast('Select a shape to rotate.'); return; }
-  for(const s of sh){ const cx=s.x+s.w/2, cy=s.y+s.h/2, nw=s.h, nh=s.w; s.w=nw; s.h=nh; s.x=r2(cx-nw/2); s.y=r2(cy-nh/2); s.rot=((s.rot||0)+90)%360; cleanXf(s); }
-  remapSides(new Set(sh.map(s=>s.id)),ROT_SIDE,['E','W']); commit(); invalidate();
+  rotateShapes(sh,ccw===true?3:1); commit(); invalidate();
 }
 // Mirror across the displayed vertical (h) or horizontal (v) axis.
 function flipSel(axis){
@@ -2684,6 +3023,8 @@ function onPointerDown(e){
   if(react){ const it=byId(react.closest('[data-id]').getAttribute('data-id')); if(it&&it.reactions){ it.reactions=it.reactions.filter(x=>x!==react.getAttribute('data-react')); if(!it.reactions.length) delete it.reactions; commit(); invalidate(); } return; }
   const port=t&&t.closest('[data-port]'), handle=t&&t.closest('[data-handle]'), itemEl=t&&t.closest('[data-id]'), labEl=t&&t.closest('[data-label]'), segEl=t&&t.closest('[data-seg]');
   const addEl=t&&t.closest('[data-addchild]');
+  const rotEl=t&&t.closest('[data-rotate]');
+  if(rotEl){ rotateSel(e.shiftKey); return; }
   if(addEl){ addFamilyChild(byId(addEl.getAttribute('data-addchild')),false); return; }
   if(segEl){ const L=byId(segEl.getAttribute('data-lid')); if(L&&!L.locked){ const R=routeLine(L); S.op={type:'seg',id:L.id,base:segDragBase(R.pts,+segEl.getAttribute('data-seg')),start:w,sx:e.clientX,sy:e.clientY,moved:false}; S.lastTap=null; } return; }
   if(port){ S.op={type:'connect',from:port.getAttribute('data-sid'),side:port.getAttribute('data-port'),port:port.getAttribute('data-devport')||null,cur:w,target:null,sx:e.clientX,sy:e.clientY}; S.lastTap=null; invalidate({overlay:true}); return; }
@@ -2750,7 +3091,7 @@ function onPointerMove(e){
     case 'marquee': {
       op.cur=w; const x1=Math.min(op.start.x,w.x), y1=Math.min(op.start.y,w.y), x2=Math.max(op.start.x,w.x), y2=Math.max(op.start.y,w.y);
       const ns=new Set(op.base);
-      for(const it of items()){ const b=itemBBox(it); if(b.x>=x1&&b.y>=y1&&b.x+b.w<=x2&&b.y+b.h<=y2) ns.add(it.id); }
+      for(const it of pickList()){ const b=itemBBox(it); if(b.x>=x1&&b.y>=y1&&b.x+b.w<=x2&&b.y+b.h<=y2) ns.add(it.id); }
       S.sel=expandGroups(ns); invalidate({overlay:true}); break;
     }
     case 'move': {
@@ -2914,24 +3255,26 @@ function wireLibrary(){
   const left=$('#left');
   left.addEventListener('pointerdown',e=>{
     const tile=e.target.closest('[data-lib]'); if(!tile||e.button>0) return;
-    const key=tile.getAttribute('data-lib'), st={key,sx:e.clientX,sy:e.clientY,ghost:null,pid:e.pointerId};
+    const key=tile.getAttribute('data-lib'), st={key,sx:e.clientX,sy:e.clientY,ghost:null,pid:e.pointerId,rot:S.prefs.placeRot||0};
+    const turn=()=>{ if(st.ghost){ const g=st.ghost.firstChild; if(g) g.style.transform='rotate('+st.rot+'deg)'; } };
+    const keyR=ev=>{ if(ev.code!=='KeyR'||LIB_MAP[key].line||LIB_MAP[key].tpl) return; ev.preventDefault(); ev.stopPropagation(); st.rot=(st.rot+(ev.shiftKey?270:90))%360; turn(); };
     const move=ev=>{
       if(ev.pointerId!==st.pid) return;
       if(!st.ghost){
         if(Math.hypot(ev.clientX-st.sx,ev.clientY-st.sy)<5) return;
         const def=LIB_MAP[key], p=tilePreview(def); p.setAttribute('width',r2((def.w||160)*V.z)); p.setAttribute('height',r2((def.h||30)*V.z));
-        st.ghost=el('div',{class:'ghost-drag'},p); document.body.appendChild(st.ghost);
+        st.ghost=el('div',{class:'ghost-drag'},p); document.body.appendChild(st.ghost); turn();
       }
       st.ghost.style.transform=`translate(${ev.clientX}px,${ev.clientY}px)`;
       st.ghost.classList.toggle('over',overStage(ev));
     };
     const up=ev=>{
       if(ev.pointerId!==st.pid) return;
-      window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up);
-      if(st.ghost){ st.ghost.remove(); if(ev.type==='pointerup'&&overStage(ev)){ const w=toWorld(ev); if(LIB_MAP[key].line) addLineFromLib(key,w.x,w.y); else addFromLib(key,w.x,w.y); } }
+      window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up); window.removeEventListener('keydown',keyR,true);
+      if(st.ghost){ st.ghost.remove(); if(ev.type==='pointerup'&&overStage(ev)){ const w=toWorld(ev); if(LIB_MAP[key].line) addLineFromLib(key,w.x,w.y); else addFromLib(key,w.x,w.y,st.rot); } }
       else if(ev.type==='pointerup'){ if(LIB_MAP[key].line) addLineFromLib(key); else addFromLib(key); }
     };
-    window.addEventListener('pointermove',move); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
+    window.addEventListener('pointermove',move); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up); window.addEventListener('keydown',keyR,true);
   });
   left.addEventListener('click',e=>{
     const tile=e.target.closest('[data-lib]'); if(tile&&e.detail===0){ const k=tile.getAttribute('data-lib'); if(LIB_MAP[k].line) addLineFromLib(k); else addFromLib(k); return; }
@@ -2944,6 +3287,8 @@ function wireLibrary(){
   $('#libSearch').addEventListener('input',e=>filterLibrary(e.target.value));
   const lv=$('#libView'); lv.value=S.prefs.libView;
   lv.addEventListener('change',()=>{ S.prefs.libView=lv.value; savePrefs(); buildLibrary(); filterLibrary($('#libSearch').value); });
+  const pr=$('#placeRot'); pr.value=String(S.prefs.placeRot||0);
+  pr.addEventListener('change',()=>{ S.prefs.placeRot=[0,90,180,270].includes(+pr.value)?+pr.value:0; savePrefs(); toast(S.prefs.placeRot?'New shapes will be placed rotated '+S.prefs.placeRot+'\u00b0':'New shapes will be placed as drawn'); });
 }
 
 /* ============================== properties panel ============================== */
@@ -2962,13 +3307,9 @@ function renderProps(){
   if(!sel.length){
     K.push(el('div',{class:'props-title',text:'Diagram'}));
     K.push(section('Document',row('Title',el('input',{type:'text','data-prop':'docTitle',value:S.doc.title,maxlength:200,'aria-label':'Document title'}))));
-    K.push(section('Page',
-      row('Name',el('input',{type:'text','data-prop':'pageName',value:page().name,maxlength:80,'aria-label':'Page name'})),
-      row('Grid',chk('pref:grid',S.prefs.grid,'Show')),
-      row('Snapping',chk('pref:snap',S.prefs.snap,'Grid'),chk('pref:guides',S.prefs.guides,'Guides')),
-      row('Items',el('span',{class:'muted',text:items().length+' on this page'}))));
+    K.push(pageSection());
+    K.push(layerSection());
     K.push(section('Tips',el('p',{class:'muted small',text:'Select a shape or line to style it. Hover a shape and drag one of its blue dots to draw a connector. Double-click to edit text.'})));
-    K.push(soonSection(['Page size and orientation','Page background','Layers']));
     root.replaceChildren(...K); return;
   }
   const shapes=sel.filter(isShape), lines=sel.filter(isLine), f=sel[0], fs=shapes[0], fl=lines[0];
@@ -3049,6 +3390,8 @@ function renderProps(){
       .map(a=>el('button',{class:'btn icon','data-cmd':a[0],title:a[2],'aria-label':a[2]},icon(a[1],16))),
     shapes.length>=3?[el('button',{class:'btn icon','data-cmd':'distH',title:'Distribute horizontally','aria-label':'Distribute horizontally'},icon('distH',16)),el('button',{class:'btn icon','data-cmd':'distV',title:'Distribute vertically','aria-label':'Distribute vertically'},icon('distV',16))]:null));
   K.push(section('Arrange',...arr));
+  { const ls=ensureLayers(page()); if(ls.length>1){ const cur=new Set(sel.map(i=>layerOf(i).id));
+    K.push(section('Layer',row('On layer',selIn('itemLayer',cur.size===1?[...cur][0]:'',[...(cur.size>1?[['','Several layers']]:[]),...ls.slice().reverse().map(l=>[l.id,l.name])],'Move to layer')))); } }
   K.push(section('Attributes',
     row('Reactions',el('span',{class:'react-list'},(f.reactions||[]).map(e=>el('span',{class:'react-chip',text:e}))),el('button',{class:'btn','data-cmd':'openReactions',text:(f.reactions||[]).length?'Edit':'Add'})),
     row('Link',el('input',{type:'url','data-prop':'link',value:f.link||'',placeholder:'https://','aria-label':'Link address'})),
@@ -3063,6 +3406,12 @@ function parseVal(v){ if(v==='true') return true; if(v==='false') return false; 
 function applyProp(prop,v,final){
   if(prop==='docTitle'){ S.doc.title=String(v).slice(0,200)||'Untitled diagram'; if(final) commit(); invalidate({chrome:true}); return; }
   if(prop==='pageName'){ page().name=String(v).slice(0,80)||'Untitled page'; if(final) commit(); invalidate({pages:true}); return; }
+  if(prop==='pageSize'){ const pg=page(); if(PAGE_SIZES[v]) pg.size={k:v,o:pg.size?(pg.size.o==='landscape'?'landscape':'portrait'):(PAGE_SIZES[v].u==='in'&&PAGE_SIZES[v].w>=11?'landscape':'portrait')}; else delete pg.size; commit(); invalidate(); return; }
+  if(prop==='pageOrient'){ const pg=page(); if(pg.size){ pg.size.o=v==='landscape'?'landscape':'portrait'; commit(); invalidate(); } return; }
+  if(prop==='pageBg'){ if(COLOR_RE.test(v)){ page().bg=v; if(final) commit(); invalidate({content:true,props:final}); } return; }
+  if(prop==='pageBgNone'){ const pg=page(); if(v) delete pg.bg; else pg.bg='#fffdf5'; commit(); invalidate(); return; }
+  if(prop.startsWith('layerName:')){ const L=ensureLayers(page()).find(l=>l.id===prop.slice(10)); if(L){ L.name=String(v).slice(0,60)||'Layer'; if(final) commit(); } return; }
+  if(prop==='itemLayer'){ if(v) moveSelToLayer(v); return; }
   if(prop.startsWith('pref:')){ S.prefs[prop.slice(5)]=!!v; savePrefs(); invalidate({overlay:true,chrome:true}); return; }
   const sel=unlockedSel(); if(!sel.length) return;
   const shapes=sel.filter(isShape), lines=sel.filter(isLine);
@@ -3531,7 +3880,7 @@ function pasteStyle(){
   }
   commit(); invalidate(); toast('Style pasted');
 }
-function selectWhere(fn,label){ const ids=items().filter(fn).map(i=>i.id); setSel(ids); toast(ids.length+' '+label+' selected'); }
+function selectWhere(fn,label){ const ids=pickList().filter(fn).map(i=>i.id); setSel(ids); toast(ids.length+' '+label+' selected'); }
 function selectSameFill(){ const f=selItems().find(isShape); if(!f){ toast('Select a shape first.'); return; } selectWhere(i=>isShape(i)&&i.style.fill===f.style.fill,'shapes with that fill'); }
 function duplicatePage(id){
   const src=S.doc.pages.find(p=>p.id===(id||S.doc.activePage)); if(!src) return;
@@ -3539,7 +3888,7 @@ function duplicatePage(id){
   its.forEach(i=>map.set(i.id,uid()));
   its.forEach(i=>{ i.id=map.get(i.id); if(i.groupId){ if(!gmap.has(i.groupId)) gmap.set(i.groupId,uid()); i.groupId=gmap.get(i.groupId); }
     if(isLine(i)) for(const k of ['from','to']) if(i[k].id) i[k].id=map.get(i[k].id); });
-  const p={id:uid(),name:(src.name+' copy').slice(0,80),items:its};
+  const p=Object.assign({id:uid(),name:(src.name+' copy').slice(0,80),items:its},JSON.parse(JSON.stringify({size:src.size,bg:src.bg,layers:ensureLayers(src),activeLayer:src.activeLayer})));
   S.doc.pages.splice(S.doc.pages.indexOf(src)+1,0,p); S.doc.activePage=p.id; S.sel.clear();
   S.views[p.id]=Object.assign({},viewFor(src.id)); V=viewFor(p.id); commit(); invalidate(); toast('Page duplicated');
 }
@@ -3598,7 +3947,7 @@ async function insertImageData(data,type,at,size,name){
   const target=S.replaceImageId?byId(S.replaceImageId):null; S.replaceImageId=null;
   if(target&&target.type==='image'){ target.img=rec.id; const k=target.w/Math.max(1,sz.w); target.h=r2(Math.max(10,sz.h*k)); commit(); invalidate(); toast('Picture replaced'); return target; }
   const k=Math.min(1,400/Math.max(sz.w,sz.h,1)), w=Math.max(20,Math.round(sz.w*k)), h=Math.max(20,Math.round(sz.h*k)), c=at||viewCenterWorld();
-  const s={id:uid(),kind:'shape',type:'image',x:r2(c.x-w/2),y:r2(c.y-h/2),w,h,text:'',style:Object.assign({},DEF_SHAPE_STYLE,{fill:'none',stroke:'none',fontSize:12,valign:'top'}),img:rec.id};
+  const s={id:uid(),kind:'shape',type:'image',x:r2(c.x-w/2),y:r2(c.y-h/2),w,h,text:'',style:Object.assign({},DEF_SHAPE_STYLE,{fill:'none',stroke:'none',fontSize:12,valign:'top'}),layer:activeLayerId(),img:rec.id};
   if(S.prefs.snap){ s.x=Math.round(s.x/GRID)*GRID; s.y=Math.round(s.y/GRID)*GRID; }
   items().push(s); setSel([s.id]); commit(); invalidate();
   toast(stored?'Picture added':'Picture added. This browser cannot keep pictures between visits, so use File > Save as JSON to keep it.');
@@ -3681,7 +4030,7 @@ function buildPdf(pages,title){
 }
 function pageSvgs(all){
   const list=all?S.doc.pages:[page()], prev=S.doc.activePage, out=[];
-  try{ for(const pg of list){ if(!pg.items.length) continue; S.doc.activePage=pg.id; out.push(exportSVGString()); } }
+  try{ for(const pg of list){ if(!renderList(pg).length) continue; S.doc.activePage=pg.id; out.push(exportSVGString()); } }
   finally{ S.doc.activePage=prev; }
   return out;
 }
@@ -3704,7 +4053,7 @@ const MENUS={
   file:[['New diagram','newDoc'],['Duplicate page','duplicatePage'],['Open JSON file...','openJson','Ctrl+O'],['Save as JSON','saveJson','Ctrl+S'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import Visio or Lucidchart file','soon:Import from other diagram tools',null,true],['Revision history','soon:Revision history',null,true]],
   edit:[['Undo','undo','Ctrl+Z'],['Redo','redo','Ctrl+Shift+Z'],'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',['Select all','selectAll','Ctrl+A'],['Select all shapes','selectShapes'],['Select all lines','selectLines'],['Select same fill color','selectSameFill'],'-',['Edit text','editText','Enter'],['Add text to line','addLineText'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],'-',['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],'-',['Find and replace','soon:Find and replace',null,true],['Notes and tags','soon:Notes and tags on shapes',null,true]],
   insert:[['Picture...','insertImage'],['Text box','insertText'],['Sticky note','insertNote'],['Page','addPage'],'-',['Icons','soon:Icon sets',null,true],['Freehand drawing','soon:Freehand pen',null,true]],
-  arrange:[['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',['Group','group','Ctrl+G'],['Ungroup','ungroup','Ctrl+Shift+G'],'-',['Align left','alignL'],['Align center','alignC'],['Align right','alignR'],['Align top','alignT'],['Align middle','alignM'],['Align bottom','alignB'],'-',['Distribute horizontally','distH'],['Distribute vertically','distV'],'-',['Rotate 90\u00b0 clockwise','rotate'],['Flip horizontal','flipH'],['Flip vertical','flipV'],['Free rotation','soon:Free rotation',null,true],'-',['Lock / unlock','toggleLock','Ctrl+Shift+L'],['Swap line endpoints','swapEnds']],
+  arrange:[['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',['Group','group','Ctrl+G'],['Ungroup','ungroup','Ctrl+Shift+G'],'-',['Align left','alignL'],['Align center','alignC'],['Align right','alignR'],['Align top','alignT'],['Align middle','alignM'],['Align bottom','alignB'],'-',['Distribute horizontally','distH'],['Distribute vertically','distV'],'-',['Rotate 90\u00b0 clockwise','rotate','Alt+R'],['Rotate 90\u00b0 counterclockwise','rotateCcw','Alt+Shift+R'],['Flip horizontal','flipH'],['Flip vertical','flipV'],['Free rotation','soon:Free rotation',null,true],'-',['Lock / unlock','toggleLock','Ctrl+Shift+L'],['Swap line endpoints','swapEnds']],
   view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','soon:Mini map',null,true],['Presentation mode','soon:Presentation mode',null,true],['Comments','soon:Comments',null,true]],
   help:[['Getting started and shortcuts','help','F1'],['About Linework','about']]
 };
@@ -3754,12 +4103,12 @@ function showCtx(x,y){
 function fileBase(){ return (S.doc.title||'diagram').replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'-').slice(0,60)||'diagram'; }
 function exportSVGString(opts){
   opts=opts||{};
-  const its=items(), b=its.length?bboxOf(its):{x:0,y:0,w:100,h:100}, pad=opts.pad!=null?opts.pad:24;
-  const W=Math.ceil(b.w+pad*2), H=Math.ceil(b.h+pad*2), x0=r2(b.x-pad), y0=r2(b.y-pad);
+  const pg=page(), its=renderList(pg), sz=pageSizePx(pg), b=its.length?bboxOf(its):{x:0,y:0,w:100,h:100}, pad=opts.pad!=null?opts.pad:24;
+  const W=sz?sz.w:Math.ceil(b.w+pad*2), H=sz?sz.h:Math.ceil(b.h+pad*2), x0=sz?0:r2(b.x-pad), y0=sz?0:r2(b.y-pad);
   const root=sv('svg',{width:W,height:H,viewBox:`${x0} ${y0} ${W} ${H}`});
-  if(opts.background!==false) root.appendChild(sv('rect',{x:x0,y:y0,width:W,height:H,fill:'#ffffff'}));
+  if(opts.background!==false||pg.bg) root.appendChild(sv('rect',{x:x0,y:y0,width:W,height:H,fill:pg.bg||'#ffffff'}));
   const wasEditing=S.editing;
-  for(const it of drawOrder(its)) root.appendChild(isShape(it)?renderShape(it,{export:true}):renderLine(it,{export:true}));
+  for(const it of its) root.appendChild(isShape(it)?renderShape(it,{export:true}):renderLine(it,{export:true}));
   S.editing=wasEditing;
   return '<?xml version="1.0" encoding="UTF-8"?>\n'+new XMLSerializer().serializeToString(root);
 }
@@ -3901,8 +4250,8 @@ function showTextModal(name,text){
   try{ ta.focus(); ta.select(); }catch(e){}
 }
 function showHelp(){
-  const sc=[['Drag from library','Add a shape where you drop it'],['Click or tap a shape tile','Add it in the middle of the view'],['Double-click / double-tap','Edit shape text, or add a text box on a line where you click'],['Click a line','Open the editing bar (right-click a shape for its bar)'],['Type with a shape selected','Add to its text (Ctrl+A in the editor selects all to replace it)'],['Double-click inside text','Place the cursor there to edit'],['Ctrl+Enter or Esc','Finish editing text'],['Shift+click','Add to or remove from selection'],['Drag on empty canvas','Pan the view (Select mode: box-select)'],['Shift+drag on empty canvas','Box-select'],['Shift while dragging','Turn off grid and alignment snapping'],['Tab / Enter on a topic or org box','Add a child / add a sibling'],['Space+drag, middle-drag, scroll','Pan the canvas'],['Ctrl+scroll, pinch','Zoom'],['Shift while resizing','Keep proportions'],['Arrow keys (Shift for 10)','Nudge selection'],['Ctrl+Z / Ctrl+Shift+Z','Undo / redo'],['Ctrl+C / X / V / D','Copy, cut, paste, duplicate'],['Ctrl+G / Ctrl+Shift+G','Group / ungroup'],['Ctrl+] / Ctrl+[','Bring forward / send backward (add Shift for front / back)'],['Ctrl+= / Ctrl+- / Ctrl+0','Zoom in, out, actual size'],['Shift+1','Zoom to fit'],['Ctrl+S / Ctrl+O','Save as JSON / open JSON'],['Delete or Backspace','Delete selection'],['Ctrl+K','Attach a link'],['Ctrl+Alt+C / Ctrl+Alt+V','Copy style / paste style'],['Ctrl+Shift+L','Lock or unlock'],['F1 or ?','Open this help']];
-  const soon=['Sharing and real-time collaboration','Comments','Presentation mode','Revision history','Free rotation','Containers and swimlanes','Tags, notes, alt text and actions on shapes','Icon sets and freehand pen','Mini map','Page tab colors and master pages','Templates gallery','Embedded links','Additional shape libraries (UML, BPMN, network, cloud, IEC electrical, org chart, mind map)','P&ID signal line types (pneumatic, hydraulic, data link)','Free-form bends on straight and curved lines','Data linking','Import from other diagram tools','Find and replace','Page size, background and layers'];
+  const sc=[['Drag from library','Add a shape where you drop it'],['Click or tap a shape tile','Add it in the middle of the view'],['Double-click / double-tap','Edit shape text, or add a text box on a line where you click'],['Click a line','Open the editing bar (right-click a shape for its bar)'],['Type with a shape selected','Add to its text (Ctrl+A in the editor selects all to replace it)'],['Double-click inside text','Place the cursor there to edit'],['Ctrl+Enter or Esc','Finish editing text'],['Shift+click','Add to or remove from selection'],['Drag on empty canvas','Pan the view (Select mode: box-select)'],['Shift+drag on empty canvas','Box-select'],['Shift while dragging','Turn off grid and alignment snapping'],['Tab / Enter on a topic or org box','Add a child / add a sibling'],['Space+drag, middle-drag, scroll','Pan the canvas'],['Ctrl+scroll, pinch','Zoom'],['Shift while resizing','Keep proportions'],['Arrow keys (Shift for 10)','Nudge selection'],['Ctrl+Z / Ctrl+Shift+Z','Undo / redo'],['Ctrl+C / X / V / D','Copy, cut, paste, duplicate'],['Ctrl+G / Ctrl+Shift+G','Group / ungroup'],['Ctrl+] / Ctrl+[','Bring forward / send backward (add Shift for front / back)'],['Ctrl+= / Ctrl+- / Ctrl+0','Zoom in, out, actual size'],['Shift+1','Zoom to fit'],['Ctrl+S / Ctrl+O','Save as JSON / open JSON'],['Delete or Backspace','Delete selection'],['Ctrl+K','Attach a link'],['Ctrl+Alt+C / Ctrl+Alt+V','Copy style / paste style'],['Ctrl+Shift+L','Lock or unlock'],['Alt+R / Alt+Shift+R','Rotate selection 90\u00b0 clockwise / counterclockwise'],['R while dragging a library tile','Turn the shape 90\u00b0 before you drop it (Shift+R the other way)'],['F1 or ?','Open this help']];
+  const soon=['Sharing and real-time collaboration','Comments','Presentation mode','Revision history','Free rotation (any angle; 90\u00b0 steps work now)','Tags, notes, alt text and actions on shapes','Icon sets and freehand pen','Mini map','Page tab colors and master pages','Templates gallery','Embedded links','Additional shape libraries (UML, BPMN, full IEC 60617 electrical set)','Free-form bends on straight and curved lines','Data linking','Import from other diagram tools','Find and replace'];
   openModal('Getting started with Linework',
     el('h3',{text:'Add shapes'}),el('p',{text:'Drag any shape from the library on the left onto the canvas, or click or tap a tile to drop it in the middle of the view. Use the search box to filter shapes.'}),
     el('h3',{text:'Connect shapes'}),el('p',{text:'Hover a shape to show four blue dots. Drag a dot onto another shape. Drop it on one of the green side dots to pin the line to that side, or anywhere on the shape body for a floating connection that picks the best side as shapes move. Release on empty canvas to choose a new shape to create at the end of the line.'}),
@@ -3928,6 +4277,11 @@ function showHelp(){
     el('h3',{text:'Re-routing lines'}),el('p',{text:'Select an elbow line to show a small handle on each segment. Drag a handle to move that segment; the bends stay where you put them when shapes move. Right-click the line and choose Reset line path to go back to automatic routing. Changing the line shape or reconnecting an end also resets it.'}),
     el('h3',{text:'Pictures'}),el('p',{text:'Use Insert > Picture, the Picture toolbar button or Upload picture in the library, or drag a picture file onto the canvas, or paste one. PNG, JPEG, GIF, WebP, SVG and BMP up to 15 MB. Corner handles keep the proportions (hold Shift to stretch). Pictures are stored in this browser and are included when you Save as JSON, so the file reopens complete anywhere.'}),
     el('h3',{text:'PDF'}),el('p',{text:'File > Export PDF makes a PDF of this page, or all pages with one PDF page each, sized to the drawing. Pages are high-resolution images of the diagram, so the text in the PDF is not selectable.'}),
+    el('h3',{text:'Page size and background'}),el('p',{text:'Click empty canvas to see Page settings in the right panel. Size is Infinite canvas (the default) or a sheet: Letter, Legal, Tabloid, ANSI C, D and E, or A4 to A0. The sheet is drawn at 96 pixels per inch on a gray pasteboard, and Orientation switches Portrait and Landscape. Background sets the sheet color (or the canvas color on an infinite canvas); tick Default to go back to white. SVG, PNG and PDF exports of a sized page are cut to the sheet, so anything outside it is left out.'}),
+    el('h3',{text:'Layers'}),el('p',{text:'Each page has its own layers, listed under Layers when nothing is selected. The top row draws on top. Click the dot at the left of a layer to make it active: new shapes and lines go on the active layer. Use the eye to hide a layer (hidden layers are left out of exports too), the lock to stop its items being selected or moved, the arrows to change the stacking order, and the trash can to delete a layer with everything on it (Ctrl+Z brings it back). Rename a layer by typing in its name. To move items to another layer, select them and pick the layer under Layer in the right panel. Within a layer, Bring to front and Send to back still work as usual.'}),
+    el('h3',{text:'Rotating shapes'}),el('p',{text:'Rotation is in 90\u00b0 steps. Before you add a shape, pick Place at 0, 90, 180 or 270 in the library header; every shape you add from the library uses it. While dragging a tile, press R to turn the shape another 90\u00b0 (Shift+R the other way) before you drop it. After placing, click the round arrow button above the selection (Shift-click turns the other way), press Alt+R or Alt+Shift+R, or use Arrange > Rotate. Lines stay attached and ports turn with the symbol. Rotation to any angle is not available yet.'}),
+    el('h3',{text:'Electrical and safety devices'}),el('p',{text:'The Electrical library adds timed contacts (TC and TO), mushroom-head pushbuttons, 2 and 3 position selector switches, limit, pressure, temperature, float, flow and foot switches, proximity and photoelectric sensors, solenoid, horn, plug, 3-pole breaker, disconnect, contactor and overload, 3-phase motor, power supply, diode, LED, battery, meters, heater, current transformer and an IEC rectangle coil. The Electrical safety devices library, right below it, has emergency stops (1 and 2 channel), guard interlock and guard locking switches, coded non-contact switch, enabling switch, two-hand control, light curtain, laser scanner, safety mat and edge, safety relay, safety controller, safety contactor with mirror contact, drive with Safe Torque Off, redundant safety valve, stack light, lockout point, trapped key, guard fence and door, and a hazard warning triangle.'}),
+    el('p',{text:'All of these drawings are marked Unverified in the right panel. The emergency stop follows the IEC 60617 description of symbol S00258 (mushroom head, positive opening, maintain position), but its proportions were not checked against the official graphic. Safety relay terminal names are typical, not from a particular product, so edit them to match the data sheet. Many safety devices have no single standard symbol and are drawn as labeled blocks.'}),
     el('h3',{text:'Pages'}),el('p',{text:'Use the tabs at the bottom to switch pages. The plus button adds a page, double-click a tab to rename it, and the x on the active tab deletes it (undo brings it back).'}),
     el('h3',{text:'Saving'}),el('p',{text:'Your diagram autosaves in this browser. The status at the top right tells you if browser storage is blocked. Use File > Save as JSON for a portable copy you can reopen anywhere, and File > Export SVG or PNG for images.'}),
     el('h3',{text:'On iPad'}),el('p',{text:'One finger on empty canvas pans, two fingers pinch to zoom. Drag shapes sideways out of the library onto the canvas (scrolling the library vertically still works). If the page opens from the Files app with nothing working, host the file instead: Quick Look blocks JavaScript.'}),
@@ -3940,7 +4294,7 @@ function showAbout(){ openModal('About Linework',el('p',{text:'Linework Diagrams
 const CMDS={
   undo, redo, addLane,
   cut:()=>{ if(copySel()) deleteSel(); }, copy:()=>{ if(copySel()) toast('Copied'); }, paste:()=>{ if(!paste()) toast('Nothing to paste'); },
-  duplicate, delete:deleteSel, selectAll:()=>setSel(items().map(i=>i.id)),
+  duplicate, delete:deleteSel, selectAll:()=>setSel(pickList().map(i=>i.id)),
   editText:()=>{ const s=selItems(); if(s.length===1) startEdit(s[0].id); },
   front:()=>reorder('front'), back:()=>reorder('back'), forward:()=>reorder('forward'), backward:()=>reorder('backward'),
   toggleLock, copyStyle, pasteStyle, swapEnds,
@@ -3954,7 +4308,7 @@ const CMDS={
   openReactions:()=>{ if(!S.sel.size) return; showFtb(); ftb.kind='emoji'; buildFtbBar(); renderFtbPop(); invalidate({ftb:true}); },
   renamePage:()=>{ const t=document.querySelector('#pageTabs [data-page="'+S.ctxPage+'"]'); if(t) t.dispatchEvent(new MouseEvent('dblclick',{bubbles:true})); },
   dupPage:()=>duplicatePage(S.ctxPage), delPage:()=>deletePage(S.ctxPage),
-  group:groupSel, ungroup:ungroupSel, rotate:rotateSel, flipH:()=>flipSel('h'), flipV:()=>flipSel('v'),
+  group:groupSel, ungroup:ungroupSel, rotate:()=>rotateSel(false), rotateCcw:()=>rotateSel(true), flipH:()=>flipSel('h'), flipV:()=>flipSel('v'),
   alignL:()=>alignSel('l'), alignC:()=>alignSel('c'), alignR:()=>alignSel('r'), alignT:()=>alignSel('t'), alignM:()=>alignSel('m'), alignB:()=>alignSel('b'),
   distH:()=>distributeSel('h'), distV:()=>distributeSel('v'),
   zoomIn:()=>zoomBy(1.2), zoomOut:()=>zoomBy(1/1.2), zoom100:()=>{ const s=stageSize(); zoomAt(1,s.w/2,s.h/2); }, zoomFit:fitView,
@@ -3976,6 +4330,7 @@ const CMDS={
 function runCmd(name){
   if(!name) return;
   if(name.startsWith('soon:')){ toast(name.slice(5)+' is coming soon.'); return; }
+  if(name.startsWith('layer:')){ const p=name.split(':'); layerCmd(p[1],p[2]); return; }
   const f=CMDS[name]; if(f) f();
 }
 
@@ -4049,6 +4404,7 @@ function wireKeys(){
       return;
     }
     if(e.key==='Delete'||e.key==='Backspace'){ if(S.sel.size){ e.preventDefault(); deleteSel(); } return; }
+    if(e.altKey&&!e.ctrlKey&&!e.metaKey&&e.code==='KeyR'){ e.preventDefault(); if(S.sel.size) rotateSel(e.shiftKey); return; }
     const arrows={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
     if(arrows[e.key]){ if(S.sel.size){ e.preventDefault(); const m=e.shiftKey?10:1; nudge(arrows[e.key][0]*m,arrows[e.key][1]*m); } return; }
     if(e.shiftKey&&(e.code==='Digit1'||e.key==='!')){ e.preventDefault(); fitView(); return; }
@@ -4087,7 +4443,8 @@ window.__app={
     switchPage, addPage, deletePage, copySel, paste, deleteSel, uid, toWorld, zoomAt, fitView, quickPick, showQuick,
     geom, sampleDoc, saveLocal, loadLocal, expandGroups, alignSel, distributeSel, reorder, newDoc,
     insertImageData, importAssets, exportAssets, docForSave, buildPdf, pageSvgs, assets:ASSETS, geoBBox,
-    findTarget, lineDefaults, raPorts, raPort, RA_DEV, RA_SRC, filterLibrary, duplicate },
+    findTarget, lineDefaults, raPorts, raPort, RA_DEV, RA_SRC, filterLibrary, duplicate,
+    layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO },
   LIB, LIB_MAP, KEYS:{doc:KEY_DOC,schema:KEY_SCHEMA,prefs:KEY_PREFS,legacy:LEGACY_KEYS}
 };
 boot();
