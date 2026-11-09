@@ -353,6 +353,11 @@ button{cursor:pointer}
 .modal-h h2{margin:0;font-size:var(--fs-lg)}
 .modal-b{padding:6px 20px 20px;overflow-y:auto;line-height:1.55}
 .modal-b h3{font-size:var(--fs-md);margin:16px 0 4px}
+.io-form{display:grid;gap:10px;margin:4px 0 10px}
+.io-form label{display:grid;gap:4px;font-size:var(--fs-sm);color:var(--text-2)}
+.io-form select,.io-form input{height:32px;padding:0 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel);color:var(--text);font-size:var(--fs-md)}
+.io-err{color:#b42318}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
 .modal-b p,.modal-b li{font-size:var(--fs-md);color:var(--text-2)}
 .modal-b ul{padding-left:18px;margin:4px 0}
 .modal-b table{border-collapse:collapse;width:100%;font-size:var(--fs-sm)}
@@ -465,7 +470,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.9.0';
+const APP_VERSION='1.10.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -515,7 +520,7 @@ const FONTS={sans:'Helvetica, Arial, sans-serif',arial:'Arial, Helvetica, sans-s
 const FONT_OPTS=[['sans','Helvetica'],['arial','Arial'],['system','System UI'],['verdana','Verdana'],['tahoma','Tahoma'],['trebuchet','Trebuchet MS'],['serif','Georgia'],['times','Times New Roman'],['mono','Courier New'],['consolas','Consolas']];
 const SIZE_OPTS=[6,8,9,10,11,12,14,16,18,20,24,28,32,36,40,48,60,72,96];
 const COLOR_RE=/^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|none)$/;
-const DEF_SHAPE_STYLE={fill:'#ffffff',stroke:'#3d4757',sw:1.5,dash:'solid',opacity:1,fontSize:14,fontColor:'#1f2430',font:'sans',bold:false,italic:false,underline:false,strike:false,highlight:'none',list:'none',align:'center',valign:'middle',radius:0};
+const DEF_SHAPE_STYLE={fill:'#ffffff',stroke:'#3d4757',sw:1.5,dash:'solid',opacity:1,fontSize:14,fontColor:'#1f2430',font:'sans',bold:false,italic:false,underline:false,strike:false,highlight:'none',list:'none',align:'center',valign:'middle',radius:0,textLevel:false};
 const DEF_LINE_STYLE={stroke:'#3d4757',sw:1.5,dash:'solid',opacity:1,fontSize:12,fontColor:'#1f2430',font:'sans',bold:false,italic:false,underline:false,strike:false,highlight:'none',corner:0};
 const FILL_SWATCHES=['#ffffff','#f2f4f7','#fde7e7','#fff3d6','#fff3a3','#e3f1e6','#e1f0fb','#e8e4fb','#fbe4f1','#3d4757','#2f6fed','#3b8a52','#c0392b','#c89422'];
 const STROKE_SWATCHES=['#3d4757','#1f2430','#8a93a3','#2f6fed','#3b8a52','#c0392b','#c89422','#7b4fd6','#d6408f','#0f9aa8','#e07b22','#ffffff','#b8c0cc','#000000'];
@@ -640,7 +645,7 @@ const CLOUD=[['M',25,58],['C',8,58,2,44,10,36],['C',2,26,12,12,26,16],['C',30,4,
 const GEOM_TYPES=['image','rect','text','terminator','ellipse','diamond','triangle','hexagon','parallelogram','document','cylinder','predefined','manualInput','delay','trapezoid','offpage','note','star','pentagon','octagon','cross','arrow','cloud','callout'];
 
 function geom(type,w,h,st){
-  if(RA_DEV[type]) return raGeom(RA_DEV[type],w,h);
+  const dvg=devDef(type); if(dvg) return dvg.io?ioGeom(dvg,w,h):raGeom(dvg,w,h);
   let d,decor=null,tb={x:0,y:0,w,h};
   switch(type){
     case 'rect': case 'text': { const r=Math.max(0,Math.min(num(st&&st.radius,0),w/2,h/2)); d=roundRect(w,h,r2(r)); break; }
@@ -1502,11 +1507,106 @@ function rotSide(X,side){
 }
 // All device ports of a shape in world coordinates: [{id,k,d,x,y,side}]
 function raPorts(s){
-  const def=RA_DEV[s.type]; if(!def) return [];
+  const def=devDef(s.type); if(!def) return [];
   const X=xf(s);
-  return raLayout(def,X.gw,X.gh).map(q=>{ const t=tp(X,q.x,q.y); return {id:q.p.id,k:q.p.k,d:q.p.d,x:s.x+t.x,y:s.y+t.y,side:rotSide(X,q.side)}; });
+  return devLayout(def,X.gw,X.gh).map(q=>{ const t=tp(X,q.x,q.y); return {id:q.p.id,k:q.p.k,d:q.p.d,x:s.x+t.x,y:s.y+t.y,side:rotSide(X,q.side)}; });
 }
 function raPort(s,pid){ return raPorts(s).find(p=>p.id===pid)||null; }
+/* ============================== generic I/O module blocks ==============================
+   Type names carry the configuration: io_<family>_<kind>_<points>, for example io_1756_di_16.
+   Each I/O point is a device port (id '0'..'n-1') that a line can pin to. Points 0 to 15 run down
+   the left edge; with more than 16 points the rest run down the right edge. */
+const IO_FAMS={
+  '1756':{n:'ControlLogix 1756 I/O',s:'1756',def:16},
+  '5069':{n:'CompactLogix 5380 / Compact 5000 (5069) I/O',s:'5069',def:16},
+  '1769':{n:'CompactLogix 1769 Compact I/O',s:'1769',def:16},
+  '1734':{n:'POINT I/O 1734',s:'1734',def:8,note:'Real POINT I/O modules have 1 to 8 points each (Rockwell POINT I/O Selection Guide, 1734-SG001: "1734 POINT I/O modules offer 1 to 8 points per module"). Counts above 8 are allowed here as a placeholder.'}
+};
+const IO_KINDS={di:{n:'Digital input',lab:'IN',d:'Input',c:'DI'},do:{n:'Digital output',lab:'OUT',d:'Output',c:'DO'},ai:{n:'Analog input',lab:'CH',d:'Analog input channel',c:'AI'},ao:{n:'Analog output',lab:'CH',d:'Analog output channel',c:'AO'}};
+const IO_RE=/^io_(1756|5069|1769|1734)_(di|do|ai|ao)_([1-9]|[12][0-9]|3[0-2])$/, IO_MAX=32, IO_COL=16, IO_HDR=42, IO_PITCH=16;
+const IO_NOTE='Generic placeholder block, not a specific catalog number. Point count, signal type and labels are what you chose; check terminal numbering against the real module wiring diagram.';
+const IO_DEV={};
+function ioType(fam,kind,n){ return 'io_'+fam+'_'+kind+'_'+n; }
+function ioParse(type){ if(!type||type.charCodeAt(0)!==105||type.charCodeAt(1)!==111) return null; const m=IO_RE.exec(type); return m?{fam:m[1],kind:m[2],n:+m[3]}:null; }
+function ioSize(n){ const two=n>IO_COL, rows=two?Math.ceil(n/2):n; return {w:two?210:140,h:IO_HDR+rows*IO_PITCH+8}; }
+// Device definition for a shape type: Rockwell catalog devices, or a generic I/O block.
+function devDef(type){
+  if(RA_DEV[type]) return RA_DEV[type];
+  if(IO_DEV[type]) return IO_DEV[type];
+  const c=ioParse(type); if(!c) return null;
+  const F=IO_FAMS[c.fam], K=IO_KINDS[c.kind], ports=[];
+  for(let i=0;i<c.n;i++) ports.push({id:String(i),k:'io',d:K.d+' '+i,lab:K.lab+' '+i});
+  return (IO_DEV[type]={key:type,io:c,cat:F.s+' '+K.n.toLowerCase()+', '+c.n+' point'+(c.n>1?'s':''),fam:F.n,ports,two:c.n>IO_COL,src:null,note:IO_NOTE,v:false});
+}
+function ioLayout(def,w,h){
+  const n=def.ports.length, rows=def.two?Math.ceil(n/2):n, pitch=(h-IO_HDR-6)/rows, out=[];
+  def.ports.forEach((p,i)=>{ const right=i>=rows, r=right?i-rows:i; out.push({p,x:right?w:0,y:IO_HDR+pitch*(r+0.5),side:right?'E':'W'}); });
+  return out;
+}
+function devLayout(def,w,h){ return def.io?ioLayout(def,w,h):raLayout(def,w,h); }
+function ioGeom(def,w,h){
+  const c=def.io, K=IO_KINDS[c.kind], decor=[], glyphs=[], lay=ioLayout(def,w,h);
+  const fs=clamp((h-IO_HDR-6)/(def.two?Math.ceil(c.n/2):c.n)*0.55,5,8.5);
+  let stubs='', terms='';
+  for(const q of lay){
+    const L=q.side==='W', tx=L?7:w-7;
+    stubs+=PL([q.x,q.y],[L?tx-3:tx+3,q.y]); terms+=circ(tx,q.y,3);
+    glyphs.push({t:q.p.lab,x:L?14:w-14,y:q.y,s:fs,a:L?'start':'end'});
+  }
+  decor.push({d:stubs,f:'none'},{d:terms,f:'fill'});
+  decor.push({d:`M0 ${r2(IO_HDR)}H${r2(w)}`,f:'none'});
+  decor.push({d:`M3 3H${r2(w-3)}V${r2(IO_HDR-3)}H3Z`,f:'stroke',op:0.08,ns:true});
+  if(def.two) decor.push({d:`M${r2(w/2)} ${r2(IO_HDR+4)}V${r2(h-4)}`,f:'none',dash:true});
+  glyphs.push({t:IO_FAMS[c.fam].s+'  '+K.c+' '+c.n,x:w/2,y:11,s:9,b:true});
+  return {d:roundRect(w,h,3),decor,glyphs,tb:{x:2,y:16,w:w-4,h:IO_HDR-14},label:false,hit:false,ports:null};
+}
+// Change a placed block's family, signal type or point count. Lines on points that no longer
+// exist are left with a free end where the point was.
+function setIo(s,fam,kind,n){
+  const c=ioParse(s.type); if(!c) return false;
+  fam=IO_FAMS[fam]?fam:c.fam; kind=IO_KINDS[kind]?kind:c.kind; n=Math.round(+n); if(!(n>=1&&n<=IO_MAX)) n=c.n;
+  const nt=ioType(fam,kind,n); if(nt===s.type) return false;
+  let freed=0;
+  for(const L of items()) if(isLine(L)) for(const k of ['from','to']){ const e=L[k];
+    if(e.id===s.id&&e.port&&+e.port>=n){ const q=raPort(s,e.port); L[k]=q?{x:r2(q.x),y:r2(q.y)}:{x:s.x,y:s.y}; freed++; } }
+  const old=ioSize(c.n), sz=ioSize(n), X=xf(s), sx=X.gw/old.w, sy=X.gh/old.h;
+  const gw=Math.round(sz.w*(c.n>IO_COL===n>IO_COL?sx:1)), gh=Math.round(sz.h*sy);
+  const swap=s.rot===90||s.rot===270; s.w=swap?gh:gw; s.h=swap?gw:gh; s.type=nt;
+  if(freed) toast(freed+' line end'+(freed>1?'s were':' was')+' on removed points and '+(freed>1?'are':'is')+' now loose.');
+  return true;
+}
+function addIo(fam,kind,n,x,y,rot){
+  if(!IO_FAMS[fam]||!IO_KINDS[kind]) return null; n=clamp(Math.round(+n)||1,1,IO_MAX);
+  const s=addShape('io_'+fam,x,y), sz=ioSize(n); s.type=ioType(fam,kind,n);
+  const cx=s.x+s.w/2, cy=s.y+s.h/2; s.w=sz.w; s.h=sz.h; s.x=r2(cx-sz.w/2); s.y=r2(cy-sz.h/2);
+  const turns=Math.round(((rot==null?S.prefs.placeRot:rot)||0)/90);
+  if(turns%4) rotateShapes([s],turns);
+  S.ioLast={kind,n}; commit(); invalidate(); return s;
+}
+// Ask how many points (1 to 32) and which signal type before placing a block.
+function promptIo(key,x,y,rot){
+  const fam=LIB_MAP[key].io, F=IO_FAMS[fam], last=S.ioLast||{kind:'di',n:F.def};
+  const kindSel=el('select',{'aria-label':'Signal type','data-io':'kind'},Object.keys(IO_KINDS).map(k=>el('option',{value:k,text:IO_KINDS[k].n,selected:k===last.kind?'':null})));
+  const nIn=el('input',{type:'number',min:1,max:IO_MAX,step:1,value:String(last.n),'aria-label':'Number of I/O points','data-io':'n'});
+  const msg=el('p',{class:'muted small',text:'Each point gets its own pin you can attach a line to. Points 0 to 15 run down the left side; points 16 and up run down the right side.'});
+  const famNote=F.note?el('p',{class:'muted small',text:F.note}):null;
+  const go=()=>{ const n=Number(nIn.value); if(String(nIn.value).trim()===''||!Number.isInteger(n)||n<1||n>IO_MAX){ msg.textContent='Enter a whole number from 1 to '+IO_MAX+'.'; msg.className='small io-err'; nIn.focus(); return; }
+    closeModal(); const s=addIo(fam,kindSel.value,n,x,y,rot); if(s) setSel([s.id]); };
+  openModal('Add '+F.n+' module',
+    el('div',{class:'io-form'},el('label',null,el('span',{text:'Signal type'}),kindSel),el('label',null,el('span',{text:'Number of I/O points (1 to '+IO_MAX+')'}),nIn)),msg,famNote,
+    el('div',{class:'modal-actions'},el('button',{type:'button',class:'btn','data-close':'btn',text:'Cancel'}),el('button',{type:'button',class:'btn primary','data-io-add':'1',text:'Add module'})));
+  modalEl.querySelector('[data-io-add]').addEventListener('click',go);
+  nIn.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); go(); } });
+  try{ nIn.focus(); nIn.select(); }catch(e){}
+  return null;
+}
+(function addIoLib(){
+  const items=Object.keys(IO_FAMS).map(f=>{ const n=IO_FAMS[f].def, sz=ioSize(n);
+    return {key:'io_'+f,name:IO_FAMS[f].n+' module (choose points)',type:ioType(f,'di',n),w:sz.w,h:sz.h,text:'',io:f,style:{fill:'#ffffff',stroke:'#1f2430',fontSize:11,valign:'middle'}}; });
+  const at=LIB.findIndex(c=>c.cat==='Rockwell controllers');
+  LIB.splice(at<0?LIB.length:at+1,0,{cat:'Rockwell I/O modules (generic)',items});
+})();
+
 
 /* ============================== more electrical symbols and safety devices ============================== */
 function elecGeom(type,w,h){
@@ -1914,7 +2014,7 @@ function sanitizeItem(it){
       labels:sanLabels(it),style:sanStyle(it.style,DEF_LINE_STYLE),layer:typeof it.layer==='string'?it.layer.slice(0,64):undefined,groupId:gid,...sanAttrs(it),signal:SIGNALS[it.signal]?it.signal:undefined,
       waypoints:(Array.isArray(it.waypoints)&&it.waypoints.length&&it.route!=='straight'&&it.route!=='curved')?it.waypoints.slice(0,60).filter(q=>q&&Number.isFinite(+q.x)&&Number.isFinite(+q.y)).map(q=>({x:num(q.x,0),y:num(q.y,0)})):undefined};
   }
-  return {id,kind:'shape',type:GEOM_TYPES.includes(it.type)?it.type:'rect',
+  return {id,kind:'shape',type:(GEOM_TYPES.includes(it.type)||IO_RE.test(String(it.type)))?it.type:'rect',
     x:num(it.x,0),y:num(it.y,0),w:Math.max(4,num(it.w,100)),h:Math.max(4,num(it.h,60)),
     text:str(it.text).slice(0,10000),style:sanStyle(it.style,DEF_SHAPE_STYLE),layer:typeof it.layer==='string'?it.layer.slice(0,64):undefined,groupId:gid,
     rot:[90,180,270].includes(it.rot)?it.rot:undefined,flip:it.flip===true?true:undefined,...sanAttrs(it),
@@ -2094,7 +2194,7 @@ function ortho(p1,d1,p2,d2,s1,s2){
 }
 function resolveEnd(end){
   if(end&&end.id){ const s=byId(end.id); if(isShape(s)){
-    if(end.port&&RA_DEV[s.type]){ const q=raPort(s,end.port); if(q) return {s,side:q.side,pq:q}; }
+    if(end.port&&devDef(s.type)){ const q=raPort(s,end.port); if(q) return {s,side:q.side,pq:q}; }
     return {s,side:end.side||'auto',pos:end.pos}; } }
   return {pt:{x:num(end&&end.x,0),y:num(end&&end.y,0)}};
 }
@@ -2362,10 +2462,18 @@ function textBox(it){
   if(G.label){ const lh=it.style.fontSize*1.25;
     if(X.rot===90||X.rot===270) return {x:it.w+5,y:0,w:110,h:it.h,below:true,side:true};
     return {x:-40,y:it.h+3,w:it.w+80,h:lh*3,below:true}; }
+  if(X.rot&&!it.style.textLevel){ const x=X.flip?X.gw-G.tb.x-G.tb.w:G.tb.x;
+    return {x:x+TEXT_PAD,y:G.tb.y+TEXT_PAD,w:Math.max(1,G.tb.w-TEXT_PAD*2),h:Math.max(1,G.tb.h-TEXT_PAD*2),turn:true}; }
   const a=tp(X,G.tb.x,G.tb.y), b=tp(X,G.tb.x+G.tb.w,G.tb.y+G.tb.h);
   const tb={x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)};
   return {x:tb.x+TEXT_PAD,y:tb.y+TEXT_PAD,w:Math.max(1,tb.w-TEXT_PAD*2),h:Math.max(1,tb.h-TEXT_PAD*2)};
 }
+// Text inside a rotated shape turns with the shape (a box in unrotated coordinates drawn through a
+// rotation-only transform, so flipped shapes never mirror their text). Style textLevel keeps it level.
+// Labels drawn beside electrical symbols always stay level.
+function turnXf(it){ return xf({rot:it.rot||0,flip:false,w:it.w,h:it.h}); }
+function glyphsTurn(it,G){ return !!it.rot&&!it.style.textLevel&&!G.label; }
+function untp(X,x,y){ switch(X.rot){ case 90: return {x:y,y:X.gh-x}; case 180: return {x:X.gw-x,y:X.gh-y}; case 270: return {x:X.gw-y,y:x}; default: return {x,y}; } }
 function textStyle(it,tb){ return tb&&tb.side?Object.assign({},it.style,{align:'left',valign:'middle'}):it.style; }
 function renderShape(it,o){
   o=o||{}; const st=it.style;
@@ -2382,9 +2490,11 @@ function renderShape(it,o){
   inner.appendChild(sv('path',{d:G.d,class:o.export?null:'body',fill:st.fill,stroke:st.stroke,'stroke-width':st.sw,'stroke-dasharray':dashArr(st.dash,st.sw),'stroke-linecap':st.dash==='dotted'?'round':null,'stroke-linejoin':'round'}));
   if(st.stroke!=='none') for(const dd of decorList(G)) inner.appendChild(sv('path',{d:dd.d,fill:dd.f==='stroke'?st.stroke:dd.f==='fill'?(st.fill==='none'?'#ffffff':st.fill):'none','fill-opacity':dd.op!=null?dd.op:null,stroke:dd.ns?'none':st.stroke,'stroke-width':st.sw,'stroke-dasharray':dd.dash?dashArr('dashed',st.sw):null,'stroke-linejoin':'round'}));
   if(X.m) g.appendChild(inner);
-  for(const gl of (G.glyphs||[])){ const q=tp(X,gl.x,gl.y); g.appendChild(sv('text',{x:r2(q.x),y:r2(q.y+gl.s*0.35),'text-anchor':'middle','font-size':r2(gl.s),'font-family':FONTS.sans,'font-weight':gl.b?'bold':null,fill:st.stroke==='none'?st.fontColor:st.stroke},gl.t)); }
+  const turnG=glyphsTurn(it,G), Xr=it.rot?turnXf(it):null, gg=turnG&&(G.glyphs||[]).length?sv('g',{transform:'matrix('+Xr.m.join(' ')+')'}):null;
+  for(const gl of (G.glyphs||[])){ const q=turnG?{x:X.flip?X.gw-gl.x:gl.x,y:gl.y}:tp(X,gl.x,gl.y); (gg||g).appendChild(sv('text',{x:r2(q.x),y:r2(q.y+gl.s*0.35),'text-anchor':gl.a?(X.flip?(gl.a==='start'?'end':'start'):gl.a):'middle','font-size':r2(gl.s),'font-family':FONTS.sans,'font-weight':gl.b?'bold':null,fill:st.stroke==='none'?st.fontColor:st.stroke},gl.t)); }
+  if(gg) g.appendChild(gg);
   if(G.hit&&!o.export) g.appendChild(sv('rect',{x:0,y:0,width:r2(it.w),height:r2(it.h),fill:'transparent',class:'body'}));
-  if(!(S.editing===it.id&&!o.export)){ if(it.type==='er_entity'&&!it.rot) renderEntityText(g,it); else { const tb=textBox(it); renderTextBlock(g,it.text,tb,textStyle(it,tb)); } }
+  if(!(S.editing===it.id&&!o.export)){ if(it.type==='er_entity'&&!it.rot) renderEntityText(g,it); else { const tb=textBox(it); let tg=g; if(tb.turn){ tg=sv('g',{transform:'matrix('+turnXf(it).m.join(' ')+')'}); g.appendChild(tg); } renderTextBlock(tg,it.text,tb,textStyle(it,tb)); } }
   if(!o.export) renderBadges(g,it,null,false);
   return g;
 }
@@ -2510,7 +2620,7 @@ function renderOverlay(){
   }
   if(!busy&&!S.editing&&S.hover){
     const s=byId(S.hover);
-    if(isShape(s)&&RA_DEV[s.type]){
+    if(isShape(s)&&devDef(s.type)){
       for(const q of raPorts(s)){ const d=SIDES[q.side], cx=q.x+d.x*7/z, cy=q.y+d.y*7/z;
         out.push(sv('g',{class:'ov-port dev','data-port':q.side,'data-devport':q.id,'data-sid':s.id},
           sv('title',null,q.id+': '+q.d),
@@ -2530,7 +2640,7 @@ function renderOverlay(){
   if(op&&(op.type==='connect'||op.type==='endpoint')){
     if(op.type==='connect'){ const tmp={from:connFrom(op),to:op.target?endOf(op.target):{x:op.cur.x,y:op.cur.y},route:S.prefs.route}; const R=routeLine(tmp); out.push(sv('path',{d:pathD(R.kind,R.pts),class:'ov-temp','stroke-width':r2(1.5/z)})); }
     if(op.target){ const t=byId(op.target.id); if(t){ const p=4/z; out.push(sv('rect',{x:r2(t.x-p),y:r2(t.y-p),width:r2(t.w+2*p),height:r2(t.h+2*p),class:'ov-target','stroke-width':r2(1.5/z),rx:r2(3/z)}));
-      if(RA_DEV[t.type]){ for(const q of raPorts(t)){ const on=op.target.port===q.id; out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2((on?4.5:3.2)/z),class:'ov-dot'+(on?' on':''),'stroke-width':r2(1.3/z)}));
+      if(devDef(t.type)){ for(const q of raPorts(t)){ const on=op.target.port===q.id; out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2((on?4.5:3.2)/z),class:'ov-dot'+(on?' on':''),'stroke-width':r2(1.3/z)}));
           if(on) out.push(sv('text',{x:r2(q.x),y:r2(q.y+(q.side==='N'?-9:16)/z),'text-anchor':'middle','font-size':r2(11/z),class:'ov-portlab'},q.id+': '+q.d)); } }
       else for(const side of SIDE_KEYS){ const q=portPoint(t,side); out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2(4.5/z),class:'ov-dot'+(op.target.side===side&&op.target.pos==null?' on':''),'stroke-width':r2(1.5/z)})); }
       if(op.target.pos!=null){ const q=portPoint(t,op.target.side,op.target.pos); out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2(5/z),class:'ov-dot on','stroke-width':r2(1.5/z)})); } } }
@@ -2574,9 +2684,9 @@ function shapeAt(w,pad,exclude){
 // noSnap), or the body for a floating connection that picks the best side.
 function findTarget(w,exclude,noSnap){
   let s=shapeAt(w,4/V.z,exclude);
-  if(!s){ const d=shapeAt(w,14/V.z,exclude); if(d&&RA_DEV[d.type]) s=d; }
+  if(!s){ const d=shapeAt(w,14/V.z,exclude); if(d&&devDef(d.type)) s=d; }
   if(!s) return null;
-  if(RA_DEV[s.type]){ let bp=null,bd=16/V.z; for(const q of raPorts(s)){ const d=dist(q,w); if(d<bd){ bd=d; bp=q; } }
+  if(devDef(s.type)){ let bp=null,bd=16/V.z; for(const q of raPorts(s)){ const d=dist(q,w); if(d<bd){ bd=d; bp=q; } }
     return bp?{id:s.id,side:bp.side,port:bp.id}:{id:s.id,side:'auto'}; }
   const sym=!!SYMBOL_INFO[s.type];
   let best=null,bd=(sym?20:10)/V.z;
@@ -2611,6 +2721,7 @@ function addShape(key,x,y,props){
 function addFromLib(key,x,y,rot){
   if(x==null){ const c=viewCenterWorld(), k=(S.addCount++%8)*20; x=c.x+k; y=c.y+k; }
   if(LIB_MAP[key]&&LIB_MAP[key].tpl) return buildSwimlanes(LIB_MAP[key],x,y)[0];
+  if(LIB_MAP[key]&&LIB_MAP[key].io) return promptIo(key,x,y,rot);
   const s=addShape(key,x,y), turns=Math.round(((rot==null?S.prefs.placeRot:rot)||0)/90);
   if(turns%4){ rotateShapes([s],turns); commit(); invalidate(); }
   return s;
@@ -2724,6 +2835,7 @@ function lineDefaults(aId,bId,aPort,bPort){
   const kinds=[[aId,aPort],[bId,bPort]].map(([id,pid])=>{ const s=id&&pid&&byId(id); const q=s&&raPort(s,pid); return q?q.k:null; }).filter(Boolean);
   if(kinds.length){ const pick=kinds.find(k=>k==='sfp'||k==='fib')||kinds.find(k=>RA_LINE[k]&&!RA_LINE[k].dash&&k!=='dp')||kinds[0];
     return {endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{dash:'solid'},RA_LINE[pick]||{})}; }
+  if(ts.some(t=>ioParse(t))) return {endArrow:'none'};
   if(ts.some(t=>RA_DEV[t])) return {endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{stroke:'#1d4fae',sw:2})};
   if(ts.some(t=>INST_TYPES.has(t))) return {endArrow:'none',signal:'electric',style:Object.assign({},DEF_LINE_STYLE,{dash:'dashed'})};
   if(ts.some(t=>t.startsWith('n_'))) return {endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{stroke:'#1d4fae',sw:2})};
@@ -2813,7 +2925,8 @@ function caretFromPoint(it,w){
   if(listText(raw,st)!==raw) return raw.length;
   const fs=st.fontSize, lh=fs*1.25, lines=wrapText(raw,Math.max(1,tb.w),st), total=lines.length*lh;
   const y0=st.valign==='top'?tb.y:st.valign==='bottom'?tb.y+tb.h-total:tb.y+(tb.h-total)/2;
-  const lx=w.x-it.x, ly=w.y-it.y, li=clamp(Math.floor((ly-y0)/lh),0,lines.length-1);
+  let lx=w.x-it.x, ly=w.y-it.y; if(tb.turn){ const q=untp(turnXf(it),lx,ly); lx=q.x; ly=q.y; }
+  const li=clamp(Math.floor((ly-y0)/lh),0,lines.length-1);
   const starts=[]; let pos=0;
   for(const ln of lines){ let i=ln?raw.indexOf(ln,pos):(starts.length&&raw[pos]==='\n'?pos+1:pos); if(i<0) i=pos; starts.push(i); pos=i+ln.length; }
   const ln=lines[li], wl=textWidth(ln,st);
@@ -2830,7 +2943,9 @@ function positionEditor(){
   s.fontWeight=st.bold?'bold':'normal'; s.fontStyle=st.italic?'italic':'normal';
   if(isShape(it)){
     const b=textBox(it), ts=textStyle(it,b), w=Math.max(40,b.w*z), h=Math.max(fs*1.4,b.h*z);
-    s.left=r2(V.tx+(it.x+b.x)*z-(b.side?0:(w-b.w*z)/2))+'px'; s.top=r2(V.ty+(it.y+b.y)*z)+'px'; s.width=r2(w)+'px'; s.height=r2(h)+'px';
+    if(b.turn){ const c=tp(turnXf(it),b.x+b.w/2,b.y+b.h/2); s.left=r2(V.tx+(it.x+c.x)*z-w/2)+'px'; s.top=r2(V.ty+(it.y+c.y)*z-h/2)+'px'; s.transform='rotate('+it.rot+'deg)'; s.transformOrigin='50% 50%'; }
+    else { s.left=r2(V.tx+(it.x+b.x)*z-(b.side?0:(w-b.w*z)/2))+'px'; s.top=r2(V.ty+(it.y+b.y)*z)+'px'; s.transform=''; }
+    s.width=r2(w)+'px'; s.height=r2(h)+'px';
     s.textAlign=ts.align;
     const lines=wrapText(ta.value||' ',b.w,st).length, used=lines*fs*1.25;
     const pad=ts.valign==='top'?0:ts.valign==='bottom'?Math.max(0,h-used-2):Math.max(0,(h-used)/2-1);
@@ -3218,7 +3333,7 @@ function tilePreview(def){
   const col=c=>(c==='#3d4757'||c==='#1f2430')?'currentColor':c, fillC=st.fill==='#ffffff'?'var(--panel)':col(st.fill);
   s.appendChild(sv('path',{d:G.d,fill:fillC,stroke:col(st.stroke),'stroke-width':1.3,'vector-effect':'non-scaling-stroke','stroke-linejoin':'round'}));
   for(const dd of decorList(G)) s.appendChild(sv('path',{d:dd.d,fill:dd.f==='stroke'?col(st.stroke):dd.f==='fill'?fillC:'none','fill-opacity':dd.op!=null?dd.op:null,stroke:dd.ns?'none':col(st.stroke),'stroke-width':1.3,'vector-effect':'non-scaling-stroke','stroke-dasharray':dd.dash?'3 2':null}));
-  for(const gl of (G.glyphs||[])) s.appendChild(sv('text',{x:r2(gl.x),y:r2(gl.y+gl.s*0.35),'text-anchor':'middle','font-size':r2(gl.s),'font-family':FONTS.sans,'font-weight':gl.b?'bold':null,fill:'currentColor'},gl.t));
+  for(const gl of (G.glyphs||[])) s.appendChild(sv('text',{x:r2(gl.x),y:r2(gl.y+gl.s*0.35),'text-anchor':gl.a||'middle','font-size':r2(gl.s),'font-family':FONTS.sans,'font-weight':gl.b?'bold':null,fill:'currentColor'},gl.t));
   return s;
 }
 function buildLibrary(){
@@ -3313,7 +3428,7 @@ function renderProps(){
     root.replaceChildren(...K); return;
   }
   const shapes=sel.filter(isShape), lines=sel.filter(isLine), f=sel[0], fs=shapes[0], fl=lines[0];
-  const title=sel.length===1?(fs?(TYPE_NAMES[fs.type]||'Shape'):'Line'):sel.length+' items selected';
+  const title=sel.length===1?(fs?(ioParse(fs.type)?devDef(fs.type).fam+' module':(TYPE_NAMES[fs.type]||'Shape')):'Line'):sel.length+' items selected';
   K.push(el('div',{class:'props-title',text:title}));
   if(sel.some(i=>i.locked)) K.push(el('div',{class:'lock-note'},icon('lock',16),el('span',{text:sel.every(i=>i.locked)?'Locked: position, size, style and text are protected.':'Some selected items are locked.'}),el('button',{class:'btn','data-cmd':'toggleLock',text:'Unlock'})));
   if(sel.length>1) K.push(el('div',{class:'props-sub',text:shapes.length+' shapes, '+lines.length+' lines'+(sel.some(i=>i.groupId)?' (grouped)':'')}));
@@ -3335,7 +3450,7 @@ function renderProps(){
       row('End',selIn('endArrow',fl.endArrow,arrows,'End arrow')),
       row('Type',selIn('signal',fl.signal||'',[['','Plain line'],...Object.keys(SIGNALS).map(k=>[k,SIGNALS[k].n])],'Line type')),
       fl.signal?el('p',{class:'muted small',style:{marginTop:'2px'},text:(SIGNALS[fl.signal].verified?'':'[Unverified drawing] ')+(SIGNALS[fl.signal].verified?SIG_BASIS_V:SIG_BASIS_U)}):null,
-      lines.length===1&&(fl.from.port||fl.to.port)?row('Ports',el('span',{class:'small',text:[fl.from,fl.to].map(e=>{ const s=e.id&&byId(e.id); return s?(s.text||TYPE_NAMES[s.type]||'Shape').split('\n')[0]+(e.port?' port '+e.port:''):'Free end'; }).join(' to ')})):null,
+      lines.length===1&&(fl.from.port||fl.to.port)?row('Ports',el('span',{class:'small',text:[fl.from,fl.to].map(e=>{ const s=e.id&&byId(e.id); return s?(s.text||(devDef(s.type)?devDef(s.type).cat:'')||TYPE_NAMES[s.type]||'Shape').split('\n')[0]+(e.port?(ioParse(s.type)?' '+IO_KINDS[ioParse(s.type).kind].lab+' '+e.port:' port '+e.port):''):'Free end'; }).join(' to ')})):null,
       row('Corners',seg('corner',fl.style.corner>0?'r':'s',[{v:'s',l:'Square',t:'Square corners'},{v:'r',l:'Rounded',t:'Rounded corners'}])),
       lines.length===1?row('Text',el('span',{class:'muted',text:(fl.labels||[]).length+' on line'}),el('button',{class:'btn','data-cmd':'addLineText',text:'Add text'})):null));
   }
@@ -3346,7 +3461,8 @@ function renderProps(){
     row('Highlight',colorIn('highlight',f.style.highlight==='none'?'#fff3a6':f.style.highlight,'Highlight color'),chk('noHighlight',(f.style.highlight||'none')==='none','None')),
     fs?row('List',selIn('list',fs.style.list||'none',[['none','None'],['bullet','Bulleted'],['number','Numbered']],'List style')):null,
     fs?row('Align',seg('align',fs.style.align,[{v:'left',i:'tLeft',t:'Align left'},{v:'center',i:'tCenter',t:'Align center'},{v:'right',i:'tRight',t:'Align right'}])):null,
-    fs?row('Vertical',seg('valign',fs.style.valign,[{v:'top',i:'vTop',t:'Top'},{v:'middle',i:'vMid',t:'Middle'},{v:'bottom',i:'vBot',t:'Bottom'}])):null));
+    fs?row('Vertical',seg('valign',fs.style.valign,[{v:'top',i:'vTop',t:'Top'},{v:'middle',i:'vMid',t:'Middle'},{v:'bottom',i:'vBot',t:'Bottom'}])):null,
+    fs?row('When rotated',seg('textLevel',String(!!fs.style.textLevel),[{v:false,l:'Turn',t:'Text turns with the shape'},{v:true,l:'Stay level',t:'Text stays level when the shape is rotated'}])):null));
   // reflect pressed state for B/I/U toggles
   if(shapes.length===1&&sel.length===1){
     K.push(section('Position and size',el('div',{class:'geo'},
@@ -3363,6 +3479,17 @@ function renderProps(){
     K.splice(1,0,section('Container',el('p',{class:'muted small',text:'Shapes placed fully inside this container move with it. Drag a shape out of it to separate them.'})));
   if(fs&&fs.type==='er_entity'&&shapes.length===1)
     K.splice(1,0,section('Entity',el('p',{class:'muted small',text:'Double-click to edit. The first line is the table name; each further line is a column. Start a line with PK, FK or UK to fill the key column. The table grows with its rows.'})));
+  const ioc=fs&&shapes.length===1?ioParse(fs.type):null;
+  if(ioc){
+    const used=new Set(); for(const L of items()) if(isLine(L)) for(const k of ['from','to']) if(L[k].id===fs.id&&L[k].port) used.add(L[k].port);
+    K.splice(1,0,section('I/O module',
+      row('Family',selIn('ioFam',ioc.fam,Object.keys(IO_FAMS).map(f=>[f,IO_FAMS[f].n]),'I/O family')),
+      row('Signal',selIn('ioKind',ioc.kind,Object.keys(IO_KINDS).map(k=>[k,IO_KINDS[k].n]),'Signal type')),
+      row('Points',numIn('ioN',ioc.n,1,IO_MAX,1,'Number of I/O points, 1 to '+IO_MAX),el('span',{class:'muted small',text:'max '+IO_MAX})),
+      el('p',{class:'small',style:{margin:'2px 0 6px'},text:used.size+' of '+ioc.n+' points have a line attached.'}),
+      el('div',{class:'soon-row',style:{marginBottom:'6px'}},el('span',{text:'Generic block'}),el('span',{class:'soon',text:'Unverified'})),
+      el('p',{class:'muted small',text:IO_NOTE}),IO_FAMS[ioc.fam].note?el('p',{class:'muted small',text:IO_FAMS[ioc.fam].note}):null));
+  }
   if(fs&&RA_DEV[fs.type]&&shapes.length===1){
     const dv=RA_DEV[fs.type], used=new Set();
     for(const L of items()) if(isLine(L)) for(const k of ['from','to']) if(L[k].id===fs.id&&L[k].port) used.add(L[k].port);
@@ -3412,6 +3539,12 @@ function applyProp(prop,v,final){
   if(prop==='pageBgNone'){ const pg=page(); if(v) delete pg.bg; else pg.bg='#fffdf5'; commit(); invalidate(); return; }
   if(prop.startsWith('layerName:')){ const L=ensureLayers(page()).find(l=>l.id===prop.slice(10)); if(L){ L.name=String(v).slice(0,60)||'Layer'; if(final) commit(); } return; }
   if(prop==='itemLayer'){ if(v) moveSelToLayer(v); return; }
+  if(prop==='ioFam'||prop==='ioKind'||prop==='ioN'){
+    if(!final) return; const sh=unlockedSel().filter(isShape); const s0=sh.length===1&&ioParse(sh[0].type)?sh[0]:null; if(!s0) return;
+    const c=ioParse(s0.type);
+    if(prop==='ioN'){ const n=+v; if(!(Number.isInteger(n)&&n>=1&&n<=IO_MAX)){ toast('Enter a whole number of points from 1 to '+IO_MAX+'.'); invalidate({props:true}); return; } }
+    if(setIo(s0,prop==='ioFam'?v:c.fam,prop==='ioKind'?v:c.kind,prop==='ioN'?+v:c.n)){ commit(); invalidate(); }
+    return; }
   if(prop.startsWith('pref:')){ S.prefs[prop.slice(5)]=!!v; savePrefs(); invalidate({overlay:true,chrome:true}); return; }
   const sel=unlockedSel(); if(!sel.length) return;
   const shapes=sel.filter(isShape), lines=sel.filter(isLine);
@@ -3431,6 +3564,7 @@ function applyProp(prop,v,final){
     case 'list': if(['none','bullet','number'].includes(v)) shapes.forEach(s=>{s.style.list=v;}); break;
     case 'align': if(ALIGNS.includes(v)) shapes.forEach(s=>{s.style.align=v;}); break;
     case 'valign': if(VALIGNS.includes(v)) shapes.forEach(s=>{s.style.valign=v;}); break;
+    case 'textLevel': shapes.forEach(s=>{s.style.textLevel=v===true||v==='true';}); break;
     case 'radius': shapes.forEach(s=>{s.style.radius=clamp(num(v,0),0,500);}); break;
     case 'route': if(ROUTES.includes(v)){ lines.forEach(l=>{ if(l.route!==v) delete l.waypoints; l.route=v; }); S.prefs.route=v; savePrefs(); } break;
     case 'startArrow': case 'endArrow': if(ARROWS.includes(v)) lines.forEach(l=>{l[prop]=v;}); break;
@@ -4279,7 +4413,9 @@ function showHelp(){
     el('h3',{text:'PDF'}),el('p',{text:'File > Export PDF makes a PDF of this page, or all pages with one PDF page each, sized to the drawing. Pages are high-resolution images of the diagram, so the text in the PDF is not selectable.'}),
     el('h3',{text:'Page size and background'}),el('p',{text:'Click empty canvas to see Page settings in the right panel. Size is Infinite canvas (the default) or a sheet: Letter, Legal, Tabloid, ANSI C, D and E, or A4 to A0. The sheet is drawn at 96 pixels per inch on a gray pasteboard, and Orientation switches Portrait and Landscape. Background sets the sheet color (or the canvas color on an infinite canvas); tick Default to go back to white. SVG, PNG and PDF exports of a sized page are cut to the sheet, so anything outside it is left out.'}),
     el('h3',{text:'Layers'}),el('p',{text:'Each page has its own layers, listed under Layers when nothing is selected. The top row draws on top. Click the dot at the left of a layer to make it active: new shapes and lines go on the active layer. Use the eye to hide a layer (hidden layers are left out of exports too), the lock to stop its items being selected or moved, the arrows to change the stacking order, and the trash can to delete a layer with everything on it (Ctrl+Z brings it back). Rename a layer by typing in its name. To move items to another layer, select them and pick the layer under Layer in the right panel. Within a layer, Bring to front and Send to back still work as usual.'}),
-    el('h3',{text:'Rotating shapes'}),el('p',{text:'Rotation is in 90\u00b0 steps. Before you add a shape, pick Place at 0, 90, 180 or 270 in the library header; every shape you add from the library uses it. While dragging a tile, press R to turn the shape another 90\u00b0 (Shift+R the other way) before you drop it. After placing, click the round arrow button above the selection (Shift-click turns the other way), press Alt+R or Alt+Shift+R, or use Arrange > Rotate. Lines stay attached and ports turn with the symbol. Rotation to any angle is not available yet.'}),
+    el('h3',{text:'Generic I/O modules'}),el('p',{text:'The Rockwell I/O modules (generic) library has a block for ControlLogix 1756, CompactLogix 5069 (Compact 5000), CompactLogix 1769 (Compact I/O) and POINT I/O 1734. When you drop or click one, Linework asks for the signal type (digital input, digital output, analog input or analog output) and the number of I/O points, 1 to 32. Every point has its own pin: hover the block to see the pins, then drag from a pin to another pin or shape. Points 0 to 15 run down the left side; with more than 16 points, the rest run down the right side. Type a slot or node name in the gray header (double-click it).'}),
+    el('p',{text:'To change a placed block, select it and use I/O module in the right panel: family, signal type and points. If you lower the point count, lines on the removed points stay where they were with a loose end. These blocks are generic placeholders, not specific catalog numbers, and are marked Unverified; real POINT I/O 1734 modules have 1 to 8 points each, so check the module wiring diagram.'}),
+    el('h3',{text:'Rotating shapes'}),el('p',{text:'Rotation is in 90\u00b0 steps. Before you add a shape, pick Place at 0, 90, 180 or 270 in the library header; every shape you add from the library uses it. While dragging a tile, press R to turn the shape another 90\u00b0 (Shift+R the other way) before you drop it. After placing, click the round arrow button above the selection (Shift-click turns the other way), press Alt+R or Alt+Shift+R, or use Arrange > Rotate. Lines stay attached and ports turn with the symbol. Text inside a shape turns with it; to keep it level, select the shape and set Text > When rotated to Stay level. Labels written beside electrical symbols always stay level so ladder drawings stay readable. Rotation to any angle is not available yet.'}),
     el('h3',{text:'Electrical and safety devices'}),el('p',{text:'The Electrical library adds timed contacts (TC and TO), mushroom-head pushbuttons, 2 and 3 position selector switches, limit, pressure, temperature, float, flow and foot switches, proximity and photoelectric sensors, solenoid, horn, plug, 3-pole breaker, disconnect, contactor and overload, 3-phase motor, power supply, diode, LED, battery, meters, heater, current transformer and an IEC rectangle coil. The Electrical safety devices library, right below it, has emergency stops (1 and 2 channel), guard interlock and guard locking switches, coded non-contact switch, enabling switch, two-hand control, light curtain, laser scanner, safety mat and edge, safety relay, safety controller, safety contactor with mirror contact, drive with Safe Torque Off, redundant safety valve, stack light, lockout point, trapped key, guard fence and door, and a hazard warning triangle.'}),
     el('p',{text:'All of these drawings are marked Unverified in the right panel. The emergency stop follows the IEC 60617 description of symbol S00258 (mushroom head, positive opening, maintain position), but its proportions were not checked against the official graphic. Safety relay terminal names are typical, not from a particular product, so edit them to match the data sheet. Many safety devices have no single standard symbol and are drawn as labeled blocks.'}),
     el('h3',{text:'Pages'}),el('p',{text:'Use the tabs at the bottom to switch pages. The plus button adds a page, double-click a tab to rename it, and the x on the active tab deletes it (undo brings it back).'}),
@@ -4444,7 +4580,8 @@ window.__app={
     geom, sampleDoc, saveLocal, loadLocal, expandGroups, alignSel, distributeSel, reorder, newDoc,
     insertImageData, importAssets, exportAssets, docForSave, buildPdf, pageSvgs, assets:ASSETS, geoBBox,
     findTarget, lineDefaults, raPorts, raPort, RA_DEV, RA_SRC, filterLibrary, duplicate,
-    layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO },
+    layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO,
+    devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf },
   LIB, LIB_MAP, KEYS:{doc:KEY_DOC,schema:KEY_SCHEMA,prefs:KEY_PREFS,legacy:LEGACY_KEYS}
 };
 boot();
