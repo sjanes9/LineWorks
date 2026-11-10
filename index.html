@@ -297,6 +297,25 @@ button{cursor:pointer}
 .badge-react{cursor:pointer;user-select:none}
 .badge-link{fill:#ffffff;stroke:#3a7bec;stroke-width:1.2}
 .badge-link-ic{color:#3a7bec;pointer-events:none}
+.badge-note circle{fill:#fff8d6;stroke:#b7791f;stroke-width:1.2} .badge-note path{stroke:#8a5a0a}
+.badge-act{cursor:pointer} .badge-act circle{fill:#ffffff;stroke:#7c3aed;stroke-width:1.2} .badge-act path{fill:#7c3aed;stroke:#7c3aed;stroke-width:.6}
+.badge-act:hover circle{fill:#ede9fe}
+.note-in,.wide-in{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel);color:var(--text);font:inherit;font-size:var(--fs-sm);padding:5px 6px}
+.note-in{resize:vertical;min-height:54px;margin-top:6px} .wide-in{height:28px}
+.fld-list{display:grid;gap:4px} .fld-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr) 26px;gap:4px}
+.fld-row input,.rule-row input[type=text],.rule-row select{min-width:0;height:26px;padding:0 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel);color:var(--text);font-size:var(--fs-sm)}
+.rule-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;padding:6px;border:1px solid var(--border);border-radius:var(--r-sm)}
+.rule-row .rule-c{display:flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--text-2)} .rule-row input[type=color]{width:28px;height:22px;padding:0;border:1px solid var(--border);border-radius:4px;background:none}
+.find-bar{position:absolute;top:10px;right:10px;z-index:6;display:grid;gap:6px;padding:8px;width:340px;max-width:calc(100% - 20px);background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md,8px);box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.find-row{display:flex;gap:6px;align-items:center} .find-row input[type=search],.find-row input[type=text]{flex:1;min-width:0;height:28px;padding:0 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel);color:var(--text);font-size:var(--fs-sm)}
+.find-n{margin-left:auto}
+.present{position:fixed;inset:0;z-index:1000;background:#111418;display:flex;flex-direction:column;outline:none}
+.present-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:16px}
+.present-svg{width:100%;height:100%;background:#fff;border-radius:4px}
+.present-bar{display:flex;gap:10px;align-items:center;justify-content:center;padding:8px;background:#1b2027;color:#e5e7eb;font-size:var(--fs-sm)}
+.present-n{min-width:180px;text-align:center}
+.present-bar .btn{background:#e5e7eb;color:#111418;border-color:#e5e7eb} .present-bar .btn:disabled{opacity:.45}
+.vers-list{display:grid;gap:6px;max-height:50vh;overflow:auto} .vers-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm)}
 .line-label{cursor:move}
 .ov-lock rect{fill:var(--panel);stroke:var(--border-strong)} .ov-lock path{stroke:var(--text-2)} .ov-lock{pointer-events:none}
 .lock-note{display:flex;align-items:center;gap:8px;margin:4px 12px 8px;padding:8px;border-radius:var(--r-md);background:var(--soon-bg);color:var(--soon-text);font-size:var(--fs-sm)}
@@ -427,7 +446,7 @@ button{cursor:pointer}
     <button class="btn ghost" data-cmd="insertImage" data-icon="image" title="Insert picture (or drag a picture onto the canvas, or paste one)">Picture</button>
     <button class="btn ghost icon" data-cmd="delete" data-icon="trash" title="Delete (Del)" aria-label="Delete"></button>
     <span class="tb-spacer"></span>
-    <button class="btn ghost" data-cmd="soon:Presentation mode" data-icon="present">Present <span class="soon">Coming Soon</span></button>
+    <button class="btn ghost" data-cmd="present" data-icon="present" title="Present (F5)">Present</button>
     <button class="btn ghost icon" data-cmd="toggleRight" data-icon="panelR" title="Toggle properties panel" aria-label="Toggle properties panel"></button>
   </div>
 
@@ -443,6 +462,7 @@ button{cursor:pointer}
       <defs>
         <pattern id="gridMinor" patternUnits="userSpaceOnUse" width="10" height="10"><path id="gridMinorPath" d="M10 0L0 0 0 10" fill="none" stroke="var(--grid-minor)" stroke-width="1"/></pattern>
         <pattern id="gridMajor" patternUnits="userSpaceOnUse" width="50" height="50"><path id="gridMajorPath" d="M50 0L0 0 0 50" fill="none" stroke="var(--grid-major)" stroke-width="1"/></pattern>
+        <filter id="lwShadow" x="-20%" y="-20%" width="150%" height="150%"><feDropShadow dx="2" dy="3" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.3"/></filter>
       </defs>
       <g id="sheet"></g>
       <rect id="gridMinorRect" width="100%" height="100%" fill="url(#gridMinor)"/>
@@ -471,7 +491,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.11.0';
+const APP_VERSION='1.12.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -521,7 +541,7 @@ const FONTS={sans:'Helvetica, Arial, sans-serif',arial:'Arial, Helvetica, sans-s
 const FONT_OPTS=[['sans','Helvetica'],['arial','Arial'],['system','System UI'],['verdana','Verdana'],['tahoma','Tahoma'],['trebuchet','Trebuchet MS'],['serif','Georgia'],['times','Times New Roman'],['mono','Courier New'],['consolas','Consolas']];
 const SIZE_OPTS=[6,8,9,10,11,12,14,16,18,20,24,28,32,36,40,48,60,72,96];
 const COLOR_RE=/^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|none)$/;
-const DEF_SHAPE_STYLE={fill:'#ffffff',stroke:'#3d4757',sw:1.5,dash:'solid',opacity:1,fontSize:14,fontColor:'#1f2430',font:'sans',bold:false,italic:false,underline:false,strike:false,highlight:'none',list:'none',align:'center',valign:'middle',radius:0,textLevel:false};
+const DEF_SHAPE_STYLE={fill:'#ffffff',stroke:'#3d4757',sw:1.5,dash:'solid',opacity:1,fontSize:14,fontColor:'#1f2430',font:'sans',bold:false,italic:false,underline:false,strike:false,highlight:'none',list:'none',align:'center',valign:'middle',radius:0,textLevel:false,shadow:false};
 const DEF_LINE_STYLE={stroke:'#3d4757',sw:1.5,dash:'solid',opacity:1,fontSize:12,fontColor:'#1f2430',font:'sans',bold:false,italic:false,underline:false,strike:false,highlight:'none',corner:0};
 const FILL_SWATCHES=['#ffffff','#f2f4f7','#fde7e7','#fff3d6','#fff3a3','#e3f1e6','#e1f0fb','#e8e4fb','#fbe4f1','#3d4757','#2f6fed','#3b8a52','#c0392b','#c89422'];
 const STROKE_SWATCHES=['#3d4757','#1f2430','#8a93a3','#2f6fed','#3b8a52','#c0392b','#c89422','#7b4fd6','#d6408f','#0f9aa8','#e07b22','#ffffff','#b8c0cc','#000000'];
@@ -678,7 +698,7 @@ function geom(type,w,h,st){
       decor=[{d:circ(ax,ay,av),f:'none'},{d:circ(ax,ay-av*0.3,av*0.3),f:'stroke'},{d:`M${r2(ax-av*0.6)} ${r2(ay+av*0.62)}Q${r2(ax)} ${r2(ay-av*0.02)} ${r2(ax+av*0.6)} ${r2(ay+av*0.62)}Z`,f:'stroke'}];
       tb={x:h*0.92,y:0,w:Math.max(10,w-h*0.97),h}; break; }
     case 'org_role': d=roundRect(w,h,4); decor=[{d:`M0 4Q0 0 4 0H${r2(w-4)}Q${r2(w)} 0 ${r2(w)} 4V7H0Z`,f:'stroke'}]; tb={x:0,y:7,w,h:h-7}; break;
-    default: { const lg=libGeom(type,w,h); if(lg) return lg; const eg=elecGeom(type,w,h); if(eg) return withPins(eg,type,w,h); const g=symGeom(type,w,h); if(g) return withPins(g,type,w,h); d=roundRect(w,h,0); }
+    default: { const lg=libGeom(type,w,h); if(lg) return lg; const ug=umlGeom(type,w,h); if(ug) return ug; const eg=elecGeom(type,w,h); if(eg) return withPins(eg,type,w,h); const g=symGeom(type,w,h); if(g) return withPins(g,type,w,h); d=roundRect(w,h,0); }
   }
   return {d,decor,tb};
 }
@@ -1557,7 +1577,7 @@ function raPorts(s){
   const def=devDef(s.type), X=xf(s); let lay;
   if(def) lay=devLayout(def,X.gw,X.gh).map(q=>({id:q.p.id,k:q.p.k,d:q.p.d,x:q.x,y:q.y,side:q.side}));
   else { if(!PIN_TYPES.has(s.type)) return []; lay=(geom(s.type,X.gw,X.gh,s.style).pins||[]).map(q=>({id:q.id,k:'wire',d:'Terminal '+(q.lab||q.id),x:q.x,y:q.y,side:q.side})); }
-  return lay.map(q=>{ const t=tp(X,q.x,q.y); return {id:q.id,k:q.k,d:q.d,x:s.x+t.x,y:s.y+t.y,side:rotSide(X,q.side)}; });
+  return lay.map(q=>{ const t=tp(X,q.x,q.y), w=rotPt(s,{x:s.x+t.x,y:s.y+t.y}); return {id:q.id,k:q.k,d:q.d,x:w.x,y:w.y,side:effSide(s,rotSide(X,q.side))}; });
 }
 function raPort(s,pid){ return raPorts(s).find(p=>p.id===pid)||null; }
 // Shapes whose lines attach to named pins: Rockwell devices, I/O blocks and multi-wire symbols.
@@ -1573,16 +1593,19 @@ const IO_FAMS={
   '1734':{n:'POINT I/O 1734',s:'1734',def:8,note:'Real POINT I/O modules have 1 to 8 points each (Rockwell POINT I/O Selection Guide, 1734-SG001: "1734 POINT I/O modules offer 1 to 8 points per module"). Counts above 8 are allowed here as a placeholder.'}
 };
 const IO_KINDS={di:{n:'Digital input',lab:'IN',d:'Input',c:'DI'},do:{n:'Digital output',lab:'OUT',d:'Output',c:'DO'},ai:{n:'Analog input',lab:'CH',d:'Analog input channel',c:'AI'},ao:{n:'Analog output',lab:'CH',d:'Analog output channel',c:'AO'}};
-const IO_RE=/^io_(1756|5069|1769|1734)_(di|do|ai|ao)_([1-9]|[12][0-9]|3[0-2])(?:_([lrs]))?$/, IO_MAX=32, IO_COL=16, IO_HDR=42, IO_PITCH=16;
+const IO_RE=/^io_(1756|5069|1769|1734)_(di|do|ai|ao)_([1-9]|[12][0-9]|3[0-2])(?:_([lrs]))?(?:_c([1-4]))?$/, IO_MAX=32, IO_COL=16, IO_HDR=42, IO_PITCH=16;
 const IO_NOTE='Generic placeholder block, not a specific catalog number. Point count, signal type and labels are what you chose; check terminal numbering against the real module wiring diagram.';
 const IO_DEV={};
 // side: 'l' all pins on the left, 'r' all on the right, 's' split across both sides. No suffix (auto)
 // means left up to 16 points and split above that.
 const IO_SIDES={auto:'Automatic (left, or both sides above 16)',l:'Left',r:'Right',s:'Both sides'};
 function ioAutoSide(n){ return n>IO_COL?'s':'l'; }
-function ioType(fam,kind,n,side){ return 'io_'+fam+'_'+kind+'_'+n+(side&&side!=='auto'?'_'+side:''); }
-function ioParse(type){ if(!type||type.charCodeAt(0)!==105||type.charCodeAt(1)!==111) return null; const m=IO_RE.exec(type); return m?{fam:m[1],kind:m[2],n:+m[3],auto:!m[4],side:m[4]||ioAutoSide(+m[3])}:null; }
-function ioSize(n,side){ const two=(side&&side!=='auto'?side:ioAutoSide(n))==='s', rows=two?Math.ceil(n/2):n; return {w:two?210:140,h:IO_HDR+rows*IO_PITCH+8}; }
+function ioType(fam,kind,n,side,com){ return 'io_'+fam+'_'+kind+'_'+n+(side&&side!=='auto'?'_'+side:'')+(com>0?'_c'+Math.min(4,Math.round(com)):''); }
+const IO_COM_MAX=4;
+function ioParse(type){ if(!type||type.charCodeAt(0)!==105||type.charCodeAt(1)!==111) return null; const m=IO_RE.exec(type); return m?{fam:m[1],kind:m[2],n:+m[3],auto:!m[4],side:m[4]||ioAutoSide(+m[3]),com:m[5]?+m[5]:0}:null; }
+// Rows of pins down one edge: the points, then any common pins below them.
+function ioRows(n,side,com){ com=com||0; return (side==='s')?Math.ceil(n/2)+Math.ceil(com/2):n+com; }
+function ioSize(n,side,com){ const sd=side&&side!=='auto'?side:ioAutoSide(n), two=sd==='s', rows=ioRows(n,sd,com); return {w:two?210:140,h:IO_HDR+rows*IO_PITCH+8}; }
 // Device definition for a shape type: Rockwell catalog devices, or a generic I/O block.
 function devDef(type){
   if(RA_DEV[type]) return RA_DEV[type];
@@ -1590,25 +1613,28 @@ function devDef(type){
   const c=ioParse(type); if(!c) return null;
   const F=IO_FAMS[c.fam], K=IO_KINDS[c.kind], ports=[];
   for(let i=0;i<c.n;i++) ports.push({id:String(i),k:'io',d:K.d+' '+i,lab:K.lab+' '+i});
-  return (IO_DEV[type]={key:type,io:c,cat:F.s+' '+K.n.toLowerCase()+', '+c.n+' point'+(c.n>1?'s':''),fam:F.n,ports,two:c.side==='s',src:null,note:IO_NOTE,v:false});
+  for(let i=0;i<c.com;i++) ports.push({id:'C'+i,k:'io',d:'Common'+(c.com>1?' '+i:''),lab:c.com>1?'COM '+i:'COM',com:true});
+  return (IO_DEV[type]={key:type,io:c,cat:F.s+' '+K.n.toLowerCase()+', '+c.n+' point'+(c.n>1?'s':'')+(c.com?' + '+c.com+' common':''),fam:F.n,ports,two:c.side==='s',src:null,note:IO_NOTE,v:false});
 }
 function ioLayout(def,w,h){
-  const n=def.ports.length, rows=def.two?Math.ceil(n/2):n, pitch=(h-IO_HDR-6)/rows, out=[];
-  const allR=def.io&&def.io.side==='r';
-  def.ports.forEach((p,i)=>{ const right=allR||i>=rows, r=allR?i:(right?i-rows:i); out.push({p,x:right?w:0,y:IO_HDR+pitch*(r+0.5),side:right?'E':'W'}); });
+  const c=def.io, rows=ioRows(c.n,c.side,c.com), pr=c.side==='s'?Math.ceil(c.n/2):c.n, pitch=(h-IO_HDR-6)/rows, out=[], allR=c.side==='r';
+  const at=(p,right,r)=>out.push({p,x:right?w:0,y:IO_HDR+pitch*(r+0.5),side:right?'E':'W'});
+  def.ports.forEach((p,i)=>{
+    if(p.com){ const j=i-c.n; if(c.side==='s') at(p,j%2===1,pr+Math.floor(j/2)); else at(p,allR,pr+j); }
+    else { const right=allR||(c.side==='s'&&i>=pr); at(p,right,allR?i:(right?i-pr:i)); } });
   return out;
 }
 function devLayout(def,w,h){ return def.io?ioLayout(def,w,h):raLayout(def,w,h); }
 function ioGeom(def,w,h){
   const c=def.io, K=IO_KINDS[c.kind], decor=[], glyphs=[], lay=ioLayout(def,w,h);
-  const fs=clamp((h-IO_HDR-6)/(def.two?Math.ceil(c.n/2):c.n)*0.55,5,8.5);
-  let stubs='', terms='';
+  const fs=clamp((h-IO_HDR-6)/ioRows(c.n,c.side,c.com)*0.55,5,8.5);
+  let stubs='', terms='', coms='';
   for(const q of lay){
     const L=q.side==='W', tx=L?7:w-7;
-    stubs+=PL([q.x,q.y],[L?tx-3:tx+3,q.y]); terms+=circ(tx,q.y,3);
-    glyphs.push({t:q.p.lab,x:L?14:w-14,y:q.y,s:fs,a:L?'start':'end'});
+    stubs+=PL([q.x,q.y],[L?tx-3:tx+3,q.y]); if(q.p.com) coms+=circ(tx,q.y,3); else terms+=circ(tx,q.y,3);
+    glyphs.push({t:q.p.lab,x:L?14:w-14,y:q.y,s:fs,a:L?'start':'end',b:!!q.p.com});
   }
-  decor.push({d:stubs,f:'none'},{d:terms,f:'fill'});
+  decor.push({d:stubs,f:'none'},{d:terms,f:'fill'}); if(coms) decor.push({d:coms,f:'stroke'});
   decor.push({d:`M0 ${r2(IO_HDR)}H${r2(w)}`,f:'none'});
   decor.push({d:`M3 3H${r2(w-3)}V${r2(IO_HDR-3)}H3Z`,f:'stroke',op:0.08,ns:true});
   if(def.two) decor.push({d:`M${r2(w/2)} ${r2(IO_HDR+4)}V${r2(h-4)}`,f:'none',dash:true});
@@ -1617,42 +1643,45 @@ function ioGeom(def,w,h){
 }
 // Change a placed block's family, signal type or point count. Lines on points that no longer
 // exist are left with a free end where the point was.
-function setIo(s,fam,kind,n,side){
+function setIo(s,fam,kind,n,side,com){
   const c=ioParse(s.type); if(!c) return false;
   fam=IO_FAMS[fam]?fam:c.fam; kind=IO_KINDS[kind]?kind:c.kind; n=Math.round(+n); if(!(n>=1&&n<=IO_MAX)) n=c.n;
   if(side==null) side=c.auto?'auto':c.side; if(!IO_SIDES[side]) side='auto';
-  const nt=ioType(fam,kind,n,side); if(nt===s.type) return false;
+  com=com==null?c.com:clamp(Math.round(+com)||0,0,IO_COM_MAX);
+  const nt=ioType(fam,kind,n,side,com); if(nt===s.type) return false;
   let freed=0;
   for(const L of items()) if(isLine(L)) for(const k of ['from','to']){ const e=L[k];
-    if(e.id===s.id&&e.port&&+e.port>=n){ const q=raPort(s,e.port); L[k]=q?{x:r2(q.x),y:r2(q.y)}:{x:s.x,y:s.y}; freed++; } }
-  const ns=side==='auto'?ioAutoSide(n):side, old=ioSize(c.n,c.side), sz=ioSize(n,ns), X=xf(s), sx=X.gw/old.w, sy=X.gh/old.h;
+    if(e.id===s.id&&e.port&&(e.port[0]==='C'?+e.port.slice(1)>=com:+e.port>=n)){ const q=raPort(s,e.port); L[k]=q?{x:r2(q.x),y:r2(q.y)}:{x:s.x,y:s.y}; freed++; } }
+  const ns=side==='auto'?ioAutoSide(n):side, old=ioSize(c.n,c.side,c.com), sz=ioSize(n,ns,com), X=xf(s), sx=X.gw/old.w, sy=X.gh/old.h;
   const gw=Math.round(sz.w*((c.side==='s')===(ns==='s')?sx:1)), gh=Math.round(sz.h*sy);
   const swap=s.rot===90||s.rot===270; s.w=swap?gh:gw; s.h=swap?gw:gh; s.type=nt;
   // Pins changed sides: lines on them now leave from the new side.
   for(const L of items()) if(isLine(L)) for(const k of ['from','to']){ const e=L[k]; if(e.id===s.id&&e.port){ const q=raPort(s,e.port); if(q) e.side=q.side; } }
-  if(freed) toast(freed+' line end'+(freed>1?'s were':' was')+' on removed points and '+(freed>1?'are':'is')+' now loose.');
+  if(freed) toast(freed+' line end'+(freed>1?'s were':' was')+' on removed pins and '+(freed>1?'are':'is')+' now loose.');
   return true;
 }
-function addIo(fam,kind,n,x,y,rot,side){
+function addIo(fam,kind,n,x,y,rot,side,com){
   if(!IO_FAMS[fam]||!IO_KINDS[kind]) return null; n=clamp(Math.round(+n)||1,1,IO_MAX); if(!IO_SIDES[side]) side='auto';
-  const s=addShape('io_'+fam,x,y), sz=ioSize(n,side); s.type=ioType(fam,kind,n,side);
+  com=clamp(Math.round(+com)||0,0,IO_COM_MAX);
+  const s=addShape('io_'+fam,x,y), sz=ioSize(n,side,com); s.type=ioType(fam,kind,n,side,com);
   const cx=s.x+s.w/2, cy=s.y+s.h/2; s.w=sz.w; s.h=sz.h; s.x=r2(cx-sz.w/2); s.y=r2(cy-sz.h/2);
   const turns=Math.round(((rot==null?S.prefs.placeRot:rot)||0)/90);
   if(turns%4) rotateShapes([s],turns);
-  S.ioLast={kind,n,side}; commit(); invalidate(); return s;
+  S.ioLast={kind,n,side,com}; commit(); invalidate(); return s;
 }
 // Ask how many points (1 to 32) and which signal type before placing a block.
 function promptIo(key,x,y,rot){
   const fam=LIB_MAP[key].io, F=IO_FAMS[fam], last=S.ioLast||{kind:'di',n:F.def,side:'auto'};
-  const kindSel=el('select',{'aria-label':'Signal type','data-io':'kind'},Object.keys(IO_KINDS).map(k=>el('option',{value:k,text:IO_KINDS[k].n,selected:k===last.kind?'':null})));
+  const kindSel=el('select',{'aria-label':'Signal type','data-io':'kind'},Object.keys(IO_KINDS).map(k=>el('option',{value:k,text:IO_KINDS[k].n,selected:k===last.kind})));
   const nIn=el('input',{type:'number',min:1,max:IO_MAX,step:1,value:String(last.n),'aria-label':'Number of I/O points','data-io':'n'});
-  const sideSel=el('select',{'aria-label':'Pins on','data-io':'side'},Object.keys(IO_SIDES).map(k=>el('option',{value:k,text:IO_SIDES[k],selected:k===(last.side||'auto')?'':null})));
+  const sideSel=el('select',{'aria-label':'Pins on','data-io':'side'},Object.keys(IO_SIDES).map(k=>el('option',{value:k,text:IO_SIDES[k],selected:k===(last.side||'auto')})));
   const msg=el('p',{class:'muted small',text:'Each point gets its own pin you can attach a line to. Pins on sets which edge the pins run down; Both sides puts the first half on the left and the rest on the right. You can change all of this later in the right panel.'});
+  const comSel=el('select',{'aria-label':'Common pins','data-io':'com'},[0,1,2,3,4].map(k=>el('option',{value:String(k),text:k===0?'None':k===1?'1 (COM)':k+' (COM 0 to COM '+(k-1)+')',selected:k===(last.com||0)})));
   const famNote=F.note?el('p',{class:'muted small',text:F.note}):null;
   const go=()=>{ const n=Number(nIn.value); if(String(nIn.value).trim()===''||!Number.isInteger(n)||n<1||n>IO_MAX){ msg.textContent='Enter a whole number from 1 to '+IO_MAX+'.'; msg.className='small io-err'; nIn.focus(); return; }
-    closeModal(); const s=addIo(fam,kindSel.value,n,x,y,rot,sideSel.value); if(s) setSel([s.id]); };
+    closeModal(); const s=addIo(fam,kindSel.value,n,x,y,rot,sideSel.value,+comSel.value); if(s) setSel([s.id]); };
   openModal('Add '+F.n+' module',
-    el('div',{class:'io-form'},el('label',null,el('span',{text:'Signal type'}),kindSel),el('label',null,el('span',{text:'Number of I/O points (1 to '+IO_MAX+')'}),nIn),el('label',null,el('span',{text:'Pins on'}),sideSel)),msg,famNote,
+    el('div',{class:'io-form'},el('label',null,el('span',{text:'Signal type'}),kindSel),el('label',null,el('span',{text:'Number of I/O points (1 to '+IO_MAX+')'}),nIn),el('label',null,el('span',{text:'Pins on'}),sideSel),el('label',null,el('span',{text:'Common pins'}),comSel)),msg,famNote,
     el('div',{class:'modal-actions'},el('button',{type:'button',class:'btn','data-close':'btn',text:'Cancel'}),el('button',{type:'button',class:'btn primary','data-io-add':'1',text:'Add module'})));
   modalEl.querySelector('[data-io-add]').addEventListener('click',go);
   nIn.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); go(); } });
@@ -1850,11 +1879,124 @@ const SF={fill:'#ffffff',stroke:'#1f2430',fontSize:11,valign:'top'}, SFB={fill:'
   ]});
 })();
 
+/* ============================== UML and BPMN libraries ============================== */
+const B_UML='Drawn after common UML 2 notation. Not checked against the OMG UML specification figures.';
+const B_BPMN='Drawn after common BPMN 2.0 notation. Not checked against the OMG BPMN specification figures.';
+function umlGeom(type,w,h){
+  const D=(d,f,dash,o)=>Object.assign({d,f:f||'none',dash:!!dash},o||{});
+  const R=(x,y,ww,hh)=>`M${r2(x)} ${r2(y)}H${r2(x+ww)}V${r2(y+hh)}H${r2(x)}Z`;
+  const box=(d,o)=>Object.assign({d,decor:[],glyphs:[],tb:{x:0,y:0,w,h},label:false,hit:false,ports:null},o||{});
+  const ico=(d,o)=>Object.assign({d,decor:[],glyphs:[],tb:{x:0,y:0,w,h},label:true,hit:true,ports:null},o||{});
+  const m=Math.min(w,h), cx=w/2, cy=h/2, dia=poly([[cx,0],[w,cy],[cx,h],[0,cy]]);
+  switch(type){
+    case 'uml_class': case 'uml_iface': return box(R(0,0,w,h));
+    case 'uml_actor': { const r=Math.min(w*.3,h*.14), hy=r+1, by=h*.62;
+      return ico(circ(cx,hy,r),{decor:[D(PL([cx,hy+r],[cx,by])+PL([0,h*.38],[w,h*.38])+PL([0,h],[cx,by],[w,h]))],hit:true,ports:{N:[cx,0],S:[cx,h],W:[0,h*.38],E:[w,h*.38]}}); }
+    case 'uml_package': { const th=Math.min(18,h*.25), tw=w*.4; return box(R(0,th,w,h-th),{decor:[D(`M0 ${r2(th)}V0H${r2(tw)}V${r2(th)}`)],tb:{x:0,y:th,w,h:h-th}}); }
+    case 'uml_component': { const lw=Math.min(18,w*.16), lh=Math.min(10,h*.16), x0=lw/2;
+      return box(R(x0,0,w-x0,h),{decor:[D(R(0,h*.25-lh/2,lw,lh)+R(0,h*.7-lh/2,lw,lh),'fill')],tb:{x:lw,y:0,w:w-lw,h}}); }
+    case 'uml_node': { const k=Math.min(14,m*.18);
+      return box(R(0,k,w-k,h-k),{decor:[D(`M0 ${r2(k)}L${r2(k)} 0H${r2(w)}V${r2(h-k)}L${r2(w-k)} ${r2(h)}M${r2(w-k)} ${r2(k)}L${r2(w)} 0`)],tb:{x:0,y:k,w:w-k,h:h-k}}); }
+    case 'uml_lifeline': { const hh=Math.min(40,h*.3); return box(R(0,0,w,hh),{decor:[D(PL([cx,hh],[cx,h]),'none',true)],tb:{x:0,y:0,w,h:hh},hit:true,ports:{N:[cx,0],S:[cx,h],W:[cx,(hh+h)/2],E:[cx,(hh+h)/2]}}); }
+    case 'uml_initial': return ico(circ(cx,cy,m/2),{decor:[D(circ(cx,cy,m/2),'stroke')],label:false,hit:false});
+    case 'uml_final': return ico(circ(cx,cy,m/2),{decor:[D(circ(cx,cy,m*.3),'stroke')],label:false,hit:false});
+    case 'uml_fork': return ico(R(0,0,w,h),{decor:[D(R(0,0,w,h),'stroke')],label:false,hit:false});
+    case 'uml_frame': { const tw=Math.min(w*.4,110), th=Math.min(22,h*.3); return box(R(0,0,w,h),{decor:[D(`M0 ${r2(th)}H${r2(tw-8)}L${r2(tw)} ${r2(th-8)}V0`)],tb:{x:0,y:0,w:tw,h:th},hit:true}); }
+    case 'bp_start': return ico(circ(cx,cy,m/2),{hit:false});
+    case 'bp_inter': return ico(circ(cx,cy,m/2),{decor:[D(circ(cx,cy,m/2-3))],hit:false});
+    case 'bp_end': return ico(circ(cx,cy,m/2),{decor:[D(circ(cx,cy,m/2-1.2)+circ(cx,cy,m/2-2.4))],hit:false});
+    case 'bp_start_msg': { const ew=m*.5, eh=m*.34; return ico(circ(cx,cy,m/2),{decor:[D(R(cx-ew/2,cy-eh/2,ew,eh)+PL([cx-ew/2,cy-eh/2],[cx,cy+eh*.1],[cx+ew/2,cy-eh/2]))],hit:false}); }
+    case 'bp_start_timer': { const r=m*.3; return ico(circ(cx,cy,m/2),{decor:[D(circ(cx,cy,r)+PL([cx,cy-r*.7],[cx,cy],[cx+r*.5,cy]))],hit:false}); }
+    case 'bp_end_term': return ico(circ(cx,cy,m/2),{decor:[D(circ(cx,cy,m/2-1.2)),D(circ(cx,cy,m*.28),'stroke')],hit:false});
+    case 'bp_sub': { const r=10, k=7; return box(roundRect(w,h,Math.min(r,m/2)),{decor:[D(R(cx-k,h-k*2-3,k*2,k*2)+PL([cx-k*.6,h-k-3],[cx+k*.6,h-k-3])+PL([cx,h-k*1.6-3],[cx,h-k*.4-3]))],tb:{x:0,y:0,w,h:h-k*2-4}}); }
+    case 'bp_gw': return ico(dia,{hit:false});
+    case 'bp_gw_x': return ico(dia,{decor:[D(PL([w*.36,h*.36],[w*.64,h*.64])+PL([w*.64,h*.36],[w*.36,h*.64]),'none',false,{sw:2})],hit:false});
+    case 'bp_gw_plus': return ico(dia,{decor:[D(PL([w*.3,cy],[w*.7,cy])+PL([cx,h*.3],[cx,h*.7]))],hit:false});
+    case 'bp_gw_o': return ico(dia,{decor:[D(circ(cx,cy,m*.2))],hit:false});
+    case 'bp_gw_event': return ico(dia,{decor:[D(circ(cx,cy,m*.25)+circ(cx,cy,m*.19)+poly([[cx,cy-m*.12],[cx+m*.115,cy-m*.035],[cx+m*.07,cy+m*.1],[cx-m*.07,cy+m*.1],[cx-m*.115,cy-m*.035]]))],hit:false});
+    case 'bp_data': { const k=Math.min(w*.3,h*.25); return ico(poly([[0,0],[w-k,0],[w,k],[w,h],[0,h]]),{decor:[D(PL([w-k,0],[w-k,k],[w,k]))],hit:false}); }
+    case 'bp_annot': return box(`M${r2(Math.min(12,w*.2))} 0H0V${r2(h)}H${r2(Math.min(12,w*.2))}`,{tb:{x:6,y:0,w:w-6,h},hit:true});
+  }
+  return null;
+}
+const UML_TYPES=['uml_class','uml_iface','uml_actor','uml_package','uml_component','uml_node','uml_lifeline','uml_initial','uml_final','uml_fork','uml_frame',
+  'bp_start','bp_inter','bp_end','bp_start_msg','bp_start_timer','bp_end_term','bp_sub','bp_gw','bp_gw_x','bp_gw_plus','bp_gw_o','bp_gw_event','bp_data','bp_annot'];
+const UMLS={fill:'#ffffff',stroke:'#1f2430',fontSize:12}, UMLT=Object.assign({},UMLS,{valign:'top',fontSize:11});
+LIB.push(
+  {cat:'UML',closed:true,items:[
+    {key:'uml_class',name:'Class',type:'uml_class',w:170,h:110,text:'ClassName\n--\n- attribute: Type\n--\n+ operation(): Type',style:Object.assign({},UMLS,{align:'left',valign:'top'}),std:B_UML},
+    {key:'uml_iface',name:'Interface',type:'uml_iface',w:170,h:90,text:'«interface»\nName\n--\n+ operation(): Type',style:Object.assign({},UMLS,{align:'left',valign:'top'}),std:B_UML},
+    {key:'uml_actor',name:'Actor',type:'uml_actor',w:36,h:64,text:'Actor',style:UMLT,std:B_UML},
+    {key:'uml_usecase',name:'Use case',type:'ellipse',w:140,h:64,text:'Use case',style:UMLS,std:B_UML},
+    {key:'uml_package',name:'Package',type:'uml_package',w:150,h:100,text:'Package',style:UMLS,std:B_UML},
+    {key:'uml_component',name:'Component',type:'uml_component',w:150,h:70,text:'Component',style:UMLS,std:B_UML},
+    {key:'uml_node',name:'Node (deployment)',type:'uml_node',w:150,h:100,text:'Node',style:UMLS,std:B_UML},
+    {key:'uml_note',name:'Note',type:'note',w:130,h:80,text:'Note',style:Object.assign({},UMLS,{align:'left',valign:'top'}),std:B_UML},
+    {key:'uml_lifeline',name:'Lifeline',type:'uml_lifeline',w:110,h:260,text:':Object',style:UMLS,std:B_UML},
+    {key:'uml_activation',name:'Activation bar',type:'rect',w:12,h:80,style:UMLS,std:B_UML},
+    {key:'uml_state',name:'State',type:'rect',w:130,h:60,text:'State',style:Object.assign({},UMLS,{radius:14}),std:B_UML},
+    {key:'uml_initial',name:'Initial state',type:'uml_initial',w:22,h:22,style:UMLS,std:B_UML},
+    {key:'uml_final',name:'Final state',type:'uml_final',w:26,h:26,style:UMLS,std:B_UML},
+    {key:'uml_decision',name:'Decision / merge',type:'diamond',w:50,h:50,style:UMLS,std:B_UML},
+    {key:'uml_fork',name:'Fork / join bar',type:'uml_fork',w:120,h:8,style:UMLS,std:B_UML},
+    {key:'uml_frame',name:'Frame (alt, loop, sd)',type:'uml_frame',w:320,h:200,text:'alt',style:Object.assign({},UMLS,{fill:'none',fontSize:11}),std:B_UML},
+    {key:'uml_gen',name:'Generalization (inherits)',line:true,style:{stroke:'#1f2430',sw:1.5},endArrow:'arrowOpen'},
+    {key:'uml_real',name:'Realization (implements)',line:true,style:{stroke:'#1f2430',sw:1.5,dash:'dashed'},endArrow:'arrowOpen'},
+    {key:'uml_assoc',name:'Association',line:true,style:{stroke:'#1f2430',sw:1.5},endArrow:'none'},
+    {key:'uml_dir',name:'Directed association',line:true,style:{stroke:'#1f2430',sw:1.5},endArrow:'open'},
+    {key:'uml_dep',name:'Dependency',line:true,style:{stroke:'#1f2430',sw:1.5,dash:'dashed'},endArrow:'open'},
+    {key:'uml_agg',name:'Aggregation',line:true,style:{stroke:'#1f2430',sw:1.5},startArrow:'diamondOpen',endArrow:'none'},
+    {key:'uml_comp',name:'Composition',line:true,style:{stroke:'#1f2430',sw:1.5},startArrow:'diamond',endArrow:'none'},
+    {key:'uml_msg',name:'Message (sequence)',line:true,route:'straight',style:{stroke:'#1f2430',sw:1.5},endArrow:'arrow'},
+    {key:'uml_reply',name:'Reply message',line:true,route:'straight',style:{stroke:'#1f2430',sw:1.5,dash:'dashed'},endArrow:'open'}
+  ]},
+  {cat:'BPMN',closed:true,items:[
+    {key:'bp_start',name:'Start event',type:'bp_start',w:36,h:36,style:UMLT,std:B_BPMN},
+    {key:'bp_start_msg',name:'Message start event',type:'bp_start_msg',w:36,h:36,style:UMLT,std:B_BPMN},
+    {key:'bp_start_timer',name:'Timer start event',type:'bp_start_timer',w:36,h:36,style:UMLT,std:B_BPMN},
+    {key:'bp_inter',name:'Intermediate event',type:'bp_inter',w:36,h:36,style:UMLT,std:B_BPMN},
+    {key:'bp_end',name:'End event',type:'bp_end',w:36,h:36,style:UMLT,std:B_BPMN},
+    {key:'bp_end_term',name:'Terminate end event',type:'bp_end_term',w:36,h:36,style:UMLT,std:B_BPMN},
+    {key:'bp_task',name:'Task',type:'rect',w:120,h:70,text:'Task',style:Object.assign({},UMLS,{radius:10}),std:B_BPMN},
+    {key:'bp_sub',name:'Sub-process (collapsed)',type:'bp_sub',w:130,h:80,text:'Sub-process',style:UMLS,std:B_BPMN},
+    {key:'bp_gw_x',name:'Exclusive gateway',type:'bp_gw_x',w:50,h:50,style:UMLT,std:B_BPMN},
+    {key:'bp_gw_plus',name:'Parallel gateway',type:'bp_gw_plus',w:50,h:50,style:UMLT,std:B_BPMN},
+    {key:'bp_gw_o',name:'Inclusive gateway',type:'bp_gw_o',w:50,h:50,style:UMLT,std:B_BPMN},
+    {key:'bp_gw_event',name:'Event-based gateway',type:'bp_gw_event',w:50,h:50,style:UMLT,std:B_BPMN},
+    {key:'bp_gw',name:'Gateway (no marker)',type:'bp_gw',w:50,h:50,style:UMLT,std:B_BPMN},
+    {key:'bp_data',name:'Data object',type:'bp_data',w:40,h:52,style:UMLT,std:B_BPMN},
+    {key:'bp_store',name:'Data store',type:'cylinder',w:60,h:56,style:UMLS,std:B_BPMN},
+    {key:'bp_pool',name:'Pool / lane',type:'lane_h',w:520,h:160,text:'Pool',style:{fill:'#ffffff',stroke:'#1f2430',fontSize:12},std:B_BPMN},
+    {key:'bp_annot',name:'Text annotation',type:'bp_annot',w:120,h:50,text:'Annotation',style:Object.assign({},UMLS,{fill:'none',align:'left'}),std:B_BPMN},
+    {key:'bp_group',name:'Group',type:'rect',w:220,h:140,style:{fill:'none',stroke:'#1f2430',dash:'dashed',radius:10,fontSize:12,valign:'top'},std:B_BPMN},
+    {key:'bp_seq',name:'Sequence flow',line:true,style:{stroke:'#1f2430',sw:1.5},endArrow:'arrow'},
+    {key:'bp_default',name:'Default flow',line:true,style:{stroke:'#1f2430',sw:1.5},startArrow:'slash',endArrow:'arrow'},
+    {key:'bp_cond',name:'Conditional flow',line:true,style:{stroke:'#1f2430',sw:1.5},startArrow:'diamondSmall',endArrow:'arrow'},
+    {key:'bp_msg',name:'Message flow',line:true,style:{stroke:'#1f2430',sw:1.5,dash:'dashed'},startArrow:'circleSmallOpen',endArrow:'arrowOpen'},
+    {key:'bp_assoc',name:'Association',line:true,style:{stroke:'#1f2430',sw:1.5,dash:'dotted'},endArrow:'none'}
+  ]}
+);
+// Class boxes: lines before the first "--" are the centered name; each "--" starts a new compartment.
+function renderUmlText(g,it,st){
+  const fs=st.fontSize, lh=fs*1.3, pad=6, secs=[[]]; for(const ln of String(it.text||'').split('\n')){ if(ln.trim()==='--') secs.push([]); else secs[secs.length-1].push(ln); }
+  let y=4; const color=st.fontColor==='none'?'#1f2430':st.fontColor;
+  secs.forEach((sec,si)=>{
+    if(si>0){ g.appendChild(sv('path',{d:`M0 ${r2(y)}H${r2(it.w)}`,stroke:st.stroke==='none'?color:st.stroke,'stroke-width':st.sw,fill:'none'})); y+=3; }
+    for(const raw of sec){ if(y+lh>it.h+2) return; const head=si===0, stereo=head&&/^«.*»$/.test(raw.trim());
+      let ln=raw; const maxw=it.w-pad*2, sty=Object.assign({},st,{bold:head&&!stereo?true:st.bold,italic:stereo?true:st.italic});
+      if(textWidth(ln,sty)>maxw){ while(ln.length>1&&textWidth(ln+'…',sty)>maxw) ln=ln.slice(0,-1); ln+='…'; }
+      g.appendChild(sv('text',{x:r2(head?it.w/2:pad),y:r2(y+lh*0.75),'text-anchor':head?'middle':'start','font-family':FONTS[st.font]||FONTS.sans,'font-size':fs,fill:color,'font-weight':sty.bold?'bold':null,'font-style':sty.italic?'italic':null},ln)); y+=lh; }
+    y+=3;
+  });
+}
+const isUmlBox=it=>(it.type==='uml_class'||it.type==='uml_iface')&&!it.rot;
+
+const STD_INFO={}; LIB.forEach(c=>c.items.forEach(i=>{ if(i.std&&!i.line) STD_INFO[i.key]={basis:i.std,cat:c.cat}; }));
 const SYMBOL_INFO={}; LIB.forEach(c=>c.items.forEach(i=>{ if(i.basis&&!i.line) SYMBOL_INFO[i.type]={basis:i.basis,verified:!!i.verified,cat:c.cat}; }));
 const INST_TYPES=new Set(['p_inst','p_inst_cr','p_inst_aux','p_inst_bp','p_shared','p_shared_cr','p_plc_cr','p_comp_cr']);
 GEOM_TYPES.push(...Object.keys(SYMBOL_INFO),'n_router','n_switch','n_firewall','n_server','n_pc','n_laptop','n_ap','n_printer','n_phone','n_camera','n_rack','n_plc','n_hmi','n_indswitch','n_io','n_drive','n_media');
-GEOM_TYPES.push(...Object.keys(RA_DEV),...LIB_GEOM_TYPES);
-const SOON_LIBS=['UML','BPMN','Electrical, IEC 60617 style','Icon sets'];
+GEOM_TYPES.push(...Object.keys(RA_DEV),...LIB_GEOM_TYPES,...UML_TYPES);
+const SOON_LIBS=['Electrical, IEC 60617 style','Icon sets'];
 const LIB_MAP={}; LIB.forEach(c=>c.items.forEach(i=>{LIB_MAP[i.key]=i;}));
 const PIN_TYPES=new Set(); LIB.forEach(c=>c.items.forEach(i=>{ if(!i.line&&!i.tpl&&symPins(i.type,i.w,i.h)) PIN_TYPES.add(i.type); }));
 const QUICK=['process','rounded','decision','terminator','data','ellipse','database','document'];
@@ -2060,6 +2202,7 @@ function sanAttrs(it){
   if(Array.isArray(it.reactions)){ const r=[...new Set(it.reactions.filter(x=>typeof x==='string'&&x.length>0&&x.length<=16))].slice(0,12); if(r.length) o.reactions=r; }
   if(it.link){ const u=normUrl(it.link); if(u) o.link=u; }
   if(it.locked===true) o.locked=true;
+  Object.assign(o,sanExtras(it));
   return o;
 }
 function sanitizeItem(it){
@@ -2077,7 +2220,7 @@ function sanitizeItem(it){
   return {id,kind:'shape',type:(GEOM_TYPES.includes(it.type)||IO_RE.test(String(it.type)))?it.type:'rect',
     x:num(it.x,0),y:num(it.y,0),w:Math.max(4,num(it.w,100)),h:Math.max(4,num(it.h,60)),
     text:str(it.text).slice(0,10000),style:sanStyle(it.style,DEF_SHAPE_STYLE),layer:typeof it.layer==='string'?it.layer.slice(0,64):undefined,groupId:gid,
-    rot:[90,180,270].includes(it.rot)?it.rot:undefined,flip:it.flip===true?true:undefined,...sanAttrs(it),
+    rot:[90,180,270].includes(it.rot)?it.rot:undefined,flip:it.flip===true?true:undefined,ang:(Number.isFinite(+it.ang)&&Math.abs(normAng(+it.ang))>0.05&&Math.abs(Math.abs(normAng(+it.ang))-90)>0.05&&Math.abs(Math.abs(normAng(+it.ang))-180)>0.05)?r2(normAng(+it.ang)):undefined,...sanAttrs(it),
     img:(it.type==='image'&&typeof it.img==='string')?it.img.slice(0,64):undefined,
     family:['mindmap','org'].includes(it.family)?it.family:undefined,
     level:['mindmap','org'].includes(it.family)&&Number.isFinite(+it.level)?clamp(Math.round(+it.level),0,20):undefined};
@@ -2106,7 +2249,7 @@ function migrate(raw){
     return Object.assign({id:pid,name:str(p.name).slice(0,80)||('Page '+(i+1)),items:its},sanPageExtras(p,its));
   });
   const active=pages.some(p=>p.id===d.activePage)?d.activePage:pages[0].id;
-  return {schema:SCHEMA,app:'linework',title:str(d.title).slice(0,200)||'Untitled diagram',pages,activePage:active};
+  return Object.assign({schema:SCHEMA,app:'linework',title:str(d.title).slice(0,200)||'Untitled diagram',pages,activePage:active},sanDocExtras(d));
 }
 
 /* ============================== history & persistence ============================== */
@@ -2117,7 +2260,7 @@ function commit(){
   H.stack.length=H.idx+1; H.stack.push(snap);
   if(H.stack.length>HISTORY_MAX) H.stack.shift();
   H.idx=H.stack.length-1;
-  scheduleSave(); invalidate({chrome:true});
+  scheduleSave(); invalidate({chrome:true}); autoVersion();
   return true;
 }
 function restoreSnap(){
@@ -2181,6 +2324,24 @@ function wrapText(text,maxW,st){
 
 /* ============================== connector routing ============================== */
 function center(s){ return {x:s.x+s.w/2,y:s.y+s.h/2}; }
+/* Free rotation: s.ang (degrees, never a multiple of 90) turns the shape about its center on top of the
+   90 degree steps in s.rot. x, y, w, h stay the unturned frame. */
+function rotAbout(p,c,deg){ const a=deg*Math.PI/180, co=Math.cos(a), si=Math.sin(a), dx=p.x-c.x, dy=p.y-c.y; return {x:c.x+dx*co-dy*si,y:c.y+dx*si+dy*co}; }
+function rotPt(s,p){ return s.ang?rotAbout(p,center(s),s.ang):p; }
+function unrotPt(s,p){ return s.ang?rotAbout(p,center(s),-s.ang):p; }
+function angXf(s){ return s.ang?`rotate(${r2(s.ang)} ${r2(s.x+s.w/2)} ${r2(s.y+s.h/2)})`:null; }
+// The side a turned shape's local side faces most nearly, for routing and port dots.
+function effSide(s,side){ if(!s.ang) return side; const v=SIDES[side], q=rotAbout({x:v.x,y:v.y},{x:0,y:0},s.ang);
+  return Math.abs(q.x)>=Math.abs(q.y)?(q.x>=0?'E':'W'):(q.y>=0?'S':'N'); }
+function sideDir(s,side){ return SIDES[effSide(s,side)]; }
+function normAng(a){ a=((a%360)+360)%360; return a>180?a-360:a; }
+function totalAngle(s){ return normAng((s.rot||0)+(s.ang||0)); }
+// Set a shape's total rotation in degrees. Whole 90 degree parts go to s.rot (frame swap), the rest to s.ang.
+function setAngle(s,A){
+  A=normAng(num(A,0)); const base=Math.round(A/90), cur=Math.round((s.rot||0)/90), d=(((base-cur)%4)+4)%4;
+  if(d) rotateShapes([s],d);
+  const rest=A-base*90; if(Math.abs(rest)<0.05) delete s.ang; else s.ang=r2(rest);
+}
 function portRel(s,side){
   const X=xf(s), us=(X.rot||X.flip)?unrotSide(X,side):side, G=geom(s.type,X.gw,X.gh,s.style);
   let p;
@@ -2198,16 +2359,17 @@ function edgePoint(s,side,pos){
   const y=s.y+s.h*pos, d=(s.w/2)*k((y-cy)/(s.h/2||1)); return {x:side==='W'?cx-d:cx+d,y};
 }
 function portPoint(s,side,pos){
-  if(pos!=null&&!SYMBOL_INFO[s.type]&&Math.abs(pos-0.5)>1e-6) return edgePoint(s,side,pos);
-  const p=portRel(s,side); return {x:s.x+p.x,y:s.y+p.y};
+  if(pos!=null&&!SYMBOL_INFO[s.type]&&Math.abs(pos-0.5)>1e-6) return rotPt(s,edgePoint(s,side,pos));
+  const p=portRel(s,side); return rotPt(s,{x:s.x+p.x,y:s.y+p.y});
 }
 const endOf=t=>{ const o={id:t.id,side:t.side}; if(t.pos!=null) o.pos=t.pos; if(t.port) o.port=t.port; return o; };
 function autoSide(s,ref){
-  const c=center(s), dx=(ref.x-c.x)/(s.w/2||1), dy=(ref.y-c.y)/(s.h/2||1);
+  ref=unrotPt(s,ref); const c=center(s), dx=(ref.x-c.x)/(s.w/2||1), dy=(ref.y-c.y)/(s.h/2||1);
   if(Math.abs(dx)>=Math.abs(dy)) return dx>=0?'E':'W';
   return dy>=0?'S':'N';
 }
 function boundaryPoint(s,toward){
+  if(s.ang) return rotPt(s,boundaryPoint(Object.assign({},s,{ang:0}),unrotPt(s,toward)));
   const c=center(s), dx=toward.x-c.x, dy=toward.y-c.y;
   if(Math.abs(dx)<1e-9&&Math.abs(dy)<1e-9) return c;
   const a=Math.max(s.w/2,0.5), b=Math.max(s.h/2,0.5); let t;
@@ -2266,13 +2428,13 @@ function routeLine(L){
   let p1,d1=null,p2,d2=null;
   if(A.pq){ p1={x:A.pq.x,y:A.pq.y}; d1=SIDES[A.pq.side]; }
   else if(A.s){
-    if(A.side==='auto'){ if(route==='straight') p1=boundaryPoint(A.s,refB); else { const sd=autoSide(A.s,refB); p1=portPoint(A.s,sd); d1=SIDES[sd]; } }
-    else { p1=portPoint(A.s,A.side,A.pos); d1=SIDES[A.side]; }
+    if(A.side==='auto'){ if(route==='straight') p1=boundaryPoint(A.s,refB); else { const sd=autoSide(A.s,refB); p1=portPoint(A.s,sd); d1=sideDir(A.s,sd); } }
+    else { p1=portPoint(A.s,A.side,A.pos); d1=sideDir(A.s,A.side); }
   } else p1=A.pt;
   if(B.pq){ p2={x:B.pq.x,y:B.pq.y}; d2=SIDES[B.pq.side]; }
   else if(B.s){
-    if(B.side==='auto'){ if(route==='straight') p2=boundaryPoint(B.s,refA); else { const sd=autoSide(B.s,refA); p2=portPoint(B.s,sd); d2=SIDES[sd]; } }
-    else { p2=portPoint(B.s,B.side,B.pos); d2=SIDES[B.side]; }
+    if(B.side==='auto'){ if(route==='straight') p2=boundaryPoint(B.s,refA); else { const sd=autoSide(B.s,refA); p2=portPoint(B.s,sd); d2=sideDir(B.s,sd); } }
+    else { p2=portPoint(B.s,B.side,B.pos); d2=sideDir(B.s,B.side); }
   } else p2=B.pt;
   if(route==='straight') return {kind:'poly',pts:[p1,p2]};
   if(!d1) d1=inferDir(p1,p2);
@@ -2387,6 +2549,8 @@ function itemBBox(it){
       if(tb.side) return {x:it.x,y:it.y,w:it.w+5+tw,h:Math.max(it.h,lines.length*it.style.fontSize*1.25)};
       const x1=Math.min(it.x,it.x+it.w/2-tw/2), x2=Math.max(it.x+it.w,it.x+it.w/2+tw/2);
       return {x:x1,y:it.y,w:x2-x1,h:it.h+3+lines.length*it.style.fontSize*1.25}; } }
+    if(it.ang){ const c=center(it), P=[[it.x,it.y],[it.x+it.w,it.y],[it.x+it.w,it.y+it.h],[it.x,it.y+it.h]].map(q=>rotAbout({x:q[0],y:q[1]},c,it.ang));
+      const xs=P.map(q=>q.x), ys=P.map(q=>q.y), x0=Math.min(...xs), y0=Math.min(...ys); return {x:x0,y:y0,w:Math.max(...xs)-x0,h:Math.max(...ys)-y0}; }
     return {x:it.x,y:it.y,w:it.w,h:it.h};
   }
   const R=routeLine(it); let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
@@ -2536,9 +2700,11 @@ function glyphsTurn(it,G){ return !!it.rot&&!it.style.textLevel&&!G.label; }
 function untp(X,x,y){ switch(X.rot){ case 90: return {x:y,y:X.gh-x}; case 180: return {x:X.gw-x,y:X.gh-y}; case 270: return {x:X.gw-y,y:x}; default: return {x,y}; } }
 function textStyle(it,tb){ return tb&&tb.side?Object.assign({},it.style,{align:'left',valign:'middle'}):it.style; }
 function renderShape(it,o){
-  o=o||{}; const st=it.style;
-  const g=sv('g',o.export?{transform:`translate(${r2(it.x)} ${r2(it.y)})`}:{'data-id':it.id,class:'item shape',transform:`translate(${r2(it.x)} ${r2(it.y)})`});
+  o=o||{}; const st=ruleStyle(it,it.style);
+  const T=`translate(${r2(it.x)} ${r2(it.y)})`+(it.ang?` rotate(${r2(it.ang)} ${r2(it.w/2)} ${r2(it.h/2)})`:'');
+  const g=sv('g',o.export?{transform:T}:{'data-id':it.id,class:'item shape',transform:T});
   if(st.opacity<1) g.setAttribute('opacity',st.opacity);
+  if(st.shadow) g.setAttribute('filter','url(#lwShadow)');
   const X=xf(it), G=geom(it.type,X.gw,X.gh,st);
   const inner=X.m?sv('g',{transform:'matrix('+X.m.join(' ')+')'}):g;
   if(it.type==='image'){
@@ -2554,9 +2720,9 @@ function renderShape(it,o){
   for(const gl of (G.glyphs||[])){ const q=turnG?{x:X.flip?X.gw-gl.x:gl.x,y:gl.y}:tp(X,gl.x,gl.y); (gg||g).appendChild(sv('text',{x:r2(q.x),y:r2(q.y+gl.s*0.35),'text-anchor':gl.a?(X.flip?(gl.a==='start'?'end':'start'):gl.a):'middle','font-size':r2(gl.s),'font-family':FONTS.sans,'font-weight':gl.b?'bold':null,fill:st.stroke==='none'?st.fontColor:st.stroke},gl.t)); }
   if(gg) g.appendChild(gg);
   if(G.hit&&!o.export) g.appendChild(sv('rect',{x:0,y:0,width:r2(it.w),height:r2(it.h),fill:'transparent',class:'body'}));
-  if(!(S.editing===it.id&&!o.export)){ if(it.type==='er_entity'&&!it.rot) renderEntityText(g,it); else { const tb=textBox(it); let tg=g; if(tb.turn){ tg=sv('g',{transform:'matrix('+turnXf(it).m.join(' ')+')'}); g.appendChild(tg); } renderTextBlock(tg,it.text,tb,textStyle(it,tb)); } }
+  if(!(S.editing===it.id&&!o.export)){ if(it.type==='er_entity'&&!it.rot) renderEntityText(g,it); else if(isUmlBox(it)) renderUmlText(g,it,st); else { const tb=textBox(it); let tg=g; if(tb.turn){ tg=sv('g',{transform:'matrix('+turnXf(it).m.join(' ')+')'}); g.appendChild(tg); } renderTextBlock(tg,resolveText(it),tb,textStyle(it,tb)); } }
   if(!o.export) renderBadges(g,it,null,false);
-  return g;
+  return decorateItem(g,it,o);
 }
 function renderLine(it,o){
   o=o||{}; const st=it.style, R=routeLine(it), pts=R.pts, n=pts.length;
@@ -2586,25 +2752,30 @@ function renderLine(it,o){
     lg.appendChild(t); if(lg!==g) g.appendChild(lg);
   }
   if(!o.export) renderBadges(g,it,pointAt(R,0.5),true);
-  return g;
+  return decorateItem(g,it,o);
 }
 // Reactions (emoji) and link badge. Shapes: above the top-left corner. Lines: above the midpoint.
 function renderBadges(g,it,mid,isLn){
-  const re=it.reactions||[], hasLink=!!it.link; if(!re.length&&!hasLink) return;
-  const fs=14, cw=20, pw=re.length?re.length*cw+8:0, h=22, lw=hasLink?h:0, gap=re.length&&hasLink?4:0, total=pw+gap+lw;
+  const re=it.reactions||[], extra=[]; if(it.link) extra.push('link'); if(it.note) extra.push('note'); if(it.action) extra.push('act');
+  if(!re.length&&!extra.length) return;
+  const fs=14, cw=20, pw=re.length?re.length*cw+8:0, h=22, gap=4, lw=extra.length*h+Math.max(0,extra.length-1)*gap, total=pw+(re.length&&extra.length?gap:0)+lw;
   let x0,y0; if(isLn){ x0=mid.x-total/2; y0=mid.y-h-12; } else { x0=0; y0=-h-6; }
   const bg=sv('g',{class:'badges'});
   if(re.length){
     bg.appendChild(sv('rect',{x:r2(x0),y:r2(y0),width:r2(pw),height:h,rx:11,class:'badge-pill'}));
     re.forEach((e,i)=>bg.appendChild(sv('text',{x:r2(x0+4+cw*i+cw/2),y:r2(y0+h/2+fs*0.36),'font-size':fs,'text-anchor':'middle','data-react':e,class:'badge-react'},e)));
   }
-  if(hasLink){
-    const cx=x0+pw+gap+h/2, cy=y0+h/2, a=sv('a',{href:it.link,target:'_blank',rel:'noopener noreferrer','data-badge-link':'1'});
-    const t=sv('title',null,it.link);
-    a.appendChild(t); a.appendChild(sv('circle',{cx:r2(cx),cy:r2(cy),r:h/2,class:'badge-link'}));
-    const ic=sv('path',{d:ICONS.link,transform:`translate(${r2(cx-7)} ${r2(cy-7)}) scale(0.5833)`,fill:'none',stroke:'currentColor','stroke-width':2.4,'stroke-linecap':'round',class:'badge-link-ic'});
-    a.appendChild(ic); bg.appendChild(a);
-  }
+  extra.forEach((k,i)=>{
+    const cx=x0+pw+(re.length?gap:0)+i*(h+gap)+h/2, cy=y0+h/2;
+    if(k==='link'){ const a=sv('a',{href:it.link,target:'_blank',rel:'noopener noreferrer','data-badge-link':'1'});
+      a.appendChild(sv('title',null,it.link)); a.appendChild(sv('circle',{cx:r2(cx),cy:r2(cy),r:h/2,class:'badge-link'}));
+      a.appendChild(sv('path',{d:ICONS.link,transform:`translate(${r2(cx-7)} ${r2(cy-7)}) scale(0.5833)`,fill:'none',stroke:'currentColor','stroke-width':2.4,'stroke-linecap':'round',class:'badge-link-ic'})); bg.appendChild(a); }
+    else if(k==='note'){ const n=sv('g',{class:'badge-note'},sv('title',null,'Note: '+it.note),sv('circle',{cx:r2(cx),cy:r2(cy),r:h/2}),
+        sv('path',{d:'M4 2h6l3 3v9H4zM10 2v3h3M6 8h5M6 11h5',transform:`translate(${r2(cx-8.5)} ${r2(cy-8)})`,fill:'none','stroke-width':1.3,'stroke-linejoin':'round'})); bg.appendChild(n); }
+    else { const a=it.action, lab=ACT_TYPES[a.t]+(a.t==='url'?': '+a.url:'');
+      bg.appendChild(sv('g',{class:'badge-act','data-act':it.id,role:'button','aria-label':'Run action: '+lab},sv('title',null,'Action: '+lab+'. Click to run.'),sv('circle',{cx:r2(cx),cy:r2(cy),r:h/2}),
+        sv('path',{d:'M9 1L3 9h4l-1 6 6-8H8z',transform:`translate(${r2(cx-7.5)} ${r2(cy-8)})`,'stroke-linejoin':'round'}))); }
+  });
   g.appendChild(bg);
 }
 // Containers draw first, larger ones underneath smaller ones, so nested containers and their
@@ -2636,7 +2807,7 @@ function applyView(){
 function renderOverlay(){
   const z=V.z, out=[], sel=selItems(), op=S.op;
   for(const it of sel){
-    if(isShape(it)) out.push(sv('rect',{x:r2(it.x),y:r2(it.y),width:r2(it.w),height:r2(it.h),class:'ov-sel','stroke-width':r2(1.5/z)}));
+    if(isShape(it)) out.push(sv('rect',{x:r2(it.x),y:r2(it.y),width:r2(it.w),height:r2(it.h),class:'ov-sel','stroke-width':r2(1.5/z),transform:angXf(it)}));
     else { const R=routeLine(it); out.push(sv('path',{d:pathD(R.kind,R.pts),class:'ov-sel-line','stroke-width':r2(it.style.sw+6/z)})); }
   }
   const HX={nw:[0,0],n:[.5,0],ne:[1,0],e:[1,.5],se:[1,1],s:[.5,1],sw:[0,1],w:[0,.5]};
@@ -2651,12 +2822,12 @@ function renderOverlay(){
     out.push(sv('g',{class:'ov-lock',transform:`translate(${r2(x)} ${r2(y)}) scale(${r2(k*0.6667)})`},sv('rect',{x:-2,y:-2,width:28,height:28,rx:6}),sv('path',{d:ICONS.lock,fill:'none','stroke-width':2,transform:'translate(0 0)'}))); }
   if(sel.length===1&&isShape(sel[0])&&!sel[0].locked&&!S.editing&&!(op&&op.type==='move'&&op.moved)){
     const s=sel[0], hs=8/z, hx={nw:[0,0],n:[.5,0],ne:[1,0],e:[1,.5],se:[1,1],s:[.5,1],sw:[0,1],w:[0,.5]};
-    for(const k in hx) out.push(sv('rect',{x:r2(s.x+s.w*hx[k][0]-hs/2),y:r2(s.y+s.h*hx[k][1]-hs/2),width:r2(hs),height:r2(hs),rx:r2(1.5/z),class:'ov-handle','data-handle':k,'stroke-width':r2(1.2/z)}));
+    for(const k in hx) out.push(sv('rect',{x:r2(s.x+s.w*hx[k][0]-hs/2),y:r2(s.y+s.h*hx[k][1]-hs/2),width:r2(hs),height:r2(hs),rx:r2(1.5/z),class:'ov-handle','data-handle':k,'stroke-width':r2(1.2/z),transform:angXf(s)}));
   }
   // Rotate button above the selection: click turns each shape 90 degrees, Shift-click turns it back.
-  if(sel.some(i=>isShape(i)&&!i.locked)&&!S.editing&&!(op&&op.type!=='pan')){
+  if(sel.some(i=>isShape(i)&&!i.locked)&&!S.editing&&!(op&&op.type!=='pan'&&op.type!=='rotate')){
     const b=sel.length===1?sel[0]:geoBBox(sel), cx=b.x+b.w/2, cy=b.y-24/z, r=10/z, k=r2(0.62/z);
-    out.push(sv('g',{class:'ov-rot','data-rotate':'1'},sv('title',null,'Rotate 90\u00b0 (Alt+R). Shift-click to rotate the other way.'),
+    out.push(sv('g',{class:'ov-rot','data-rotate':'1',transform:sel.length===1?angXf(sel[0]):null},sv('title',null,sel.length===1?'Drag to rotate to any angle (snaps to 15\u00b0, hold Shift for free). Click to rotate 90\u00b0 (Alt+R).':'Rotate 90\u00b0 (Alt+R). Shift-click to rotate the other way.'),
       sv('line',{x1:r2(cx),y1:r2(cy+r),x2:r2(cx),y2:r2(b.y),class:'ov-rot-stem','stroke-width':r2(1/z)}),
       sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(r),'stroke-width':r2(1.2/z)}),
       sv('path',{d:ICONS.rotate,transform:`translate(${r2(cx-12*k)} ${r2(cy-12*k)}) scale(${k})`,fill:'none','stroke-width':2.2})));
@@ -2689,8 +2860,8 @@ function renderOverlay(){
     } else if(isShape(s)){
       const off=16/z;
       for(const side of SIDE_KEYS){
-        const p=portPoint(s,side), d=SIDES[side], extra=side==='E'?s.x+s.w-p.x:side==='W'?p.x-s.x:side==='N'?p.y-s.y:s.y+s.h-p.y;
-        const cx=p.x+d.x*(off+extra), cy=p.y+d.y*(off+extra);
+        const s0=s.ang?Object.assign({},s,{ang:0}):s, p=portPoint(s0,side), d=SIDES[side], extra=side==='E'?s.x+s.w-p.x:side==='W'?p.x-s.x:side==='N'?p.y-s.y:s.y+s.h-p.y;
+        const pc=rotPt(s,{x:p.x+d.x*(off+extra),y:p.y+d.y*(off+extra)}), cx=pc.x, cy=pc.y;
         out.push(sv('g',{class:'ov-port','data-port':side,'data-sid':s.id},
           sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(11/z),class:'pad'}),
           sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(5/z),class:'vis','stroke-width':r2(1.5/z)})));
@@ -2699,7 +2870,7 @@ function renderOverlay(){
   }
   if(op&&(op.type==='connect'||op.type==='endpoint')){
     if(op.type==='connect'){ const tmp={from:connFrom(op),to:op.target?endOf(op.target):{x:op.cur.x,y:op.cur.y},route:S.prefs.route}; const R=routeLine(tmp); out.push(sv('path',{d:pathD(R.kind,R.pts),class:'ov-temp','stroke-width':r2(1.5/z)})); }
-    if(op.target){ const t=byId(op.target.id); if(t){ const p=4/z; out.push(sv('rect',{x:r2(t.x-p),y:r2(t.y-p),width:r2(t.w+2*p),height:r2(t.h+2*p),class:'ov-target','stroke-width':r2(1.5/z),rx:r2(3/z)}));
+    if(op.target){ const t=byId(op.target.id); if(t){ const p=4/z; out.push(sv('rect',{x:r2(t.x-p),y:r2(t.y-p),width:r2(t.w+2*p),height:r2(t.h+2*p),class:'ov-target','stroke-width':r2(1.5/z),rx:r2(3/z),transform:angXf(t)}));
       if(hasPins(t)){ for(const q of raPorts(t)){ const on=op.target.port===q.id; out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2((on?4.5:3.2)/z),class:'ov-dot'+(on?' on':''),'stroke-width':r2(1.3/z)}));
           if(on) out.push(sv('text',{x:r2(q.x),y:r2(q.y+(q.side==='N'?-9:16)/z),'text-anchor':'middle','font-size':r2(11/z),class:'ov-portlab'},q.id+': '+q.d)); } }
       else for(const side of SIDE_KEYS){ const q=portPoint(t,side); out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2(4.5/z),class:'ov-dot'+(op.target.side===side&&op.target.pos==null?' on':''),'stroke-width':r2(1.5/z)})); }
@@ -2737,7 +2908,7 @@ function expandGroups(ids){
 }
 function shapeAt(w,pad,exclude){
   const its=pickList();
-  for(let i=its.length-1;i>=0;i--){ const s=its[i]; if(!isShape(s)||s.id===exclude) continue; if(w.x>=s.x-pad&&w.x<=s.x+s.w+pad&&w.y>=s.y-pad&&w.y<=s.y+s.h+pad) return s; }
+  for(let i=its.length-1;i>=0;i--){ const s=its[i]; if(!isShape(s)||s.id===exclude) continue; const q=unrotPt(s,w); if(q.x>=s.x-pad&&q.x<=s.x+s.w+pad&&q.y>=s.y-pad&&q.y<=s.y+s.h+pad) return s; }
   return null;
 }
 // Where a dragged line end would attach: a midpoint, any point along an edge (grid-snapped unless
@@ -2746,6 +2917,7 @@ function findTarget(w,exclude,noSnap){
   let s=shapeAt(w,4/V.z,exclude);
   if(!s){ const d=shapeAt(w,14/V.z,exclude); if(d&&hasPins(d)) s=d; }
   if(!s) return null;
+  if(s.ang&&!hasPins(s)){ w=unrotPt(s,w); s=Object.assign({},s,{ang:0}); }
   if(hasPins(s)){ let bp=null,bd=16/V.z; for(const q of raPorts(s)){ const d=dist(q,w); if(d<bd){ bd=d; bp=q; } }
     return bp?{id:s.id,side:bp.side,port:bp.id}:{id:s.id,side:'auto'}; }
   const sym=!!SYMBOL_INFO[s.type];
@@ -2884,7 +3056,7 @@ function rotateSel(ccw){
 // Mirror across the displayed vertical (h) or horizontal (v) axis.
 function flipSel(axis){
   const sh=unlockedSel().filter(isShape); if(!sh.length){ toast('Select a shape to flip.'); return; }
-  for(const s of sh){ let r=s.rot||0; if(axis==='v') r=(r+180)%360; s.rot=(360-r)%360; s.flip=!s.flip; cleanXf(s); }
+  for(const s of sh){ let r=s.rot||0; if(axis==='v') r=(r+180)%360; s.rot=(360-r)%360; s.flip=!s.flip; if(s.ang) s.ang=-s.ang; cleanXf(s); }
   remapSides(new Set(sh.map(s=>s.id)),axis==='v'?FLIPV_SIDE:FLIPH_SIDE,axis==='v'?['E','W']:['N','S']); commit(); invalidate();
 }
 // Wires get no arrowheads; instrument signal lines are dashed with no arrowheads (ISA-5.1 electric signal).
@@ -2985,7 +3157,7 @@ function caretFromPoint(it,w){
   if(listText(raw,st)!==raw) return raw.length;
   const fs=st.fontSize, lh=fs*1.25, lines=wrapText(raw,Math.max(1,tb.w),st), total=lines.length*lh;
   const y0=st.valign==='top'?tb.y:st.valign==='bottom'?tb.y+tb.h-total:tb.y+(tb.h-total)/2;
-  let lx=w.x-it.x, ly=w.y-it.y; if(tb.turn){ const q=untp(turnXf(it),lx,ly); lx=q.x; ly=q.y; }
+  w=unrotPt(it,w); let lx=w.x-it.x, ly=w.y-it.y; if(tb.turn){ const q=untp(turnXf(it),lx,ly); lx=q.x; ly=q.y; }
   const li=clamp(Math.floor((ly-y0)/lh),0,lines.length-1);
   const starts=[]; let pos=0;
   for(const ln of lines){ let i=ln?raw.indexOf(ln,pos):(starts.length&&raw[pos]==='\n'?pos+1:pos); if(i<0) i=pos; starts.push(i); pos=i+ln.length; }
@@ -3003,7 +3175,8 @@ function positionEditor(){
   s.fontWeight=st.bold?'bold':'normal'; s.fontStyle=st.italic?'italic':'normal';
   if(isShape(it)){
     const b=textBox(it), ts=textStyle(it,b), w=Math.max(40,b.w*z), h=Math.max(fs*1.4,b.h*z);
-    if(b.turn){ const c=tp(turnXf(it),b.x+b.w/2,b.y+b.h/2); s.left=r2(V.tx+(it.x+c.x)*z-w/2)+'px'; s.top=r2(V.ty+(it.y+c.y)*z-h/2)+'px'; s.transform='rotate('+it.rot+'deg)'; s.transformOrigin='50% 50%'; }
+    if(b.turn||it.ang){ let c=b.turn?tp(turnXf(it),b.x+b.w/2,b.y+b.h/2):{x:b.x+b.w/2,y:b.y+b.h/2}; c=rotPt(it,{x:it.x+c.x,y:it.y+c.y});
+      s.left=r2(V.tx+c.x*z-w/2)+'px'; s.top=r2(V.ty+c.y*z-h/2)+'px'; s.transform='rotate('+r2((b.turn?it.rot:0)+(it.ang||0))+'deg)'; s.transformOrigin='50% 50%'; }
     else { s.left=r2(V.tx+(it.x+b.x)*z-(b.side?0:(w-b.w*z)/2))+'px'; s.top=r2(V.ty+(it.y+b.y)*z)+'px'; s.transform=''; }
     s.width=r2(w)+'px'; s.height=r2(h)+'px';
     s.textAlign=ts.align;
@@ -3165,7 +3338,9 @@ function applySegDrag(op,w){
 }
 function applyResize(op,w){
   const s=byId(op.id); if(!s) return;
-  const o=op.orig, h=op.handle; let dx=w.x-op.start.x, dy=w.y-op.start.y;
+  const o=op.orig, h=op.handle; const oc={x:o.x+o.w/2,y:o.y+o.h/2};
+  if(s.ang){ w=rotAbout(w,oc,-s.ang); if(!op.start0) op.start0=rotAbout(op.start,oc,-s.ang); }
+  const st0=s.ang?op.start0:op.start; let dx=w.x-st0.x, dy=w.y-st0.y;
   let x1=o.x, y1=o.y, x2=o.x+o.w, y2=o.y+o.h;
   if(h.includes('w')) x1+=dx; if(h.includes('e')) x2+=dx; if(h.includes('n')) y1+=dy; if(h.includes('s')) y2+=dy;
   if(S.prefs.snap&&!op.shift&&!op.noSnap){
@@ -3181,6 +3356,8 @@ function applyResize(op,w){
     else { const nh2=nw/ar; if(h.includes('n')) y1=y2-nh2; else y2=y1+nh2; }
   }
   s.x=r2(x1); s.y=r2(y1); s.w=r2(x2-x1); s.h=r2(y2-y1);
+  // Keep the opposite corner still: the new center, worked out in the old turned frame, moves to its world position.
+  if(s.ang){ const nc=rotAbout({x:(x1+x2)/2,y:(y1+y2)/2},oc,s.ang); s.x=r2(nc.x-s.w/2); s.y=r2(nc.y-s.h/2); }
 }
 function onPointerDown(e){
   hideCtx(); closeMenus(); if(S.quick) closeQuick();
@@ -3198,8 +3375,9 @@ function onPointerDown(e){
   if(react){ const it=byId(react.closest('[data-id]').getAttribute('data-id')); if(it&&it.reactions){ it.reactions=it.reactions.filter(x=>x!==react.getAttribute('data-react')); if(!it.reactions.length) delete it.reactions; commit(); invalidate(); } return; }
   const port=t&&t.closest('[data-port]'), handle=t&&t.closest('[data-handle]'), itemEl=t&&t.closest('[data-id]'), labEl=t&&t.closest('[data-label]'), segEl=t&&t.closest('[data-seg]');
   const addEl=t&&t.closest('[data-addchild]');
+  const actEl=t&&t.closest('[data-act]'); if(actEl){ e.preventDefault(); runAction(byId(actEl.getAttribute('data-act'))); return; }
   const rotEl=t&&t.closest('[data-rotate]');
-  if(rotEl){ rotateSel(e.shiftKey); return; }
+  if(rotEl){ const sh=unlockedSel().filter(isShape); if(selItems().length===1&&sh.length===1){ S.op={type:'rotate',id:sh[0].id,sx:e.clientX,sy:e.clientY,moved:false,shift:e.shiftKey}; return; } rotateSel(e.shiftKey); return; }
   if(addEl){ addFamilyChild(byId(addEl.getAttribute('data-addchild')),false); return; }
   if(segEl){ const L=byId(segEl.getAttribute('data-lid')); if(L&&!L.locked){ const R=routeLine(L); S.op={type:'seg',id:L.id,base:segDragBase(R.pts,+segEl.getAttribute('data-seg')),start:w,sx:e.clientX,sy:e.clientY,moved:false}; S.lastTap=null; } return; }
   if(port){ S.op={type:'connect',from:port.getAttribute('data-sid'),side:port.getAttribute('data-port'),port:port.getAttribute('data-devport')||null,cur:w,target:null,sx:e.clientX,sy:e.clientY}; S.lastTap=null; invalidate({overlay:true}); return; }
@@ -3275,6 +3453,11 @@ function onPointerMove(e){
       const d=snapMove(op,w.x-op.start.x,w.y-op.start.y); applyMove(op,d.dx,d.dy);
       invalidate({content:true,overlay:true}); break;
     }
+    case 'rotate': {
+      if(!op.moved&&Math.hypot(e.clientX-op.sx,e.clientY-op.sy)<4) return;
+      op.moved=true; const it=byId(op.id); if(!it) return; const c=center(it);
+      let A=Math.atan2(w.y-c.y,w.x-c.x)*180/Math.PI+90; if(!e.shiftKey) A=Math.round(A/15)*15;
+      setAngle(it,A); invalidate({content:true,overlay:true}); break; }
     case 'resize': { op.moved=true; const it=byId(op.id); op.shift=it&&it.type==='image'?!e.shiftKey:e.shiftKey; op.noSnap=e.shiftKey||e.altKey; applyResize(op,w); invalidate({content:true,overlay:true}); break; }
     case 'gresize': op.moved=true; op.shift=e.shiftKey; applyGroupResize(op,w); invalidate({content:true,overlay:true}); break;
     case 'seg': if(!op.moved&&Math.hypot(e.clientX-op.sx,e.clientY-op.sy)<3) return; op.moved=true; op.noSnap=e.shiftKey||e.altKey; applySegDrag(op,w); invalidate({content:true,overlay:true}); break;
@@ -3322,6 +3505,7 @@ function onPointerUp(e){
       if(!op.moved) showFtb();
       invalidate({overlay:true,props:true}); break;
     case 'resize': if(op.moved) commit(); invalidate({overlay:true,props:true}); break;
+    case 'rotate': if(op.moved){ commit(); invalidate(); } else rotateSel(op.shift); break;
     case 'marquee': invalidate({overlay:true,props:true,chrome:true}); break;
     case 'pan': if(!op.moved&&op.clear&&e.type==='pointerup'){ if(S.sel.size) setSel([]); hideFtb(); } invalidate({overlay:true}); break;
     case 'endpoint': { if(op.moved){ const L=byId(op.id); if(L) delete L.waypoints; commit(); } invalidate(); break; }
@@ -3403,7 +3587,7 @@ function buildLibrary(){
     const mode=S.prefs.libView==='auto'?(c.closed?'names':'icons'):S.prefs.libView, pic=mode!=='names', lazy=pic&&closed&&c.closed;
     kids.push(el('div',{class:'lib-cat'+(closed?' collapsed':''),'data-catwrap':c.cat},
       el('button',{class:'lib-cat-h','data-cat':c.cat,'aria-expanded':String(!closed)},icon('chevron',12),c.cat),
-      el('div',{class:'lib-grid mode-'+mode},c.items.map(i=>el('button',{class:'lib-tile'+(i.dev?' dev':''),'data-lib':i.key,'data-lazy':lazy?'1':null,'data-name':(i.name+' '+c.cat).toLowerCase(),title:i.name+(i.basis?'\n'+(i.verified?'':'[Unverified] ')+i.basis:'')+(i.dev?'\n'+RA_DEV[i.key].ports.length+' ports'+(RA_DEV[i.key].v?'':' [Unverified]'):''),'aria-label':'Add '+i.name},pic&&!lazy?tilePreview(i):null,i.dev?el('span',{class:'lib-cap',text:i.cap}):null,
+      el('div',{class:'lib-grid mode-'+mode},c.items.map(i=>el('button',{class:'lib-tile'+(i.dev?' dev':''),'data-lib':i.key,'data-lazy':lazy?'1':null,'data-name':(i.name+' '+c.cat).toLowerCase(),title:i.name+(i.basis?'\n'+(i.verified?'':'[Unverified] ')+i.basis:'')+(i.std?'\n[Unverified] '+i.std:'')+(i.dev?'\n'+RA_DEV[i.key].ports.length+' ports'+(RA_DEV[i.key].v?'':' [Unverified]'):''),'aria-label':'Add '+i.name},pic&&!lazy?tilePreview(i):null,i.dev?el('span',{class:'lib-cap',text:i.cap}):null,
         el('span',{class:'lib-name'},i.name,i.dev&&mode==='names'?el('small',{text:RA_DEV[i.key].ports.length+' ports'+(RA_DEV[i.key].v?'':', unverified')}):null))))));
   }
   kids.push(el('div',{class:'lib-cat-h',style:{cursor:'default'},text:'Pictures'}));
@@ -3476,6 +3660,360 @@ function selIn(prop,val,opts,label){ const s=el('select',{'data-prop':prop,'aria
 function chk(prop,val,label){ return el('label',{class:'chk'},el('input',{type:'checkbox','data-prop':prop,checked:!!val}),label||''); }
 function seg(prop,val,opts){ return el('div',{class:'seg',role:'group'},opts.map(o=>el('button',{type:'button','data-set':prop,'data-val':String(o.v),'aria-pressed':String(String(val)===String(o.v)),title:o.t,'aria-label':o.t},o.i?icon(o.i,16):el('span',{text:o.l,style:o.s||null})))); }
 function swatchRow(prop,list){ return el('div',{class:'swatches'},list.map(c=>el('button',{type:'button',class:'sw','data-set':prop,'data-val':c,title:c,'aria-label':'Color '+c,style:{background:c}}))); }
+/* ============================== shape extras: tags, notes, alt text, actions, data, rules ============================== */
+const ACT_TYPES={none:'None',url:'Open a web link',page:'Go to a page',next:'Go to the next page',prev:'Go to the previous page',layerToggle:'Show or hide a layer (toggle)',layerShow:'Show a layer',layerHide:'Hide a layer'};
+const RULE_OPS={eq:'equals',ne:'does not equal',gt:'is greater than',lt:'is less than',ge:'is at least',le:'is at most',has:'contains',empty:'is empty',filled:'is not empty'};
+const sid=v=>(typeof v==='string'&&v)?v.slice(0,64):'';
+function sanExtras(it){
+  const o={};
+  if(Array.isArray(it.tags)){ const t=[...new Set(it.tags.map(x=>str(x).trim().slice(0,40)).filter(Boolean))].slice(0,20); if(t.length) o.tags=t; }
+  if(typeof it.note==='string'&&it.note.trim()) o.note=it.note.slice(0,5000);
+  if(typeof it.alt==='string'&&it.alt.trim()) o.alt=it.alt.slice(0,500);
+  const a=it.action;
+  if(a&&typeof a==='object'&&ACT_TYPES[a.t]&&a.t!=='none'){
+    if(a.t==='url'){ const u=normUrl(a.url); if(u) o.action={t:'url',url:u}; }
+    else if(a.t==='page'){ if(sid(a.page)) o.action={t:'page',page:sid(a.page)}; }
+    else if(a.t==='next'||a.t==='prev') o.action={t:a.t};
+    else if(sid(a.layer)) o.action={t:a.t,layer:sid(a.layer)};
+  }
+  if(it.data&&typeof it.data==='object'&&!Array.isArray(it.data)){ const d={}; let n=0;
+    for(const k of Object.keys(it.data)){ const kk=str(k).trim().slice(0,40); if(!kk||n>=40) continue; d[kk]=str(it.data[k]).slice(0,500); n++; }
+    if(n) o.data=d; }
+  if(it.dref&&typeof it.dref==='object'&&sid(it.dref.set)&&typeof it.dref.k==='string') o.dref={set:sid(it.dref.set),k:it.dref.k.slice(0,500)};
+  return o;
+}
+function sanDocExtras(d){
+  const o={};
+  if(Array.isArray(d.datasets)){ const sets=d.datasets.slice(0,20).map(ds=>{ if(!ds||typeof ds!=='object'||!Array.isArray(ds.cols)||!Array.isArray(ds.rows)) return null;
+      const cols=ds.cols.slice(0,60).map((c,i)=>str(c).trim().slice(0,60)||('Column '+(i+1))); if(!cols.length) return null;
+      const rows=ds.rows.slice(0,2000).filter(Array.isArray).map(r=>cols.map((_,i)=>str(r[i]).slice(0,500)));
+      return {id:sid(ds.id)||uid(),name:str(ds.name).slice(0,80)||'Data',cols,rows}; }).filter(Boolean);
+    if(sets.length) o.datasets=sets; }
+  if(Array.isArray(d.rules)){ const rules=d.rules.slice(0,30).map(r=>{ if(!r||typeof r!=='object') return null;
+      const q={id:sid(r.id)||uid(),field:str(r.field).trim().slice(0,60),op:RULE_OPS[r.op]?r.op:'eq',value:str(r.value).slice(0,200)};
+      if(typeof r.fill==='string'&&COLOR_RE.test(r.fill)&&r.fill!=='none') q.fill=r.fill;
+      if(typeof r.stroke==='string'&&COLOR_RE.test(r.stroke)&&r.stroke!=='none') q.stroke=r.stroke;
+      return q; }).filter(Boolean);
+    if(rules.length) o.rules=rules; }
+  return o;
+}
+// ---- data ----
+function dataRow(ref){ const ds=(S.doc&&S.doc.datasets||[]).find(d=>d.id===ref.set); if(!ds) return null; const row=ds.rows.find(r=>r[0]===ref.k); return row?{set:ds,row}:null; }
+// A shape's fields: its linked data row (column name to value), with its own custom fields on top.
+function fieldsOf(it){ const o={}; const r=it.dref&&dataRow(it.dref); if(r) r.set.cols.forEach((c,i)=>{ o[c]=r.row[i]||''; }); if(it.data) Object.assign(o,it.data); return o; }
+function hasFields(it){ return !!(it.data||it.dref); }
+// {{Field}} in shape text shows the field's value. Unknown fields are left as typed.
+function resolveText(it){ const t=it.text; if(!t||t.indexOf('{{')<0||!hasFields(it)) return t; const f=fieldsOf(it); return t.replace(/\{\{\s*([^{}]+?)\s*\}\}/g,(m,k)=>Object.prototype.hasOwnProperty.call(f,k)?f[k]:m); }
+function ruleHit(r,f){
+  if(!r.field||!Object.prototype.hasOwnProperty.call(f,r.field)) return false;
+  const a=String(f[r.field]).trim(), b=String(r.value).trim();
+  if(r.op==='empty') return a===''; if(r.op==='filled') return a!=='';
+  const na=parseFloat(a.replace(/,/g,'')), nb=parseFloat(b.replace(/,/g,'')), numeric=Number.isFinite(na)&&Number.isFinite(nb)&&/^[-+]?[\d.,]+\s*\S{0,6}$/.test(a)&&/^[-+]?[\d.,]+\s*\S{0,6}$/.test(b);
+  switch(r.op){
+    case 'eq': return numeric?na===nb:a.toLowerCase()===b.toLowerCase();
+    case 'ne': return numeric?na!==nb:a.toLowerCase()!==b.toLowerCase();
+    case 'has': return b!==''&&a.toLowerCase().includes(b.toLowerCase());
+    case 'gt': return numeric&&na>nb; case 'lt': return numeric&&na<nb; case 'ge': return numeric&&na>=nb; case 'le': return numeric&&na<=nb;
+  }
+  return false;
+}
+// Conditional formatting: later rules win. Only shapes that carry the rule's field are touched.
+function ruleStyle(it,st){
+  const rules=S.doc&&S.doc.rules; if(!rules||!rules.length||!hasFields(it)) return st;
+  const f=fieldsOf(it); let out=st;
+  for(const r of rules){ if(!ruleHit(r,f)) continue; if(out===st) out=Object.assign({},st); if(r.fill) out.fill=r.fill; if(r.stroke) out.stroke=r.stroke; }
+  return out;
+}
+// RFC 4180 CSV: quoted fields, doubled quotes, commas and line breaks inside quotes. Also reads tab and semicolon files.
+function parseCsv(text){
+  text=String(text||''); if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+  const head=text.split(/\r?\n/,1)[0]||''; let inq=false; const cnt={',':0,'\t':0,';':0};
+  for(const ch of head){ if(ch==='"') inq=!inq; else if(!inq&&ch in cnt) cnt[ch]++; }
+  const D=cnt['\t']>cnt[',']&&cnt['\t']>=cnt[';']?'\t':cnt[';']>cnt[',']?';':',';
+  const rows=[]; let row=[], cur='', q=false, i=0; const n=text.length;
+  while(i<n){ const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){ cur+='"'; i+=2; continue; } q=false; i++; continue; } cur+=ch; i++; continue; }
+    if(ch==='"'&&cur===''){ q=true; i++; continue; }
+    if(ch===D){ row.push(cur); cur=''; i++; continue; }
+    if(ch==='\r'||ch==='\n'){ if(ch==='\r'&&text[i+1]==='\n') i++; row.push(cur); cur=''; rows.push(row); row=[]; i++; continue; }
+    cur+=ch; i++; }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=>r.some(c=>c.trim()!==''));
+}
+function importCsv(name,text){
+  const rows=parseCsv(text); if(rows.length<2){ toast('That file needs a header row and at least one data row.'); return null; }
+  const seen=new Set(), cols=rows[0].slice(0,60).map((c,i)=>{ let k=c.trim().slice(0,60)||('Column '+(i+1)), b=k, j=2; while(seen.has(k)) k=b+' '+(j++); seen.add(k); return k; });
+  const body=rows.slice(1,2001).map(r=>cols.map((_,i)=>String(r[i]==null?'':r[i]).slice(0,500)));
+  name=String(name||'Data').replace(/\.(csv|tsv|txt)$/i,'').slice(0,80)||'Data';
+  const sets=S.doc.datasets||(S.doc.datasets=[]); let ds=sets.find(d=>d.name===name);
+  if(ds){ ds.cols=cols; ds.rows=body; } else { if(sets.length>=20){ toast('Remove a data set first (20 at most).'); return null; } ds={id:uid(),name,cols,rows:body}; sets.push(ds); }
+  commit(); invalidate(); toast((rows.length-1>2000?'First 2000 of '+(rows.length-1):body.length)+' rows loaded into "'+name+'". The first column is the key used to link shapes.');
+  return ds;
+}
+function pickCsv(){ const f=el('input',{type:'file',accept:'.csv,.tsv,.txt,text/csv'}); f.addEventListener('change',()=>{ const file=f.files&&f.files[0]; if(!file) return;
+    if(file.size>5*1024*1024){ toast('That file is over 5 MB.'); return; }
+    const rd=new FileReader(); rd.onload=()=>importCsv(file.name,String(rd.result||'')); rd.onerror=()=>toast('Could not read that file.'); rd.readAsText(file); }); f.click(); }
+// ---- actions ----
+function runAction(it,present){
+  const a=it&&it.action; if(!a){ if(it&&it.link&&present){ try{ window.open(it.link,'_blank','noopener'); }catch(e){} } return false; }
+  const pages=S.doc.pages, i=pages.findIndex(p=>p.id===S.doc.activePage);
+  const go=pid=>{ if(present) presentGo(pages.findIndex(p=>p.id===pid)); else switchPage(pid); };
+  switch(a.t){
+    case 'url': try{ window.open(a.url,'_blank','noopener'); }catch(e){} return true;
+    case 'page': if(pages.some(p=>p.id===a.page)) go(a.page); else toast('That page no longer exists.'); return true;
+    case 'next': if(i<pages.length-1) go(pages[i+1].id); return true;
+    case 'prev': if(i>0) go(pages[i-1].id); return true;
+    default: { const L=ensureLayers(page()).find(l=>l.id===a.layer); if(!L){ toast('That layer is not on this page.'); return true; }
+      L.visible=a.t==='layerShow'?true:a.t==='layerHide'?false:!L.visible;
+      if(present) presentRender(); else { S.sel=new Set([...S.sel].filter(x=>{ const q=byId(x); return q&&selectable(q); })); commit(); invalidate(); }
+      return true; }
+  }
+}
+function decorateItem(g,it,o){
+  if(it.alt){ g.insertBefore(sv('title',null,it.alt),g.firstChild); g.setAttribute('role','img'); g.setAttribute('aria-label',it.alt); }
+  if(o&&o.present&&(it.action||it.link)){ g.setAttribute('data-pact',it.id); g.setAttribute('style','cursor:pointer'); }
+  return g;
+}
+// ---- presentation mode ----
+let presentEl=null, presentState=null;
+function exportSVGNode(opts){
+  opts=opts||{};
+  const pg=page(), its=renderList(pg), sz=pageSizePx(pg), b=its.length?bboxOf(its):{x:0,y:0,w:100,h:100}, pad=opts.pad!=null?opts.pad:24;
+  const W=sz?sz.w:Math.ceil(b.w+pad*2), H=sz?sz.h:Math.ceil(b.h+pad*2), x0=sz?0:r2(b.x-pad), y0=sz?0:r2(b.y-pad);
+  const root=sv('svg',{width:W,height:H,viewBox:`${x0} ${y0} ${W} ${H}`});
+  if(its.some(i=>isShape(i)&&i.style.shadow)) root.appendChild(sv('defs',null,shadowFilter()));
+  if(opts.background!==false||pg.bg) root.appendChild(sv('rect',{x:x0,y:y0,width:W,height:H,fill:pg.bg||'#ffffff'}));
+  const wasEditing=S.editing; S.editing=null;
+  const ro={export:true,present:!!opts.present};
+  for(const it of its) root.appendChild(isShape(it)?renderShape(it,ro):renderLine(it,ro));
+  S.editing=wasEditing;
+  return root;
+}
+function shadowFilter(){ return sv('filter',{id:'lwShadow',x:'-20%',y:'-20%',width:'150%',height:'150%'},sv('feDropShadow',{dx:2,dy:3,stdDeviation:2.5,'flood-color':'#000000','flood-opacity':0.3})); }
+function presentRender(){
+  if(!presentEl) return; const st=presentState, pages=S.doc.pages, pg=pages[st.idx], prev=S.doc.activePage;
+  let node; try{ S.doc.activePage=pg.id; node=exportSVGNode({present:true}); } finally{ S.doc.activePage=prev; }
+  node.removeAttribute('width'); node.removeAttribute('height'); node.setAttribute('class','present-svg'); node.setAttribute('preserveAspectRatio','xMidYMid meet');
+  presentEl.querySelector('.present-stage').replaceChildren(node);
+  presentEl.querySelector('.present-n').textContent=pg.name+'  ('+(st.idx+1)+' of '+pages.length+')';
+  presentEl.querySelector('[data-pres="prev"]').disabled=st.idx<=0; presentEl.querySelector('[data-pres="next"]').disabled=st.idx>=pages.length-1;
+}
+function presentGo(i){ if(!presentEl) return; const n=S.doc.pages.length; presentState.idx=clamp(i,0,n-1); presentRender(); }
+function startPresent(){
+  if(presentEl) return; if(S.editing) finishEdit(); hideFtb();
+  presentState={idx:Math.max(0,S.doc.pages.findIndex(p=>p.id===S.doc.activePage)),vis:S.doc.pages.map(p=>ensureLayers(p).map(l=>[l.id,l.visible]))};
+  presentEl=el('div',{class:'present',role:'dialog','aria-modal':'true','aria-label':'Presentation',tabindex:'-1'},
+    el('div',{class:'present-stage'}),
+    el('div',{class:'present-bar'},
+      el('button',{type:'button',class:'btn','data-pres':'prev','aria-label':'Previous page',text:'Previous'}),
+      el('span',{class:'present-n'}),
+      el('button',{type:'button',class:'btn','data-pres':'next','aria-label':'Next page',text:'Next'}),
+      el('button',{type:'button',class:'btn','data-pres':'exit','aria-label':'Exit presentation',text:'Exit (Esc)'})));
+  presentEl.addEventListener('click',e=>{ const b=e.target.closest('[data-pres]');
+    if(b){ const k=b.getAttribute('data-pres'); if(k==='exit') stopPresent(); else presentGo(presentState.idx+(k==='next'?1:-1)); return; }
+    const a=e.target.closest('[data-pact]'); if(a){ const pg=S.doc.pages[presentState.idx], it=pg.items.find(x=>x.id===a.getAttribute('data-pact')), prev=S.doc.activePage;
+      try{ S.doc.activePage=pg.id; runAction(it,true); } finally{ S.doc.activePage=prev; } } });
+  presentEl.addEventListener('keydown',e=>{ e.stopPropagation();
+    if(e.key==='Escape'){ e.preventDefault(); stopPresent(); }
+    else if(['ArrowRight','ArrowDown','PageDown',' ','Enter'].includes(e.key)){ e.preventDefault(); presentGo(presentState.idx+1); }
+    else if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(e.key)){ e.preventDefault(); presentGo(presentState.idx-1); }
+    else if(e.key==='Home'){ presentGo(0); } else if(e.key==='End'){ presentGo(S.doc.pages.length-1); } });
+  document.body.appendChild(presentEl); presentRender();
+  try{ presentEl.focus(); if(presentEl.requestFullscreen) presentEl.requestFullscreen().catch(()=>{}); }catch(e){}
+}
+function stopPresent(){
+  if(!presentEl) return;
+  // Layers shown or hidden by actions during the presentation go back to how they were.
+  S.doc.pages.forEach((p,i)=>{ const m=new Map(presentState.vis[i]||[]); ensureLayers(p).forEach(l=>{ if(m.has(l.id)) l.visible=m.get(l.id); }); });
+  try{ if(document.fullscreenElement===presentEl&&document.exitFullscreen) document.exitFullscreen().catch(()=>{}); }catch(e){}
+  presentEl.remove(); presentEl=null; presentState=null; invalidate();
+}
+// ---- find and replace ----
+let findEl=null; const FIND={q:'',i:-1,all:false};
+const escRe=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+function findMatches(q,all){
+  q=String(q||'').toLowerCase(); const out=[]; if(!q) return out;
+  for(const pg of (all?S.doc.pages:[page()])) for(const it of pg.items){
+    if(isShape(it)){ if(it.text&&it.text.toLowerCase().includes(q)) out.push({page:pg.id,id:it.id,where:'text'}); }
+    else for(const lab of (it.labels||[])) if(String(lab.text).toLowerCase().includes(q)) out.push({page:pg.id,id:it.id,where:'label',lab:lab.id});
+    if((it.tags||[]).some(t=>t.toLowerCase().includes(q))) out.push({page:pg.id,id:it.id,where:'tag'});
+    if(it.note&&it.note.toLowerCase().includes(q)) out.push({page:pg.id,id:it.id,where:'note'});
+  }
+  return out;
+}
+function centerOn(it){ const b=itemBBox(it), s=stageSize(); V.tx=s.w/2-(b.x+b.w/2)*V.z; V.ty=s.h/2-(b.y+b.h/2)*V.z; invalidate({content:true,overlay:true,chrome:true}); }
+function findStep(dir){
+  const m=findMatches(FIND.q,FIND.all); if(!m.length){ FIND.i=-1; findStatus(FIND.q?'No matches':''); return null; }
+  FIND.i=((FIND.i+(dir||1))%m.length+m.length)%m.length; const hit=m[FIND.i];
+  if(hit.page!==S.doc.activePage) switchPage(hit.page);
+  const it=byId(hit.id); if(it){ if(!selectable(it)){ findStatus((FIND.i+1)+' of '+m.length+' (on a hidden or locked layer)'); return hit; } setSel([it.id]); centerOn(it); }
+  findStatus((FIND.i+1)+' of '+m.length+(hit.where==='tag'?' (tag)':hit.where==='note'?' (note)':'')); return hit;
+}
+function replaceIn(str0,q,r){ return String(str0).replace(new RegExp(escRe(q),'gi'),()=>r); }
+// Replaces text in shapes and line text boxes (not tags or notes). Locked items are skipped.
+function replaceAll(q,r,all,onlyId){
+  if(!q) return 0; let n=0; const ql=q.toLowerCase();
+  for(const pg of (all?S.doc.pages:[page()])) for(const it of pg.items){ if(it.locked||(onlyId&&it.id!==onlyId)) continue;
+    if(isShape(it)){ if(it.text&&it.text.toLowerCase().includes(ql)){ it.text=replaceIn(it.text,q,r).slice(0,10000); n++; } }
+    else for(const lab of (it.labels||[])) if(String(lab.text).toLowerCase().includes(ql)){ lab.text=replaceIn(lab.text,q,r).slice(0,2000); n++; }
+    if(!isShape(it)&&it.labels) it.labels=it.labels.filter(l=>l.text); }
+  if(n){ commit(); invalidate(); } return n;
+}
+function findStatus(t){ if(findEl) findEl.querySelector('.find-n').textContent=t; }
+function openFind(){
+  if(findEl){ findEl.querySelector('[data-find="q"]').focus(); return; }
+  const q=el('input',{type:'search',placeholder:'Find text, tags or notes','aria-label':'Find','data-find':'q',value:FIND.q}), r=el('input',{type:'text',placeholder:'Replace with','aria-label':'Replace with','data-find':'r'});
+  const all=el('input',{type:'checkbox','data-find':'all',checked:FIND.all});
+  findEl=el('div',{class:'find-bar',role:'search'},
+    el('div',{class:'find-row'},q,el('button',{type:'button',class:'btn','data-find':'prev','aria-label':'Previous match',text:'Prev'}),el('button',{type:'button',class:'btn','data-find':'next','aria-label':'Next match',text:'Next'}),el('button',{type:'button',class:'btn ghost icon','data-find':'close','aria-label':'Close find'},icon('x'))),
+    el('div',{class:'find-row'},r,el('button',{type:'button',class:'btn','data-find':'rep',text:'Replace'}),el('button',{type:'button',class:'btn','data-find':'repall',text:'Replace all'})),
+    el('div',{class:'find-row'},el('label',{class:'chk'},all,'All pages'),el('span',{class:'find-n muted small'})));
+  findEl.addEventListener('pointerdown',e=>e.stopPropagation());
+  findEl.addEventListener('keydown',e=>{ e.stopPropagation(); if(e.key==='Escape'){ closeFind(); } else if(e.key==='Enter'&&e.target===q){ e.preventDefault(); findStep(e.shiftKey?-1:1); } });
+  q.addEventListener('input',()=>{ FIND.q=q.value; FIND.i=-1; const m=findMatches(FIND.q,FIND.all); findStatus(FIND.q?(m.length+' match'+(m.length===1?'':'es')):''); });
+  all.addEventListener('change',()=>{ FIND.all=all.checked; FIND.i=-1; q.dispatchEvent(new Event('input')); });
+  findEl.addEventListener('click',e=>{ const b=e.target.closest('button[data-find]'); if(!b) return; const k=b.getAttribute('data-find');
+    if(k==='close') closeFind(); else if(k==='next') findStep(1); else if(k==='prev') findStep(-1);
+    else if(k==='repall'){ const n=replaceAll(FIND.q,r.value,FIND.all); FIND.i=-1; findStatus(n?('Replaced in '+n+' item'+(n>1?'s':'')):'Nothing to replace'); }
+    else if(k==='rep'){ const m=findMatches(FIND.q,FIND.all).filter(h=>h.where==='text'||h.where==='label'); if(!m.length){ findStatus('Nothing to replace'); return; }
+      const cur=m.find(h=>S.sel.has(h.id)&&h.page===S.doc.activePage)||m[0]; if(cur.page!==S.doc.activePage) switchPage(cur.page);
+      const n=replaceAll(FIND.q,r.value,false,cur.id); FIND.i=-1; findStatus(n?'Replaced. '+findMatches(FIND.q,FIND.all).length+' left':'That item is locked'); } });
+  stage.appendChild(findEl); q.focus(); q.select();
+}
+function closeFind(){ if(findEl){ findEl.remove(); findEl=null; } }
+// ---- version history (kept in this browser) ----
+const VERS_MEM=[]; let versDb=null, versLastAuto=0;
+function versOpen(){ return new Promise(res=>{ if(versDb){ res(versDb); return; } try{ if(!window.indexedDB){ res(null); return; } const r=indexedDB.open('linework-versions',1);
+  r.onupgradeneeded=()=>{ try{ r.result.createObjectStore('versions',{keyPath:'id'}); }catch(e){} }; r.onsuccess=()=>{ versDb=r.result; res(versDb); }; r.onerror=()=>res(null); r.onblocked=()=>res(null); }catch(e){ res(null); } }); }
+function versReq(mode,fn){ return versOpen().then(db=>new Promise(res=>{ if(!db){ res(undefined); return; } try{ const tx=db.transaction('versions',mode), rq=fn(tx.objectStore('versions'));
+  tx.oncomplete=()=>res(rq&&'result' in rq?rq.result:true); tx.onerror=()=>res(undefined); tx.onabort=()=>res(undefined); }catch(e){ res(undefined); } })); }
+function listVersions(){ return versReq('readonly',st=>st.getAll()).then(r=>(Array.isArray(r)?r:VERS_MEM.slice()).sort((a,b)=>b.ts-a.ts)); }
+function saveVersion(name,auto){
+  const rec={id:uid(),name:String(name||'').slice(0,80)||(auto?'Automatic':'Version'),ts:Date.now(),auto:!!auto,title:S.doc.title,doc:JSON.stringify(docForSave())};
+  return versReq('readwrite',st=>st.put(rec)).then(ok=>{ if(ok===undefined) VERS_MEM.push(rec);
+    return listVersions().then(all=>{ const autos=all.filter(v=>v.auto).slice(20), over=all.filter(v=>!v.auto).slice(40);
+      return Promise.all(autos.concat(over).map(v=>deleteVersion(v.id))).then(()=>rec); }); });
+}
+function deleteVersion(id){ const i=VERS_MEM.findIndex(v=>v.id===id); if(i>=0) VERS_MEM.splice(i,1); return versReq('readwrite',st=>st.delete(id)); }
+function restoreVersion(id){ return listVersions().then(all=>{ const v=all.find(x=>x.id===id); if(!v) return false;
+  return saveVersion('Before restoring "'+v.name+'"',true).then(()=>{ try{ const raw=JSON.parse(v.doc); if(raw.assets) importAssets(raw.assets); loadDocument(migrate(raw),'Version restored. The earlier state was kept as an automatic version.'); return true; }catch(e){ toast('That version could not be restored: '+e.message); return false; } }); }); }
+function autoVersion(){ const now=Date.now(); if(now-versLastAuto<10*60*1000) return; const first=versLastAuto===0; versLastAuto=now; if(!first) saveVersion('Automatic',true); }
+function showVersions(){
+  const list=el('div',{class:'vers-list'}), name=el('input',{type:'text',placeholder:'Name this version (optional)',maxlength:80,'aria-label':'Version name'});
+  const fill=()=>listVersions().then(all=>{ list.replaceChildren(...(all.length?all.map(v=>el('div',{class:'vers-row'},
+      el('div',null,el('b',{text:v.name}),el('div',{class:'muted small',text:new Date(v.ts).toLocaleString()+(v.auto?'  (automatic)':'')+'  '+Math.max(1,Math.round(v.doc.length/1024))+' KB'})),
+      el('button',{type:'button',class:'btn','data-vers':'restore:'+v.id,text:'Restore'}),el('button',{type:'button',class:'btn ghost icon','data-vers':'del:'+v.id,'aria-label':'Delete version '+v.name},icon('trash')))):[el('p',{class:'muted',text:'No versions saved yet.'})])); });
+  openModal('Version history',
+    el('p',{class:'muted small',text:'Versions are kept in this browser only (not in the JSON file). Linework also keeps an automatic version about every 10 minutes while you edit, up to 20, plus up to 40 that you save yourself.'}),
+    el('div',{class:'find-row',style:{margin:'8px 0'}},name,el('button',{type:'button',class:'btn primary','data-vers':'save',text:'Save version now'})),list);
+  modalEl.addEventListener('click',e=>{ const b=e.target.closest('[data-vers]'); if(!b) return; const k=b.getAttribute('data-vers');
+    if(k==='save') saveVersion(name.value||('Version '+new Date().toLocaleString()),false).then(()=>{ name.value=''; fill(); toast('Version saved in this browser.'); });
+    else if(k.startsWith('del:')) deleteVersion(k.slice(4)).then(fill);
+    else if(k.startsWith('restore:')){ const id=k.slice(8); closeModal(); restoreVersion(id); } });
+  return fill();
+}
+// ---- match size ----
+function matchSize(mode){
+  const sh=unlockedSel().filter(isShape); if(sh.length<2){ toast('Select two or more shapes. They take the size of the first one you selected.'); return; }
+  const ref=sh[0]; for(const s of sh.slice(1)){ const cx=s.x+s.w/2, cy=s.y+s.h/2; if(mode!=='h') s.w=ref.w; if(mode!=='w') s.h=ref.h; s.x=r2(cx-s.w/2); s.y=r2(cy-s.h/2); }
+  commit(); invalidate();
+}
+// ---- panel sections ----
+function extrasSections(sel,shapes){
+  const K=[], one=sel.length===1?sel[0]:null;
+  if(shapes.length) K.push(section('Effects',row('Shadow',chk('shadow',shapes.every(s=>s.style.shadow),'Drop shadow'))));
+  if(!one){ K.push(section('Tags',row('Add tag',el('input',{type:'text','data-prop':'addTag',placeholder:'Tag for all selected',maxlength:40,'aria-label':'Add a tag to all selected items'})))); return K; }
+  K.push(section('Tags and notes',
+    row('Tags',el('input',{type:'text','data-prop':'tags',value:(one.tags||[]).join(', '),placeholder:'comma separated',maxlength:400,'aria-label':'Tags, comma separated'})),
+    el('textarea',{class:'note-in','data-prop':'note',rows:3,placeholder:'Note (shown as a badge on the item)','aria-label':'Note',maxlength:5000},one.note||''),
+    el('p',{class:'muted small',text:'Find (Ctrl+F) searches tags and notes too.'})));
+  K.push(section('Alt text',el('input',{type:'text',class:'wide-in','data-prop':'alt',value:one.alt||'',placeholder:'Describe this item for screen readers',maxlength:500,'aria-label':'Alt text'}),
+    el('p',{class:'muted small',text:'Read by screen readers here and in exported SVG, and shown as a tooltip.'})));
+  const a=one.action||{t:'none'}, pg=page();
+  K.push(section('Action',
+    row('On click',selIn('actType',a.t,Object.keys(ACT_TYPES).map(k=>[k,ACT_TYPES[k]]),'Action')),
+    a.t==='url'?row('Link',el('input',{type:'url','data-prop':'actUrl',value:a.url||'',placeholder:'https://','aria-label':'Action web link'})):null,
+    a.t==='page'?row('Page',selIn('actPage',a.page,S.doc.pages.map(p=>[p.id,p.name]),'Action page')):null,
+    a.t.startsWith('layer')?row('Layer',selIn('actLayer',a.layer,ensureLayers(pg).map(l=>[l.id,l.name]),'Action layer')):null,
+    el('p',{class:'muted small',text:'Runs when you click the lightning badge on the item, or the item itself in Present mode.'})));
+  if(isShape(one)){
+    const d=one.data||{}, keys=Object.keys(d), sets=S.doc.datasets||[], ds=one.dref&&sets.find(x=>x.id===one.dref.set), fields=Object.keys(fieldsOf(one));
+    K.push(section('Data',
+      keys.length?el('div',{class:'fld-list'},keys.map((k,i)=>el('div',{class:'fld-row'},
+        el('input',{type:'text','data-prop':'fldK:'+i,value:k,maxlength:40,'aria-label':'Field name'}),el('input',{type:'text','data-prop':'fldV:'+i,value:d[k],maxlength:500,'aria-label':'Value of '+k}),
+        el('button',{type:'button',class:'btn icon sm','data-cmd':'fld:del:'+i,'aria-label':'Remove field '+k},icon('trash',15))))):null,
+      el('button',{type:'button',class:'btn','data-cmd':'fld:add',style:{marginTop:'4px'}},icon('plus',15),'Add field'),
+      sets.length?row('Data set',selIn('drefSet',ds?ds.id:'',[['','Not linked']].concat(sets.map(x=>[x.id,x.name])),'Linked data set')):null,
+      ds?row(ds.cols[0],selIn('drefKey',one.dref.k,ds.rows.slice(0,1000).map(r=>[r[0],r[0]]),'Linked row')):null,
+      fields.length?row('Show in text',selIn('insField','',[['','Insert a field...']].concat(fields.map(f=>[f,f])),'Insert a field into the text')):null,
+      el('button',{type:'button',class:'btn','data-cmd':'importData',style:{marginTop:'4px'}},'Import CSV data...'),
+      el('p',{class:'muted small',style:{marginTop:'6px'},text:'Type {{Field name}} in the shape text to show a value. Conditional formatting rules are under Data and rules when nothing is selected.'})));
+  }
+  return K;
+}
+function dataSection(){
+  const sets=S.doc.datasets||[], rules=S.doc.rules||[];
+  return section('Data and rules',
+    sets.length?el('div',{class:'fld-list'},sets.map(ds=>el('div',{class:'soon-row'},el('span',{text:ds.name+'  ('+ds.rows.length+' rows, '+ds.cols.length+' columns)'}),
+      el('button',{type:'button',class:'btn icon sm','data-cmd':'ds:del:'+ds.id,'aria-label':'Remove data set '+ds.name},icon('trash',15))))):el('p',{class:'muted small',text:'No data sets yet.'}),
+    el('button',{type:'button',class:'btn','data-cmd':'importData',style:{margin:'4px 0 10px'}},'Import CSV data...'),
+    el('div',{class:'sec-sub',text:'Conditional formatting'}),
+    rules.length?el('div',{class:'fld-list'},rules.map(r=>el('div',{class:'rule-row'},
+      el('input',{type:'text','data-prop':'rule:'+r.id+':field',value:r.field,placeholder:'Field',maxlength:60,'aria-label':'Rule field'}),
+      selIn('rule:'+r.id+':op',r.op,Object.keys(RULE_OPS).map(k=>[k,RULE_OPS[k]]),'Rule test'),
+      el('input',{type:'text','data-prop':'rule:'+r.id+':value',value:r.value,placeholder:'Value',maxlength:200,'aria-label':'Rule value',disabled:r.op==='empty'||r.op==='filled'}),
+      el('label',{class:'rule-c'},'Fill',el('input',{type:'color','data-prop':'rule:'+r.id+':fill',value:r.fill||'#ffffff','aria-label':'Rule fill color'}),el('input',{type:'checkbox','data-prop':'rule:'+r.id+':fillOn',checked:!!r.fill,'aria-label':'Change fill'})),
+      el('label',{class:'rule-c'},'Border',el('input',{type:'color','data-prop':'rule:'+r.id+':stroke',value:r.stroke||'#c2362b','aria-label':'Rule border color'}),el('input',{type:'checkbox','data-prop':'rule:'+r.id+':strokeOn',checked:!!r.stroke,'aria-label':'Change border'})),
+      el('button',{type:'button',class:'btn icon sm','data-cmd':'rule:del:'+r.id,'aria-label':'Remove rule'},icon('trash',15))))):null,
+    el('button',{type:'button',class:'btn','data-cmd':'rule:add',style:{marginTop:'4px'}},icon('plus',15),'Add rule'),
+    el('p',{class:'muted small',style:{marginTop:'6px'},text:'A rule recolors every shape whose field passes the test. Fields come from a shape\'s Data section or its linked data row. Later rules win.'}));
+}
+// Returns true when the property was one of the extras.
+function applyExtraProp(prop,v,final){
+  if(prop.startsWith('rule:')){ const [,id,k]=prop.split(':'), r=(S.doc.rules||[]).find(x=>x.id===id); if(!r) return true;
+    if(k==='fill'||k==='stroke'){ if(COLOR_RE.test(v)){ r[k]=v; if(final) commit(); invalidate({content:true,props:final}); } return true; }
+    if(!final) return true;
+    if(k==='fillOn'){ if(v) r.fill=r.fill||'#fde68a'; else delete r.fill; } else if(k==='strokeOn'){ if(v) r.stroke=r.stroke||'#c2362b'; else delete r.stroke; }
+    else if(k==='op'){ if(RULE_OPS[v]) r.op=v; } else if(k==='field') r.field=String(v).trim().slice(0,60); else if(k==='value') r.value=String(v).slice(0,200);
+    commit(); invalidate(); return true; }
+  const mine=['shadow','tags','addTag','note','alt','actType','actUrl','actPage','actLayer','drefSet','drefKey','insField'];
+  if(!mine.includes(prop)&&!prop.startsWith('fldK:')&&!prop.startsWith('fldV:')) return false;
+  if(!final) return true;
+  const sel=unlockedSel(); if(!sel.length) return true; const one=sel[0];
+  if(prop==='shadow'){ sel.filter(isShape).forEach(s=>{ s.style.shadow=!!v; }); }
+  else if(prop==='addTag'){ const t=String(v).trim().slice(0,40); if(!t) return true; sel.forEach(i=>{ const s=new Set(i.tags||[]); s.add(t); i.tags=[...s].slice(0,20); }); }
+  else if(prop==='tags'){ const t=[...new Set(String(v).split(',').map(x=>x.trim().slice(0,40)).filter(Boolean))].slice(0,20); if(t.length) one.tags=t; else delete one.tags; }
+  else if(prop==='note'){ if(String(v).trim()) one.note=String(v).slice(0,5000); else delete one.note; }
+  else if(prop==='alt'){ if(String(v).trim()) one.alt=String(v).slice(0,500); else delete one.alt; }
+  else if(prop==='actType'){ if(v==='none'||!ACT_TYPES[v]) delete one.action; else if(v==='url') one.action={t:'url',url:(one.action&&one.action.url)||one.link||''}; else if(v==='page') one.action={t:'page',page:S.doc.activePage};
+    else if(v==='next'||v==='prev') one.action={t:v}; else one.action={t:v,layer:(one.action&&one.action.layer)||activeLayerId()}; }
+  else if(prop==='actUrl'){ const u=normUrl(v); if(u===null||!u){ toast('Enter a web address (https://...) or a mailto: link.'); invalidate({props:true}); return true; } one.action={t:'url',url:u}; }
+  else if(prop==='actPage'){ if(S.doc.pages.some(p=>p.id===v)) one.action={t:'page',page:v}; }
+  else if(prop==='actLayer'){ if(one.action&&ensureLayers(page()).some(l=>l.id===v)) one.action.layer=v; }
+  else if(prop==='drefSet'){ const ds=(S.doc.datasets||[]).find(x=>x.id===v); if(ds&&ds.rows.length) one.dref={set:ds.id,k:ds.rows[0][0]}; else delete one.dref; }
+  else if(prop==='drefKey'){ if(one.dref) one.dref.k=String(v); }
+  else if(prop==='insField'){ if(v){ one.text=(one.text?one.text+'\n':'')+'{{'+v+'}}'; } }
+  else { const i=+prop.slice(5), d=one.data||{}, keys=Object.keys(d); if(!(i>=0&&i<keys.length)) return true;
+    if(prop.startsWith('fldV:')) d[keys[i]]=String(v).slice(0,500);
+    else { const nk=String(v).trim().slice(0,40); if(!nk||(nk!==keys[i]&&nk in d)){ toast(nk?'That field name is already used.':'A field needs a name.'); invalidate({props:true}); return true; }
+      const nd={}; keys.forEach((k,j)=>{ nd[j===i?nk:k]=d[k]; }); one.data=nd; } }
+  commit(); invalidate(); return true;
+}
+function extraCmd(name){
+  const p=name.split(':');
+  if(name==='importData'){ pickCsv(); return true; }
+  if(p[0]==='fld'){ const s=unlockedSel().filter(isShape)[0]; if(!s) return true; const d=s.data||{};
+    if(p[1]==='add'){ let k='Field', n=1; while((k+' '+n) in d) n++; if(Object.keys(d).length>=40){ toast('40 fields at most.'); return true; } d[k+' '+n]=''; s.data=d; }
+    else { const k=Object.keys(d)[+p[2]]; if(k==null) return true; delete d[k]; if(Object.keys(d).length) s.data=d; else delete s.data; }
+    commit(); invalidate(); return true; }
+  if(p[0]==='ds'&&p[1]==='del'){ S.doc.datasets=(S.doc.datasets||[]).filter(d=>d.id!==p[2]); if(!S.doc.datasets.length) delete S.doc.datasets;
+    for(const pg of S.doc.pages) for(const it of pg.items) if(it.dref&&it.dref.set===p[2]) delete it.dref; commit(); invalidate(); toast('Data set removed. Shapes linked to it are unlinked.'); return true; }
+  if(p[0]==='rule'){ const rules=S.doc.rules||(S.doc.rules=[]);
+    if(p[1]==='add'){ if(rules.length>=30){ toast('30 rules at most.'); return true; } rules.push({id:uid(),field:'Status',op:'eq',value:'',fill:'#fde68a'}); }
+    else { S.doc.rules=rules.filter(r=>r.id!==p[2]); }
+    if(S.doc.rules&&!S.doc.rules.length) delete S.doc.rules; commit(); invalidate(); return true; }
+  return false;
+}
 function soonSection(names){ return section('Coming soon',el('div',{class:'soon-list'},names.map(n=>el('div',{class:'soon-row'},el('span',{text:n}),el('span',{class:'soon',text:'Coming Soon'}))))); }
 function renderProps(){
   const root=$('#props'), sel=selItems(), K=[];
@@ -3484,6 +4022,7 @@ function renderProps(){
     K.push(section('Document',row('Title',el('input',{type:'text','data-prop':'docTitle',value:S.doc.title,maxlength:200,'aria-label':'Document title'}))));
     K.push(pageSection());
     K.push(layerSection());
+    K.push(dataSection());
     K.push(section('Tips',el('p',{class:'muted small',text:'Select a shape or line to style it. Hover a shape and drag one of its blue dots to draw a connector. Double-click to edit text.'})));
     root.replaceChildren(...K); return;
   }
@@ -3510,7 +4049,7 @@ function renderProps(){
       row('End',selIn('endArrow',fl.endArrow,arrows,'End arrow')),
       row('Type',selIn('signal',fl.signal||'',[['','Plain line'],...Object.keys(SIGNALS).map(k=>[k,SIGNALS[k].n])],'Line type')),
       fl.signal?el('p',{class:'muted small',style:{marginTop:'2px'},text:(SIGNALS[fl.signal].verified?'':'[Unverified drawing] ')+(SIGNALS[fl.signal].verified?SIG_BASIS_V:SIG_BASIS_U)}):null,
-      lines.length===1&&(fl.from.port||fl.to.port)?row('Ports',el('span',{class:'small',text:[fl.from,fl.to].map(e=>{ const s=e.id&&byId(e.id); return s?(s.text||(devDef(s.type)?devDef(s.type).cat:'')||TYPE_NAMES[s.type]||'Shape').split('\n')[0]+(e.port?(ioParse(s.type)?' '+IO_KINDS[ioParse(s.type).kind].lab+' '+e.port:' port '+e.port):''):'Free end'; }).join(' to ')})):null,
+      lines.length===1&&(fl.from.port||fl.to.port)?row('Ports',el('span',{class:'small',text:[fl.from,fl.to].map(e=>{ const s=e.id&&byId(e.id); return s?(s.text||(devDef(s.type)?devDef(s.type).cat:'')||TYPE_NAMES[s.type]||'Shape').split('\n')[0]+(e.port?(ioParse(s.type)?(e.port[0]==='C'?' COM'+(ioParse(s.type).com>1?' '+e.port.slice(1):''):' '+IO_KINDS[ioParse(s.type).kind].lab+' '+e.port):' port '+e.port):''):'Free end'; }).join(' to ')})):null,
       row('Corners',seg('corner',fl.style.corner>0?'r':'s',[{v:'s',l:'Square',t:'Square corners'},{v:'r',l:'Rounded',t:'Rounded corners'}])),
       lines.length===1?row('Text',el('span',{class:'muted',text:(fl.labels||[]).length+' on line'}),el('button',{class:'btn','data-cmd':'addLineText',text:'Add text'})):null));
   }
@@ -3528,6 +4067,7 @@ function renderProps(){
     K.push(section('Position and size',el('div',{class:'geo'},
       el('label',null,'X',numIn('x',fs.x,-100000,100000,1,'X')),el('label',null,'Y',numIn('y',fs.y,-100000,100000,1,'Y')),
       el('label',null,'W',numIn('w',fs.w,4,100000,1,'Width')),el('label',null,'H',numIn('h',fs.h,4,100000,1,'Height'))),
+      row('Angle',numIn('angle',totalAngle(fs),-360,360,1,'Rotation angle in degrees'),el('span',{class:'muted small',text:'degrees'})),
       fs.type==='rect'?row('Corners',numIn('radius',fs.style.radius,0,500,1,'Corner radius')):null));
   }
   if(fs&&fs.type==='image'&&shapes.length===1){ const a=ASSETS.get(fs.img);
@@ -3546,8 +4086,9 @@ function renderProps(){
       row('Family',selIn('ioFam',ioc.fam,Object.keys(IO_FAMS).map(f=>[f,IO_FAMS[f].n]),'I/O family')),
       row('Signal',selIn('ioKind',ioc.kind,Object.keys(IO_KINDS).map(k=>[k,IO_KINDS[k].n]),'Signal type')),
       row('Points',numIn('ioN',ioc.n,1,IO_MAX,1,'Number of I/O points, 1 to '+IO_MAX),el('span',{class:'muted small',text:'max '+IO_MAX})),
+      row('Commons',selIn('ioCom',ioc.com,[0,1,2,3,4].map(k=>[k,k===0?'None':k===1?'1 (COM)':k+' pins']),'Number of common pins')),
       row('Pins on',seg('ioSide',ioc.side,[{v:'l',l:'Left',t:'All pins on the left edge'},{v:'r',l:'Right',t:'All pins on the right edge'},{v:'s',l:'Both',t:'First half on the left, rest on the right'}])),
-      el('p',{class:'small',style:{margin:'2px 0 6px'},text:used.size+' of '+ioc.n+' points have a line attached.'}),
+      el('p',{class:'small',style:{margin:'2px 0 6px'},text:used.size+' of '+(ioc.n+ioc.com)+' pins have a line attached.'}),
       el('div',{class:'soon-row',style:{marginBottom:'6px'}},el('span',{text:'Generic block'}),el('span',{class:'soon',text:'Unverified'})),
       el('p',{class:'muted small',text:IO_NOTE}),IO_FAMS[ioc.fam].note?el('p',{class:'muted small',text:IO_FAMS[ioc.fam].note}):null));
   }
@@ -3590,13 +4131,14 @@ function renderProps(){
     row('Link',el('input',{type:'url','data-prop':'link',value:f.link||'',placeholder:'https://','aria-label':'Link address'})),
     row('Lock',el('button',{class:'btn','data-cmd':'toggleLock',text:sel.every(i=>i.locked)?'Unlock':'Lock'})),
     row('Style',el('button',{class:'btn','data-cmd':'copyStyle',text:'Copy'}),el('button',{class:'btn','data-cmd':'pasteStyle',text:'Paste',disabled:!S.styleClip}))));
-  K.push(soonSection(['Free rotation','Shadow','Data linking','Tags and notes','Alt text','Actions']));
+  K.push(...extrasSections(sel,shapes));
   root.replaceChildren(...K);
   // B/I/U: mark pressed state from the actual style
   root.querySelectorAll('[data-set="bold"],[data-set="italic"],[data-set="underline"],[data-set="strike"]').forEach(b=>{ const k=b.getAttribute('data-set'); b.setAttribute('aria-pressed',String(!!f.style[k])); });
 }
 function parseVal(v){ if(v==='true') return true; if(v==='false') return false; return v; }
 function applyProp(prop,v,final){
+  if(applyExtraProp(prop,v,final)) return;
   if(prop==='docTitle'){ S.doc.title=String(v).slice(0,200)||'Untitled diagram'; if(final) commit(); invalidate({chrome:true}); return; }
   if(prop==='pageName'){ page().name=String(v).slice(0,80)||'Untitled page'; if(final) commit(); invalidate({pages:true}); return; }
   if(prop==='pageSize'){ const pg=page(); if(PAGE_SIZES[v]) pg.size={k:v,o:pg.size?(pg.size.o==='landscape'?'landscape':'portrait'):(PAGE_SIZES[v].u==='in'&&PAGE_SIZES[v].w>=11?'landscape':'portrait')}; else delete pg.size; commit(); invalidate(); return; }
@@ -3605,11 +4147,11 @@ function applyProp(prop,v,final){
   if(prop==='pageBgNone'){ const pg=page(); if(v) delete pg.bg; else pg.bg='#fffdf5'; commit(); invalidate(); return; }
   if(prop.startsWith('layerName:')){ const L=ensureLayers(page()).find(l=>l.id===prop.slice(10)); if(L){ L.name=String(v).slice(0,60)||'Layer'; if(final) commit(); } return; }
   if(prop==='itemLayer'){ if(v) moveSelToLayer(v); return; }
-  if(prop==='ioFam'||prop==='ioKind'||prop==='ioN'||prop==='ioSide'){
+  if(prop==='ioFam'||prop==='ioKind'||prop==='ioN'||prop==='ioSide'||prop==='ioCom'){
     if(!final) return; const sh=unlockedSel().filter(isShape); const s0=sh.length===1&&ioParse(sh[0].type)?sh[0]:null; if(!s0) return;
     const c=ioParse(s0.type);
     if(prop==='ioN'){ const n=+v; if(!(Number.isInteger(n)&&n>=1&&n<=IO_MAX)){ toast('Enter a whole number of points from 1 to '+IO_MAX+'.'); invalidate({props:true}); return; } }
-    if(setIo(s0,prop==='ioFam'?v:c.fam,prop==='ioKind'?v:c.kind,prop==='ioN'?+v:c.n,prop==='ioSide'?v:undefined)){ commit(); invalidate(); }
+    if(setIo(s0,prop==='ioFam'?v:c.fam,prop==='ioKind'?v:c.kind,prop==='ioN'?+v:c.n,prop==='ioSide'?v:undefined,prop==='ioCom'?+v:undefined)){ commit(); invalidate(); }
     return; }
   if(prop.startsWith('pref:')){ S.prefs[prop.slice(5)]=!!v; savePrefs(); invalidate({overlay:true,chrome:true}); return; }
   const sel=unlockedSel(); if(!sel.length) return;
@@ -3638,6 +4180,7 @@ function applyProp(prop,v,final){
     case 'signal': lines.forEach(l=>{ if(SIGNALS[v]){ l.signal=v; l.style.dash=SIGNALS[v].dash||'solid'; } else delete l.signal; }); if(final) invalidate({props:true}); break;
     case 'link': { if(!final) return; const u=normUrl(v); if(u===null){ toast('Enter a web address (https://...) or a mailto: link.'); return; } sel.forEach(i=>{ if(u) i.link=u; else delete i.link; }); break; }
     case 'text': shapes.forEach(s=>{s.text=String(v).slice(0,10000);}); break;
+    case 'angle': if(!final) return; shapes.forEach(s=>setAngle(s,+v)); break;
     case 'x': case 'y': case 'w': case 'h': {
       if(shapes.length!==1) break; const n=num(v,NaN); if(!Number.isFinite(n)) break;
       shapes[0][prop]=(prop==='w'||prop==='h')?Math.max(4,n):n; break;
@@ -4250,11 +4793,11 @@ async function exportPdf(all){
 
 /* ============================== menus & context menu ============================== */
 const MENUS={
-  file:[['New diagram','newDoc'],['Duplicate page','duplicatePage'],['Open JSON file...','openJson','Ctrl+O'],['Save as JSON','saveJson','Ctrl+S'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import Visio or Lucidchart file','soon:Import from other diagram tools',null,true],['Revision history','soon:Revision history',null,true]],
-  edit:[['Undo','undo','Ctrl+Z'],['Redo','redo','Ctrl+Shift+Z'],'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',['Select all','selectAll','Ctrl+A'],['Select all shapes','selectShapes'],['Select all lines','selectLines'],['Select same fill color','selectSameFill'],'-',['Edit text','editText','Enter'],['Add text to line','addLineText'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],'-',['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],'-',['Find and replace','soon:Find and replace',null,true],['Notes and tags','soon:Notes and tags on shapes',null,true]],
+  file:[['New diagram','newDoc'],['Duplicate page','duplicatePage'],['Open JSON file...','openJson','Ctrl+O'],['Save as JSON','saveJson','Ctrl+S'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import CSV data...','importData'],['Version history...','versions'],['Import Visio or Lucidchart file','soon:Import from other diagram tools',null,true]],
+  edit:[['Undo','undo','Ctrl+Z'],['Redo','redo','Ctrl+Shift+Z'],'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',['Select all','selectAll','Ctrl+A'],['Select all shapes','selectShapes'],['Select all lines','selectLines'],['Select same fill color','selectSameFill'],'-',['Edit text','editText','Enter'],['Add text to line','addLineText'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],'-',['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],'-',['Find and replace','find','Ctrl+F']],
   insert:[['Picture...','insertImage'],['Text box','insertText'],['Sticky note','insertNote'],['Page','addPage'],'-',['Icons','soon:Icon sets',null,true],['Freehand drawing','soon:Freehand pen',null,true]],
-  arrange:[['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',['Group','group','Ctrl+G'],['Ungroup','ungroup','Ctrl+Shift+G'],'-',['Align left','alignL'],['Align center','alignC'],['Align right','alignR'],['Align top','alignT'],['Align middle','alignM'],['Align bottom','alignB'],'-',['Distribute horizontally','distH'],['Distribute vertically','distV'],'-',['Rotate 90\u00b0 clockwise','rotate','Alt+R'],['Rotate 90\u00b0 counterclockwise','rotateCcw','Alt+Shift+R'],['Flip horizontal','flipH'],['Flip vertical','flipV'],['Free rotation','soon:Free rotation',null,true],'-',['Lock / unlock','toggleLock','Ctrl+Shift+L'],['Swap line endpoints','swapEnds']],
-  view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','soon:Mini map',null,true],['Presentation mode','soon:Presentation mode',null,true],['Comments','soon:Comments',null,true]],
+  arrange:[['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',['Group','group','Ctrl+G'],['Ungroup','ungroup','Ctrl+Shift+G'],'-',['Align left','alignL'],['Align center','alignC'],['Align right','alignR'],['Align top','alignT'],['Align middle','alignM'],['Align bottom','alignB'],'-',['Distribute horizontally','distH'],['Distribute vertically','distV'],'-',['Rotate 90\u00b0 clockwise','rotate','Alt+R'],['Rotate 90\u00b0 counterclockwise','rotateCcw','Alt+Shift+R'],['Flip horizontal','flipH'],['Flip vertical','flipV'],'-',['Match width','matchW'],['Match height','matchH'],['Match size','matchSize'],'-',['Lock / unlock','toggleLock','Ctrl+Shift+L'],['Swap line endpoints','swapEnds']],
+  view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','soon:Mini map',null,true],['Present','present','F5'],['Comments','soon:Comments',null,true]],
   help:[['Getting started and shortcuts','help','F1'],['About Linework','about']]
 };
 let openMenu=null;
@@ -4301,17 +4844,7 @@ function showCtx(x,y){
 
 /* ============================== export / import ============================== */
 function fileBase(){ return (S.doc.title||'diagram').replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'-').slice(0,60)||'diagram'; }
-function exportSVGString(opts){
-  opts=opts||{};
-  const pg=page(), its=renderList(pg), sz=pageSizePx(pg), b=its.length?bboxOf(its):{x:0,y:0,w:100,h:100}, pad=opts.pad!=null?opts.pad:24;
-  const W=sz?sz.w:Math.ceil(b.w+pad*2), H=sz?sz.h:Math.ceil(b.h+pad*2), x0=sz?0:r2(b.x-pad), y0=sz?0:r2(b.y-pad);
-  const root=sv('svg',{width:W,height:H,viewBox:`${x0} ${y0} ${W} ${H}`});
-  if(opts.background!==false||pg.bg) root.appendChild(sv('rect',{x:x0,y:y0,width:W,height:H,fill:pg.bg||'#ffffff'}));
-  const wasEditing=S.editing;
-  for(const it of its) root.appendChild(isShape(it)?renderShape(it,{export:true}):renderLine(it,{export:true}));
-  S.editing=wasEditing;
-  return '<?xml version="1.0" encoding="UTF-8"?>\n'+new XMLSerializer().serializeToString(root);
-}
+function exportSVGString(opts){ return '<?xml version="1.0" encoding="UTF-8"?>\n'+new XMLSerializer().serializeToString(exportSVGNode(opts)); }
 // When hosted as a claude.ai artifact, page-started downloads are blocked; the host's
 // `downloads` capability shows the viewer a save prompt instead. Anywhere else, use <a download>.
 let hostDownloads=null;
@@ -4450,8 +4983,8 @@ function showTextModal(name,text){
   try{ ta.focus(); ta.select(); }catch(e){}
 }
 function showHelp(){
-  const sc=[['Drag from library','Add a shape where you drop it'],['Click or tap a shape tile','Add it in the middle of the view'],['Double-click / double-tap','Edit shape text, or add a text box on a line where you click'],['Click a line','Open the editing bar (right-click a shape for its bar)'],['Type with a shape selected','Add to its text (Ctrl+A in the editor selects all to replace it)'],['Double-click inside text','Place the cursor there to edit'],['Ctrl+Enter or Esc','Finish editing text'],['Shift+click','Add to or remove from selection'],['Drag on empty canvas','Pan the view (Select mode: box-select)'],['Shift+drag on empty canvas','Box-select'],['Shift while dragging','Turn off grid and alignment snapping'],['Tab / Enter on a topic or org box','Add a child / add a sibling'],['Space+drag, middle-drag, scroll','Pan the canvas'],['Ctrl+scroll, pinch','Zoom'],['Shift while resizing','Keep proportions'],['Arrow keys (Shift for 10)','Nudge selection'],['Ctrl+Z / Ctrl+Shift+Z','Undo / redo'],['Ctrl+C / X / V / D','Copy, cut, paste, duplicate'],['Ctrl+G / Ctrl+Shift+G','Group / ungroup'],['Ctrl+] / Ctrl+[','Bring forward / send backward (add Shift for front / back)'],['Ctrl+= / Ctrl+- / Ctrl+0','Zoom in, out, actual size'],['Shift+1','Zoom to fit'],['Ctrl+S / Ctrl+O','Save as JSON / open JSON'],['Delete or Backspace','Delete selection'],['Ctrl+K','Attach a link'],['Ctrl+Alt+C / Ctrl+Alt+V','Copy style / paste style'],['Ctrl+Shift+L','Lock or unlock'],['Alt+R / Alt+Shift+R','Rotate selection 90\u00b0 clockwise / counterclockwise'],['R while dragging a library tile','Turn the shape 90\u00b0 before you drop it (Shift+R the other way)'],['F1 or ?','Open this help']];
-  const soon=['Sharing and real-time collaboration','Comments','Presentation mode','Revision history','Free rotation (any angle; 90\u00b0 steps work now)','Tags, notes, alt text and actions on shapes','Icon sets and freehand pen','Mini map','Page tab colors and master pages','Templates gallery','Embedded links','Additional shape libraries (UML, BPMN, full IEC 60617 electrical set)','Free-form bends on straight and curved lines','Data linking','Import from other diagram tools','Find and replace'];
+  const sc=[['Drag from library','Add a shape where you drop it'],['Click or tap a shape tile','Add it in the middle of the view'],['Double-click / double-tap','Edit shape text, or add a text box on a line where you click'],['Click a line','Open the editing bar (right-click a shape for its bar)'],['Type with a shape selected','Add to its text (Ctrl+A in the editor selects all to replace it)'],['Double-click inside text','Place the cursor there to edit'],['Ctrl+Enter or Esc','Finish editing text'],['Shift+click','Add to or remove from selection'],['Drag on empty canvas','Pan the view (Select mode: box-select)'],['Shift+drag on empty canvas','Box-select'],['Shift while dragging','Turn off grid and alignment snapping'],['Tab / Enter on a topic or org box','Add a child / add a sibling'],['Space+drag, middle-drag, scroll','Pan the canvas'],['Ctrl+scroll, pinch','Zoom'],['Shift while resizing','Keep proportions'],['Arrow keys (Shift for 10)','Nudge selection'],['Ctrl+Z / Ctrl+Shift+Z','Undo / redo'],['Ctrl+C / X / V / D','Copy, cut, paste, duplicate'],['Ctrl+G / Ctrl+Shift+G','Group / ungroup'],['Ctrl+] / Ctrl+[','Bring forward / send backward (add Shift for front / back)'],['Ctrl+= / Ctrl+- / Ctrl+0','Zoom in, out, actual size'],['Shift+1','Zoom to fit'],['Ctrl+S / Ctrl+O','Save as JSON / open JSON'],['Delete or Backspace','Delete selection'],['Ctrl+K','Attach a link'],['Ctrl+Alt+C / Ctrl+Alt+V','Copy style / paste style'],['Ctrl+Shift+L','Lock or unlock'],['Alt+R / Alt+Shift+R','Rotate selection 90\u00b0 clockwise / counterclockwise'],['Drag the round arrow above a shape','Rotate to any angle (snaps to 15\u00b0, Shift for free)'],['Ctrl+F','Find and replace'],['F5','Present'],['R while dragging a library tile','Turn the shape 90\u00b0 before you drop it (Shift+R the other way)'],['F1 or ?','Open this help']];
+  const soon=['Sharing and real-time collaboration','Comments','Icon sets and freehand pen','Mini map','Line jumps where lines cross','Page tab colors and master pages','Templates gallery','Embedded links','Full IEC 60617 electrical library','Free-form bends on straight and curved lines','Live data sources (Google Sheets, Excel) and auto-refresh','Import from Visio, Lucidchart and other diagram tools','Slides that frame part of a page in Present mode'];
   openModal('Getting started with Linework',
     el('h3',{text:'Add shapes'}),el('p',{text:'Drag any shape from the library on the left onto the canvas, or click or tap a tile to drop it in the middle of the view. Use the search box to filter shapes.'}),
     el('h3',{text:'Connect shapes'}),el('p',{text:'Hover a shape to show four blue dots. Drag a dot onto another shape. Drop it on one of the green side dots to pin the line to that side, or anywhere on the shape body for a floating connection that picks the best side as shapes move. Release on empty canvas to choose a new shape to create at the end of the line.'}),
@@ -4479,10 +5012,19 @@ function showHelp(){
     el('h3',{text:'PDF'}),el('p',{text:'File > Export PDF makes a PDF of this page, or all pages with one PDF page each, sized to the drawing. Pages are high-resolution images of the diagram, so the text in the PDF is not selectable.'}),
     el('h3',{text:'Page size and background'}),el('p',{text:'Click empty canvas to see Page settings in the right panel. Size is Infinite canvas (the default) or a sheet: Letter, Legal, Tabloid, ANSI C, D and E, or A4 to A0. The sheet is drawn at 96 pixels per inch on a gray pasteboard, and Orientation switches Portrait and Landscape. Background sets the sheet color (or the canvas color on an infinite canvas); tick Default to go back to white. SVG, PNG and PDF exports of a sized page are cut to the sheet, so anything outside it is left out.'}),
     el('h3',{text:'Layers'}),el('p',{text:'Each page has its own layers, listed under Layers when nothing is selected. The top row draws on top. Click the dot at the left of a layer to make it active: new shapes and lines go on the active layer. Use the eye to hide a layer (hidden layers are left out of exports too), the lock to stop its items being selected or moved, the arrows to change the stacking order, and the trash can to delete a layer with everything on it (Ctrl+Z brings it back). Rename a layer by typing in its name. To move items to another layer, select them and pick the layer under Layer in the right panel. Within a layer, Bring to front and Send to back still work as usual.'}),
+    el('h3',{text:'Shadow, tags, notes and alt text'}),el('p',{text:'Select an item and scroll the right panel. Effects > Drop shadow adds a soft shadow to shapes (it exports too). Tags and notes takes comma separated tags and a note; an item with a note shows a small yellow note badge, and hovering it shows the note. Alt text describes an item for screen readers; it is written into the canvas and into exported SVG as a title.'}),
+    el('h3',{text:'Actions'}),el('p',{text:'Action > On click makes an item do something: open a web link, go to a page, go to the next or previous page, or show, hide or toggle a layer on the current page. An item with an action shows a purple lightning badge; click the badge to run it while editing. In Present mode, clicking the item itself runs it.'}),
+    el('h3',{text:'Data linking and conditional formatting'}),el('p',{text:'Every shape can carry data fields: select it and use Data > Add field, then type a name and a value. To bring in a table, use Import CSV data (also under File). The first row is the column names and the first column is the key. Link a shape to a row with Data set and the key list under it; the shape then has every column as a field. Type {{Field name}} in a shape\'s text, or pick one from Show in text, to display a value. Importing a file with the same name again refreshes the rows and keeps the links. Data sets are saved in the diagram.'}),
+    el('p',{text:'With nothing selected, Data and rules lists the data sets and the conditional formatting rules. A rule names a field, a test (equals, contains, greater than, is empty and so on) and a value, and recolors the fill, the border or both of every shape that passes. Numbers are compared as numbers, so 460.0 equals 460. Rules do not change a shape\'s own colors; remove the rule and the shape looks as before.'}),
+    el('h3',{text:'Present'}),el('p',{text:'Present (top right, View > Present or F5) shows the diagram full screen, one page at a time, with nothing editable. Use the arrow keys, Page Up and Page Down, or the Previous and Next buttons; Esc exits. Shapes with a link or an action are clickable. Layers shown or hidden by actions go back to how they were when you exit.'}),
+    el('h3',{text:'Find and replace'}),el('p',{text:'Ctrl+F (or Edit > Find and replace) opens the find bar. It searches shape text, text on lines, tags and notes, on this page or all pages, ignoring upper and lower case. Next and Prev select each match and bring it into view. Replace and Replace all change shape and line text only, skip locked items, and undo in one step.'}),
+    el('h3',{text:'Version history'}),el('p',{text:'File > Version history saves named copies of the whole diagram in this browser and lists them with Restore and Delete. Linework also keeps an automatic copy about every 10 minutes while you edit. Restoring keeps the state you were in as an automatic version first. Versions are not part of the JSON file and do not move to other browsers.'}),
+    el('h3',{text:'UML and BPMN'}),el('p',{text:'The UML library has class and interface boxes, actor, use case, package, component, node, note, lifeline, activation bar, states, decision, fork bar, frame and the relationship lines (generalization, realization, association, dependency, aggregation, composition, messages). In a class box the lines before the first -- are the name; each -- on its own line starts a new compartment. The BPMN library has events, task, sub-process, gateways, data object and store, pool, annotation, group and the flow lines. Both are drawn after common notation and marked as not checked against the OMG specifications.'}),
+    el('h3',{text:'Match size'}),el('p',{text:'Select two or more shapes and use Arrange > Match width, Match height or Match size. The others take the size of the first shape you selected.'}),
     el('h3',{text:'Generic I/O modules'}),el('p',{text:'The Rockwell I/O modules (generic) library has a block for ControlLogix 1756, CompactLogix 5069 (Compact 5000), CompactLogix 1769 (Compact I/O) and POINT I/O 1734. When you drop or click one, Linework asks for the signal type (digital input, digital output, analog input or analog output) and the number of I/O points, 1 to 32. Every point has its own pin: hover the block to see the pins, then drag from a pin to another pin or shape. Pins on picks the edge: Left, Right, or Both sides (first half left, rest right). Automatic uses the left side up to 16 points and both sides above that. Type a slot or node name in the gray header (double-click it).'}),
-    el('p',{text:'To change a placed block, select it and use I/O module in the right panel: family, signal type, points and Pins on. Lines stay on their points when the pins change sides. If you lower the point count, lines on the removed points stay where they were with a loose end. These blocks are generic placeholders, not specific catalog numbers, and are marked Unverified; real POINT I/O 1734 modules have 1 to 8 points each, so check the module wiring diagram.'}),
+    el('p',{text:'To change a placed block, select it and use I/O module in the right panel: family, signal type, points and Pins on. Lines stay on their points when the pins change sides. Commons adds up to four common pins (COM, or COM 0 to COM 3) below the points, drawn as filled terminals; on a two-sided card they alternate left and right. If you lower the point count, lines on the removed points stay where they were with a loose end. These blocks are generic placeholders, not specific catalog numbers, and are marked Unverified; real POINT I/O 1734 modules have 1 to 8 points each, so check the module wiring diagram.'}),
     el('h3',{text:'Wire terminals on symbols'}),el('p',{text:'Symbols with more than two wires have a pin for each terminal: 2-channel emergency stops and guard switches (11-12, 21-22), guard locking switches (A1-A2 solenoid, 11-12 and 21-22 contacts), coded switches, light curtains and laser scanners (+24V, 0V, OSSD1, OSSD2), enabling switches, two-hand controls, safety mats, safety relays, safety contactors, drives with STO, safety valves, stack lights, 3-pole breakers, disconnects, contactors and overloads (L1-L3, T1-T3), 3-phase motors, transformers (H1, H2, X1, X2), drives, the PLC I/O module, selector switches and the power supply. Hover the symbol to see its terminals and drag a line from one, or drop a line end near a terminal to pin it. The right panel lists which terminals have a wire. Terminal names are typical and marked Unverified, since they vary by product.'}),
-    el('h3',{text:'Rotating shapes'}),el('p',{text:'Rotation is in 90\u00b0 steps. Before you add a shape, pick Place at 0, 90, 180 or 270 in the library header; every shape you add from the library uses it. While dragging a tile, press R to turn the shape another 90\u00b0 (Shift+R the other way) before you drop it. After placing, click the round arrow button above the selection (Shift-click turns the other way), press Alt+R or Alt+Shift+R, or use Arrange > Rotate. Lines stay attached and ports turn with the symbol. Text inside a shape turns with it; to keep it level, select the shape and set Text > When rotated to Stay level. Labels written beside electrical symbols always stay level so ladder drawings stay readable. Rotation to any angle is not available yet.'}),
+    el('h3',{text:'Rotating shapes'}),el('p',{text:'Before you add a shape, pick Place at 0, 90, 180 or 270 in the library header; every shape you add from the library uses it. While dragging a tile, press R to turn the shape another 90\u00b0 (Shift+R the other way) before you drop it. After placing, click the round arrow button above the selection (Shift-click turns the other way), press Alt+R or Alt+Shift+R, or use Arrange > Rotate for 90\u00b0 steps. For any other angle, drag the round arrow button around the shape (it snaps every 15\u00b0; hold Shift for a free angle), or type the angle in Position and size > Angle. Lines stay attached and ports turn with the symbol. Text inside a shape turns with it; to keep it level, select the shape and set Text > When rotated to Stay level. Labels written beside electrical symbols always stay level so ladder drawings stay readable. Free angles apply to one shape at a time; orthogonal lines leave a turned shape from the nearest of its four sides.'}),
     el('h3',{text:'Electrical and safety devices'}),el('p',{text:'The Electrical library adds timed contacts (TC and TO), mushroom-head pushbuttons, 2 and 3 position selector switches, limit, pressure, temperature, float, flow and foot switches, proximity and photoelectric sensors, solenoid, horn, plug, 3-pole breaker, disconnect, contactor and overload, 3-phase motor, power supply, diode, LED, battery, meters, heater, current transformer and an IEC rectangle coil. The Electrical safety devices library, right below it, has emergency stops (1 and 2 channel), guard interlock and guard locking switches, coded non-contact switch, enabling switch, two-hand control, light curtain, laser scanner, safety mat and edge, safety relay, safety controller, safety contactor with mirror contact, drive with Safe Torque Off, redundant safety valve, stack light, lockout point, trapped key, guard fence and door, and a hazard warning triangle.'}),
     el('p',{text:'All of these drawings are marked Unverified in the right panel. The emergency stop follows the IEC 60617 description of symbol S00258 (mushroom head, positive opening, maintain position), but its proportions were not checked against the official graphic. Safety relay terminal names are typical, not from a particular product, so edit them to match the data sheet. Many safety devices have no single standard symbol and are drawn as labeled blocks.'}),
     el('h3',{text:'Pages'}),el('p',{text:'Use the tabs at the bottom to switch pages. The plus button adds a page, double-click a tab to rename it, and the x on the active tab deletes it (undo brings it back).'}),
@@ -4500,7 +5042,8 @@ const CMDS={
   duplicate, delete:deleteSel, selectAll:()=>setSel(pickList().map(i=>i.id)),
   editText:()=>{ const s=selItems(); if(s.length===1) startEdit(s[0].id); },
   front:()=>reorder('front'), back:()=>reorder('back'), forward:()=>reorder('forward'), backward:()=>reorder('backward'),
-  toggleLock, copyStyle, pasteStyle, swapEnds,
+  toggleLock, copyStyle, pasteStyle, swapEnds, present:startPresent, find:openFind, versions:showVersions,
+  matchW:()=>matchSize('w'), matchH:()=>matchSize('h'), matchSize:()=>matchSize('wh'),
   addChild:()=>{ const s=selItems()[0]; addFamilyChild(s,false); }, addSibling:()=>{ const s=selItems()[0]; addFamilyChild(s,true); }, tidyFamily, loadSample3:loadFamilySample,
   modePan:()=>{ S.prefs.dragMode='pan'; savePrefs(); invalidate({chrome:true}); toast('Drag empty canvas to pan. Shift+drag draws a selection box.'); },
   modeSelect:()=>{ S.prefs.dragMode='select'; savePrefs(); invalidate({chrome:true}); toast('Drag empty canvas to select. Space+drag or middle-drag pans.'); },
@@ -4534,6 +5077,7 @@ function runCmd(name){
   if(!name) return;
   if(name.startsWith('soon:')){ toast(name.slice(5)+' is coming soon.'); return; }
   if(name.startsWith('layer:')){ const p=name.split(':'); layerCmd(p[1],p[2]); return; }
+  if(extraCmd(name)) return;
   const f=CMDS[name]; if(f) f();
 }
 
@@ -4597,6 +5141,8 @@ function wireKeys(){
     if(typing||modalEl) return;
     const mod=e.ctrlKey||e.metaKey, k=(e.key||'').toLowerCase();
     if(e.key==='F1'){ e.preventDefault(); showHelp(); return; }
+    if(e.key==='F5'&&!mod){ e.preventDefault(); startPresent(); return; }
+    if(mod&&!e.shiftKey&&!e.altKey&&(k==='f'||k==='h')){ e.preventDefault(); openFind(); return; }
     if(mod&&e.altKey&&(e.code==='KeyC'||e.code==='KeyV')){ e.preventDefault(); runCmd(e.code==='KeyC'?'copyStyle':'pasteStyle'); return; }
     if(mod&&e.shiftKey&&(e.code==='KeyL')){ e.preventDefault(); runCmd('toggleLock'); return; }
     if(mod&&!e.shiftKey&&k==='k'){ e.preventDefault(); runCmd('openLink'); return; }
@@ -4647,6 +5193,8 @@ window.__app={
     geom, sampleDoc, saveLocal, loadLocal, expandGroups, alignSel, distributeSel, reorder, newDoc,
     insertImageData, importAssets, exportAssets, docForSave, buildPdf, pageSvgs, assets:ASSETS, geoBBox,
     findTarget, lineDefaults, raPorts, raPort, RA_DEV, RA_SRC, filterLibrary, duplicate,
+    setAngle, totalAngle, rotPt, itemBBox, shapeAt, parseCsv, importCsv, fieldsOf, resolveText, ruleHit, runAction, startPresent, stopPresent, presentGo, exportSVGNode,
+    findMatches, findStep, replaceAll, openFind, closeFind, saveVersion, listVersions, restoreVersion, deleteVersion, showVersions, matchSize, extraCmd, portPoint2:portPoint, UML_TYPES,
     layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO,
     devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf },
   LIB, LIB_MAP, KEYS:{doc:KEY_DOC,schema:KEY_SCHEMA,prefs:KEY_PREFS,legacy:LEGACY_KEYS}
