@@ -357,6 +357,7 @@ button{cursor:pointer}
 .io-form label{display:grid;gap:4px;font-size:var(--fs-sm);color:var(--text-2)}
 .io-form select,.io-form input{height:32px;padding:0 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel);color:var(--text);font-size:var(--fs-md)}
 .io-err{color:#b42318}
+.sec-sub{font-size:var(--fs-xs);font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 4px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
 .modal-b p,.modal-b li{font-size:var(--fs-md);color:var(--text-2)}
 .modal-b ul{padding-left:18px;margin:4px 0}
@@ -470,7 +471,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.10.0';
+const APP_VERSION='1.11.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -677,7 +678,7 @@ function geom(type,w,h,st){
       decor=[{d:circ(ax,ay,av),f:'none'},{d:circ(ax,ay-av*0.3,av*0.3),f:'stroke'},{d:`M${r2(ax-av*0.6)} ${r2(ay+av*0.62)}Q${r2(ax)} ${r2(ay-av*0.02)} ${r2(ax+av*0.6)} ${r2(ay+av*0.62)}Z`,f:'stroke'}];
       tb={x:h*0.92,y:0,w:Math.max(10,w-h*0.97),h}; break; }
     case 'org_role': d=roundRect(w,h,4); decor=[{d:`M0 4Q0 0 4 0H${r2(w-4)}Q${r2(w)} 0 ${r2(w)} 4V7H0Z`,f:'stroke'}]; tb={x:0,y:7,w,h:h-7}; break;
-    default: { const lg=libGeom(type,w,h); if(lg) return lg; const eg=elecGeom(type,w,h); if(eg) return eg; const g=symGeom(type,w,h); if(g) return g; d=roundRect(w,h,0); }
+    default: { const lg=libGeom(type,w,h); if(lg) return lg; const eg=elecGeom(type,w,h); if(eg) return withPins(eg,type,w,h); const g=symGeom(type,w,h); if(g) return withPins(g,type,w,h); d=roundRect(w,h,0); }
   }
   return {d,decor,tb};
 }
@@ -690,6 +691,52 @@ const PL=(...pts)=>'M'+pts.map(p=>r2(p[0])+' '+r2(p[1])).join('L');
 function circ(cx,cy,r){ return `M${r2(cx-r)} ${r2(cy)}A${r2(r)} ${r2(r)} 0 1 0 ${r2(cx+r)} ${r2(cy)}A${r2(r)} ${r2(r)} 0 1 0 ${r2(cx-r)} ${r2(cy)}Z`; }
 function ell(w,h){ return `M0 ${r2(h/2)}A${r2(w/2)} ${r2(h/2)} 0 1 0 ${r2(w)} ${r2(h/2)}A${r2(w/2)} ${r2(h/2)} 0 1 0 0 ${r2(h/2)}Z`; }
 const bowtie=(w,y0,y1)=>`M0 ${r2(y0)}L${r2(w)} ${r2(y1)}V${r2(y0)}L0 ${r2(y1)}Z`;
+/* ---------- terminal pins on multi-wire symbols ----------
+   Each pin is a connection point a line can attach to, like a device port: {id,x,y,side,lab}
+   in unrotated symbol coordinates. lab (when set) is drawn small beside the pin.
+   Numbering follows common IEC 60947-1 practice where one exists (A1-A2 coil, 1-2 break and 3-4 make
+   contacts with a sequence digit in front, L1/T1 main poles); vendor terminal names vary. */
+function symPins(type,w,h){
+  const P=(id,x,y,side,lab)=>({id,x,y,side,lab:lab===undefined?id:lab}), cx=w/2;
+  const rows3=(ys,a,b)=>ys.flatMap((y,i)=>[P(a[i],0,y,'W'),P(b[i],w,y,'E')]);
+  switch(type){
+    case 'e_xfmr': return [P('H1',w*.2,0,'N'),P('H2',w*.8,0,'N'),P('X1',w*.2,h,'S'),P('X2',w*.8,h,'S')];
+    case 'e_vfd': return rows3([h*.25,h*.5,h*.75],['L1','L2','L3'],['T1','T2','T3']);
+    case 'e_plc': { const out=[]; for(let i=0;i<6;i++){ const ty=h*(.3+i*.11); out.push(P('I'+i,0,ty,'W',null),P('O'+i,w,ty,'E',null)); } return out; }
+    case 'e_ss2': return [P('C',0,h/2,'W'),P('1',w,h*.3,'E'),P('2',w,h*.7,'E')];
+    case 'e_ss3': return [P('C',0,h/2,'W'),P('1',w,h*.2,'E'),P('2',w,h*.5,'E'),P('3',w,h*.8,'E')];
+    case 'e_cb3': case 'e_disc3': case 'e_ms3': case 'e_ol3': return rows3([h*.18,h*.5,h*.82],['L1','L2','L3'],['T1','T2','T3']);
+    case 'e_motor3': return [P('T1',w*.3,0,'N'),P('T2',cx,0,'N'),P('T3',w*.7,0,'N')];
+    case 'e_psu': return [P('L',0,h*.3,'W'),P('N',0,h*.7,'W'),P('P',w,h*.3,'E','+'),P('M',w,h*.7,'E','-')];
+    case 's_estop': case 's_guard': return [P('11',0,h*.68,'W'),P('12',w,h*.68,'E')];
+    case 's_estop2': case 's_guard2': return [P('11',0,h*.42,'W'),P('12',w,h*.42,'E'),P('21',0,h*.82,'W'),P('22',w,h*.82,'E')];
+    case 's_mirror': return rows3([h*.15,h*.38,h*.61],['L1','L2','L3'],['T1','T2','T3']).concat([P('21',0,h*.86,'W'),P('22',w,h*.86,'E')]);
+    case 's_relay': { const top=['A1','S11','S12','S21','S22','13','23'], bot=['A2','S33','S34','14','24'];
+      return top.map((t,i)=>P(t,w*(i+.5)/top.length,0,'N',null)).concat(bot.map((t,i)=>P(t,w*(i+.5)/bot.length,h,'S',null))); }
+    case 's_glock': return [P('A1',0,h*.3,'W'),P('A2',0,h*.7,'W'),P('11',w,h*.2,'E'),P('12',w,h*.4,'E'),P('21',w,h*.6,'E'),P('22',w,h*.8,'E')];
+    case 's_coded': return [P('P24',0,h*.25,'W','+24V'),P('M0',0,h*.42,'W','0V'),P('OSSD1',0,h*.58,'W','OSSD1'),P('OSSD2',0,h*.75,'W','OSSD2')];
+    case 's_enable': return [P('13',0,h*.4,'W'),P('23',0,h*.7,'W'),P('14',w,h*.4,'E'),P('24',w,h*.7,'E')];
+    case 's_twohand': return ['13','14','21','22'].flatMap((t,i)=>[P('L'+t,0,h*(.3+i*.15),'W',t),P('R'+t,w,h*(.3+i*.15),'E',t)]);
+    case 's_lc': return [P('E24',0,h*.35,'W','+24V'),P('E0',0,h*.5,'W','0V'),P('R24',w,h*.3,'E','+24V'),P('R0',w,h*.43,'E','0V'),P('OSSD1',w,h*.56,'E'),P('OSSD2',w,h*.69,'E')];
+    case 's_scan': return [P('P24',cx-w*.12,h*.79,'W','+24V'),P('M0',cx-w*.12,h*.91,'W','0V'),P('OSSD1',cx+w*.12,h*.79,'E'),P('OSSD2',cx+w*.12,h*.91,'E')];
+    case 's_mat': return [P('1A',0,h*.35,'W','1a'),P('1B',0,h*.65,'W','1b'),P('2A',w,h*.35,'E','2a'),P('2B',w,h*.65,'E','2b')];
+    case 's_edge': return [P('1',0,h/2,'W',null),P('2',w,h/2,'E',null)];
+    case 's_sto': return rows3([h*.2,h*.35,h*.5],['L1','L2','L3'],['T1','T2','T3']).concat([P('S1',w*.16,h,'S'),P('S2',w*.36,h,'S')]);
+    case 's_valve': { const sq=Math.min(h*.6,w*.3), y0=(h-sq)/2; return [P('Y1P',w*.02,y0+sq*.12,'W','Y1+'),P('Y1M',w*.02,y0+sq*.33,'W','Y1-'),P('Y2P',w*.02,y0+sq*.67,'W','Y2+'),P('Y2M',w*.02,y0+sq*.88,'W','Y2-')]; }
+    case 's_stack': { const sh=h*.8/3; return [P('R',w*.22,sh*.5,'W',null),P('A',w*.22,sh*1.5,'W',null),P('G',w*.22,sh*2.5,'W',null),P('COM',cx,h,'S')]; }
+  }
+  return null;
+}
+function pinLabels(pins,fs){
+  const out=[];
+  for(const p of pins){ if(p.lab==null||p.lab==='') continue;
+    if(p.side==='W') out.push({t:p.lab,x:p.x+3,y:p.y-4.5,s:fs,a:'start'});
+    else if(p.side==='E') out.push({t:p.lab,x:p.x-3,y:p.y-4.5,s:fs,a:'end'});
+    else if(p.side==='N') out.push({t:p.lab,x:p.x+3,y:p.y+5,s:fs,a:'start'});
+    else out.push({t:p.lab,x:p.x+3,y:p.y-4,s:fs,a:'start'}); }
+  return out;
+}
+function withPins(G,type,w,h){ const P=symPins(type,w,h); if(P){ G.pins=P; G.glyphs=(G.glyphs||[]).concat(pinLabels(P,6.5)); } return G; }
 function symGeom(type,w,h){
   const m=Math.min(w,h), D=(d,f,dash)=>({d,f:f||'none',dash:!!dash});
   const sym=(d,o)=>Object.assign({d,decor:[],glyphs:[],tb:{x:0,y:0,w,h},label:true,hit:true,ports:null},o||{});
@@ -1507,11 +1554,14 @@ function rotSide(X,side){
 }
 // All device ports of a shape in world coordinates: [{id,k,d,x,y,side}]
 function raPorts(s){
-  const def=devDef(s.type); if(!def) return [];
-  const X=xf(s);
-  return devLayout(def,X.gw,X.gh).map(q=>{ const t=tp(X,q.x,q.y); return {id:q.p.id,k:q.p.k,d:q.p.d,x:s.x+t.x,y:s.y+t.y,side:rotSide(X,q.side)}; });
+  const def=devDef(s.type), X=xf(s); let lay;
+  if(def) lay=devLayout(def,X.gw,X.gh).map(q=>({id:q.p.id,k:q.p.k,d:q.p.d,x:q.x,y:q.y,side:q.side}));
+  else { if(!PIN_TYPES.has(s.type)) return []; lay=(geom(s.type,X.gw,X.gh,s.style).pins||[]).map(q=>({id:q.id,k:'wire',d:'Terminal '+(q.lab||q.id),x:q.x,y:q.y,side:q.side})); }
+  return lay.map(q=>{ const t=tp(X,q.x,q.y); return {id:q.id,k:q.k,d:q.d,x:s.x+t.x,y:s.y+t.y,side:rotSide(X,q.side)}; });
 }
 function raPort(s,pid){ return raPorts(s).find(p=>p.id===pid)||null; }
+// Shapes whose lines attach to named pins: Rockwell devices, I/O blocks and multi-wire symbols.
+function hasPins(s){ return !!s&&(!!devDef(s.type)||PIN_TYPES.has(s.type)); }
 /* ============================== generic I/O module blocks ==============================
    Type names carry the configuration: io_<family>_<kind>_<points>, for example io_1756_di_16.
    Each I/O point is a device port (id '0'..'n-1') that a line can pin to. Points 0 to 15 run down
@@ -1523,12 +1573,16 @@ const IO_FAMS={
   '1734':{n:'POINT I/O 1734',s:'1734',def:8,note:'Real POINT I/O modules have 1 to 8 points each (Rockwell POINT I/O Selection Guide, 1734-SG001: "1734 POINT I/O modules offer 1 to 8 points per module"). Counts above 8 are allowed here as a placeholder.'}
 };
 const IO_KINDS={di:{n:'Digital input',lab:'IN',d:'Input',c:'DI'},do:{n:'Digital output',lab:'OUT',d:'Output',c:'DO'},ai:{n:'Analog input',lab:'CH',d:'Analog input channel',c:'AI'},ao:{n:'Analog output',lab:'CH',d:'Analog output channel',c:'AO'}};
-const IO_RE=/^io_(1756|5069|1769|1734)_(di|do|ai|ao)_([1-9]|[12][0-9]|3[0-2])$/, IO_MAX=32, IO_COL=16, IO_HDR=42, IO_PITCH=16;
+const IO_RE=/^io_(1756|5069|1769|1734)_(di|do|ai|ao)_([1-9]|[12][0-9]|3[0-2])(?:_([lrs]))?$/, IO_MAX=32, IO_COL=16, IO_HDR=42, IO_PITCH=16;
 const IO_NOTE='Generic placeholder block, not a specific catalog number. Point count, signal type and labels are what you chose; check terminal numbering against the real module wiring diagram.';
 const IO_DEV={};
-function ioType(fam,kind,n){ return 'io_'+fam+'_'+kind+'_'+n; }
-function ioParse(type){ if(!type||type.charCodeAt(0)!==105||type.charCodeAt(1)!==111) return null; const m=IO_RE.exec(type); return m?{fam:m[1],kind:m[2],n:+m[3]}:null; }
-function ioSize(n){ const two=n>IO_COL, rows=two?Math.ceil(n/2):n; return {w:two?210:140,h:IO_HDR+rows*IO_PITCH+8}; }
+// side: 'l' all pins on the left, 'r' all on the right, 's' split across both sides. No suffix (auto)
+// means left up to 16 points and split above that.
+const IO_SIDES={auto:'Automatic (left, or both sides above 16)',l:'Left',r:'Right',s:'Both sides'};
+function ioAutoSide(n){ return n>IO_COL?'s':'l'; }
+function ioType(fam,kind,n,side){ return 'io_'+fam+'_'+kind+'_'+n+(side&&side!=='auto'?'_'+side:''); }
+function ioParse(type){ if(!type||type.charCodeAt(0)!==105||type.charCodeAt(1)!==111) return null; const m=IO_RE.exec(type); return m?{fam:m[1],kind:m[2],n:+m[3],auto:!m[4],side:m[4]||ioAutoSide(+m[3])}:null; }
+function ioSize(n,side){ const two=(side&&side!=='auto'?side:ioAutoSide(n))==='s', rows=two?Math.ceil(n/2):n; return {w:two?210:140,h:IO_HDR+rows*IO_PITCH+8}; }
 // Device definition for a shape type: Rockwell catalog devices, or a generic I/O block.
 function devDef(type){
   if(RA_DEV[type]) return RA_DEV[type];
@@ -1536,11 +1590,12 @@ function devDef(type){
   const c=ioParse(type); if(!c) return null;
   const F=IO_FAMS[c.fam], K=IO_KINDS[c.kind], ports=[];
   for(let i=0;i<c.n;i++) ports.push({id:String(i),k:'io',d:K.d+' '+i,lab:K.lab+' '+i});
-  return (IO_DEV[type]={key:type,io:c,cat:F.s+' '+K.n.toLowerCase()+', '+c.n+' point'+(c.n>1?'s':''),fam:F.n,ports,two:c.n>IO_COL,src:null,note:IO_NOTE,v:false});
+  return (IO_DEV[type]={key:type,io:c,cat:F.s+' '+K.n.toLowerCase()+', '+c.n+' point'+(c.n>1?'s':''),fam:F.n,ports,two:c.side==='s',src:null,note:IO_NOTE,v:false});
 }
 function ioLayout(def,w,h){
   const n=def.ports.length, rows=def.two?Math.ceil(n/2):n, pitch=(h-IO_HDR-6)/rows, out=[];
-  def.ports.forEach((p,i)=>{ const right=i>=rows, r=right?i-rows:i; out.push({p,x:right?w:0,y:IO_HDR+pitch*(r+0.5),side:right?'E':'W'}); });
+  const allR=def.io&&def.io.side==='r';
+  def.ports.forEach((p,i)=>{ const right=allR||i>=rows, r=allR?i:(right?i-rows:i); out.push({p,x:right?w:0,y:IO_HDR+pitch*(r+0.5),side:right?'E':'W'}); });
   return out;
 }
 function devLayout(def,w,h){ return def.io?ioLayout(def,w,h):raLayout(def,w,h); }
@@ -1562,38 +1617,42 @@ function ioGeom(def,w,h){
 }
 // Change a placed block's family, signal type or point count. Lines on points that no longer
 // exist are left with a free end where the point was.
-function setIo(s,fam,kind,n){
+function setIo(s,fam,kind,n,side){
   const c=ioParse(s.type); if(!c) return false;
   fam=IO_FAMS[fam]?fam:c.fam; kind=IO_KINDS[kind]?kind:c.kind; n=Math.round(+n); if(!(n>=1&&n<=IO_MAX)) n=c.n;
-  const nt=ioType(fam,kind,n); if(nt===s.type) return false;
+  if(side==null) side=c.auto?'auto':c.side; if(!IO_SIDES[side]) side='auto';
+  const nt=ioType(fam,kind,n,side); if(nt===s.type) return false;
   let freed=0;
   for(const L of items()) if(isLine(L)) for(const k of ['from','to']){ const e=L[k];
     if(e.id===s.id&&e.port&&+e.port>=n){ const q=raPort(s,e.port); L[k]=q?{x:r2(q.x),y:r2(q.y)}:{x:s.x,y:s.y}; freed++; } }
-  const old=ioSize(c.n), sz=ioSize(n), X=xf(s), sx=X.gw/old.w, sy=X.gh/old.h;
-  const gw=Math.round(sz.w*(c.n>IO_COL===n>IO_COL?sx:1)), gh=Math.round(sz.h*sy);
+  const ns=side==='auto'?ioAutoSide(n):side, old=ioSize(c.n,c.side), sz=ioSize(n,ns), X=xf(s), sx=X.gw/old.w, sy=X.gh/old.h;
+  const gw=Math.round(sz.w*((c.side==='s')===(ns==='s')?sx:1)), gh=Math.round(sz.h*sy);
   const swap=s.rot===90||s.rot===270; s.w=swap?gh:gw; s.h=swap?gw:gh; s.type=nt;
+  // Pins changed sides: lines on them now leave from the new side.
+  for(const L of items()) if(isLine(L)) for(const k of ['from','to']){ const e=L[k]; if(e.id===s.id&&e.port){ const q=raPort(s,e.port); if(q) e.side=q.side; } }
   if(freed) toast(freed+' line end'+(freed>1?'s were':' was')+' on removed points and '+(freed>1?'are':'is')+' now loose.');
   return true;
 }
-function addIo(fam,kind,n,x,y,rot){
-  if(!IO_FAMS[fam]||!IO_KINDS[kind]) return null; n=clamp(Math.round(+n)||1,1,IO_MAX);
-  const s=addShape('io_'+fam,x,y), sz=ioSize(n); s.type=ioType(fam,kind,n);
+function addIo(fam,kind,n,x,y,rot,side){
+  if(!IO_FAMS[fam]||!IO_KINDS[kind]) return null; n=clamp(Math.round(+n)||1,1,IO_MAX); if(!IO_SIDES[side]) side='auto';
+  const s=addShape('io_'+fam,x,y), sz=ioSize(n,side); s.type=ioType(fam,kind,n,side);
   const cx=s.x+s.w/2, cy=s.y+s.h/2; s.w=sz.w; s.h=sz.h; s.x=r2(cx-sz.w/2); s.y=r2(cy-sz.h/2);
   const turns=Math.round(((rot==null?S.prefs.placeRot:rot)||0)/90);
   if(turns%4) rotateShapes([s],turns);
-  S.ioLast={kind,n}; commit(); invalidate(); return s;
+  S.ioLast={kind,n,side}; commit(); invalidate(); return s;
 }
 // Ask how many points (1 to 32) and which signal type before placing a block.
 function promptIo(key,x,y,rot){
-  const fam=LIB_MAP[key].io, F=IO_FAMS[fam], last=S.ioLast||{kind:'di',n:F.def};
+  const fam=LIB_MAP[key].io, F=IO_FAMS[fam], last=S.ioLast||{kind:'di',n:F.def,side:'auto'};
   const kindSel=el('select',{'aria-label':'Signal type','data-io':'kind'},Object.keys(IO_KINDS).map(k=>el('option',{value:k,text:IO_KINDS[k].n,selected:k===last.kind?'':null})));
   const nIn=el('input',{type:'number',min:1,max:IO_MAX,step:1,value:String(last.n),'aria-label':'Number of I/O points','data-io':'n'});
-  const msg=el('p',{class:'muted small',text:'Each point gets its own pin you can attach a line to. Points 0 to 15 run down the left side; points 16 and up run down the right side.'});
+  const sideSel=el('select',{'aria-label':'Pins on','data-io':'side'},Object.keys(IO_SIDES).map(k=>el('option',{value:k,text:IO_SIDES[k],selected:k===(last.side||'auto')?'':null})));
+  const msg=el('p',{class:'muted small',text:'Each point gets its own pin you can attach a line to. Pins on sets which edge the pins run down; Both sides puts the first half on the left and the rest on the right. You can change all of this later in the right panel.'});
   const famNote=F.note?el('p',{class:'muted small',text:F.note}):null;
   const go=()=>{ const n=Number(nIn.value); if(String(nIn.value).trim()===''||!Number.isInteger(n)||n<1||n>IO_MAX){ msg.textContent='Enter a whole number from 1 to '+IO_MAX+'.'; msg.className='small io-err'; nIn.focus(); return; }
-    closeModal(); const s=addIo(fam,kindSel.value,n,x,y,rot); if(s) setSel([s.id]); };
+    closeModal(); const s=addIo(fam,kindSel.value,n,x,y,rot,sideSel.value); if(s) setSel([s.id]); };
   openModal('Add '+F.n+' module',
-    el('div',{class:'io-form'},el('label',null,el('span',{text:'Signal type'}),kindSel),el('label',null,el('span',{text:'Number of I/O points (1 to '+IO_MAX+')'}),nIn)),msg,famNote,
+    el('div',{class:'io-form'},el('label',null,el('span',{text:'Signal type'}),kindSel),el('label',null,el('span',{text:'Number of I/O points (1 to '+IO_MAX+')'}),nIn),el('label',null,el('span',{text:'Pins on'}),sideSel)),msg,famNote,
     el('div',{class:'modal-actions'},el('button',{type:'button',class:'btn','data-close':'btn',text:'Cancel'}),el('button',{type:'button',class:'btn primary','data-io-add':'1',text:'Add module'})));
   modalEl.querySelector('[data-io-add]').addEventListener('click',go);
   nIn.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); go(); } });
@@ -1781,7 +1840,7 @@ const SF={fill:'#ffffff',stroke:'#1f2430',fontSize:11,valign:'top'}, SFB={fill:'
     S2('s_ctrl','Safety controller','s_ctrl',130,100,{style:Object.assign({},SFB,{valign:'middle'}),text:'Safety controller'}),
     S2('s_mirror','Safety contactor with mirror contact','s_mirror',60,80,{basis:B_MIRROR}),
     S2('s_sto','Drive with Safe Torque Off','s_sto',100,80,{style:SFB,text:'VFD'}),
-    S2('s_valve','Safety valve, redundant solenoids','s_valve',110,50),
+    S2('s_valve','Safety valve, redundant solenoids','s_valve',110,64),
     S2('s_stack','Stack light (tower light)','s_stack',30,70),
     S2('s_loto','Lockout point','s_loto',46,40),
     S2('s_key','Trapped key / key exchange','s_key',50,40,{style:SFB}),
@@ -1797,6 +1856,7 @@ GEOM_TYPES.push(...Object.keys(SYMBOL_INFO),'n_router','n_switch','n_firewall','
 GEOM_TYPES.push(...Object.keys(RA_DEV),...LIB_GEOM_TYPES);
 const SOON_LIBS=['UML','BPMN','Electrical, IEC 60617 style','Icon sets'];
 const LIB_MAP={}; LIB.forEach(c=>c.items.forEach(i=>{LIB_MAP[i.key]=i;}));
+const PIN_TYPES=new Set(); LIB.forEach(c=>c.items.forEach(i=>{ if(!i.line&&!i.tpl&&symPins(i.type,i.w,i.h)) PIN_TYPES.add(i.type); }));
 const QUICK=['process','rounded','decision','terminator','data','ellipse','database','document'];
 const TYPE_NAMES={}; LIB.forEach(c=>c.items.forEach(i=>{ if(i.type&&!TYPE_NAMES[i.type]) TYPE_NAMES[i.type]=i.name; }));
 TYPE_NAMES.rect='Rectangle'; TYPE_NAMES.ellipse='Ellipse'; TYPE_NAMES.image='Picture';
@@ -2194,7 +2254,7 @@ function ortho(p1,d1,p2,d2,s1,s2){
 }
 function resolveEnd(end){
   if(end&&end.id){ const s=byId(end.id); if(isShape(s)){
-    if(end.port&&devDef(s.type)){ const q=raPort(s,end.port); if(q) return {s,side:q.side,pq:q}; }
+    if(end.port&&hasPins(s)){ const q=raPort(s,end.port); if(q) return {s,side:q.side,pq:q}; }
     return {s,side:end.side||'auto',pos:end.pos}; } }
   return {pt:{x:num(end&&end.x,0),y:num(end&&end.y,0)}};
 }
@@ -2620,7 +2680,7 @@ function renderOverlay(){
   }
   if(!busy&&!S.editing&&S.hover){
     const s=byId(S.hover);
-    if(isShape(s)&&devDef(s.type)){
+    if(isShape(s)&&hasPins(s)){
       for(const q of raPorts(s)){ const d=SIDES[q.side], cx=q.x+d.x*7/z, cy=q.y+d.y*7/z;
         out.push(sv('g',{class:'ov-port dev','data-port':q.side,'data-devport':q.id,'data-sid':s.id},
           sv('title',null,q.id+': '+q.d),
@@ -2640,7 +2700,7 @@ function renderOverlay(){
   if(op&&(op.type==='connect'||op.type==='endpoint')){
     if(op.type==='connect'){ const tmp={from:connFrom(op),to:op.target?endOf(op.target):{x:op.cur.x,y:op.cur.y},route:S.prefs.route}; const R=routeLine(tmp); out.push(sv('path',{d:pathD(R.kind,R.pts),class:'ov-temp','stroke-width':r2(1.5/z)})); }
     if(op.target){ const t=byId(op.target.id); if(t){ const p=4/z; out.push(sv('rect',{x:r2(t.x-p),y:r2(t.y-p),width:r2(t.w+2*p),height:r2(t.h+2*p),class:'ov-target','stroke-width':r2(1.5/z),rx:r2(3/z)}));
-      if(devDef(t.type)){ for(const q of raPorts(t)){ const on=op.target.port===q.id; out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2((on?4.5:3.2)/z),class:'ov-dot'+(on?' on':''),'stroke-width':r2(1.3/z)}));
+      if(hasPins(t)){ for(const q of raPorts(t)){ const on=op.target.port===q.id; out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2((on?4.5:3.2)/z),class:'ov-dot'+(on?' on':''),'stroke-width':r2(1.3/z)}));
           if(on) out.push(sv('text',{x:r2(q.x),y:r2(q.y+(q.side==='N'?-9:16)/z),'text-anchor':'middle','font-size':r2(11/z),class:'ov-portlab'},q.id+': '+q.d)); } }
       else for(const side of SIDE_KEYS){ const q=portPoint(t,side); out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2(4.5/z),class:'ov-dot'+(op.target.side===side&&op.target.pos==null?' on':''),'stroke-width':r2(1.5/z)})); }
       if(op.target.pos!=null){ const q=portPoint(t,op.target.side,op.target.pos); out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2(5/z),class:'ov-dot on','stroke-width':r2(1.5/z)})); } } }
@@ -2684,9 +2744,9 @@ function shapeAt(w,pad,exclude){
 // noSnap), or the body for a floating connection that picks the best side.
 function findTarget(w,exclude,noSnap){
   let s=shapeAt(w,4/V.z,exclude);
-  if(!s){ const d=shapeAt(w,14/V.z,exclude); if(d&&devDef(d.type)) s=d; }
+  if(!s){ const d=shapeAt(w,14/V.z,exclude); if(d&&hasPins(d)) s=d; }
   if(!s) return null;
-  if(devDef(s.type)){ let bp=null,bd=16/V.z; for(const q of raPorts(s)){ const d=dist(q,w); if(d<bd){ bd=d; bp=q; } }
+  if(hasPins(s)){ let bp=null,bd=16/V.z; for(const q of raPorts(s)){ const d=dist(q,w); if(d<bd){ bd=d; bp=q; } }
     return bp?{id:s.id,side:bp.side,port:bp.id}:{id:s.id,side:'auto'}; }
   const sym=!!SYMBOL_INFO[s.type];
   let best=null,bd=(sym?20:10)/V.z;
@@ -3486,6 +3546,7 @@ function renderProps(){
       row('Family',selIn('ioFam',ioc.fam,Object.keys(IO_FAMS).map(f=>[f,IO_FAMS[f].n]),'I/O family')),
       row('Signal',selIn('ioKind',ioc.kind,Object.keys(IO_KINDS).map(k=>[k,IO_KINDS[k].n]),'Signal type')),
       row('Points',numIn('ioN',ioc.n,1,IO_MAX,1,'Number of I/O points, 1 to '+IO_MAX),el('span',{class:'muted small',text:'max '+IO_MAX})),
+      row('Pins on',seg('ioSide',ioc.side,[{v:'l',l:'Left',t:'All pins on the left edge'},{v:'r',l:'Right',t:'All pins on the right edge'},{v:'s',l:'Both',t:'First half on the left, rest on the right'}])),
       el('p',{class:'small',style:{margin:'2px 0 6px'},text:used.size+' of '+ioc.n+' points have a line attached.'}),
       el('div',{class:'soon-row',style:{marginBottom:'6px'}},el('span',{text:'Generic block'}),el('span',{class:'soon',text:'Unverified'})),
       el('p',{class:'muted small',text:IO_NOTE}),IO_FAMS[ioc.fam].note?el('p',{class:'muted small',text:IO_FAMS[ioc.fam].note}):null));
@@ -3503,7 +3564,12 @@ function renderProps(){
   if(fs&&SYMBOL_INFO[fs.type]&&shapes.length===1){
     const info=SYMBOL_INFO[fs.type];
     K.push(section('Symbol',el('div',{class:'soon-row',style:{marginBottom:'6px'}},el('span',{text:info.cat+' library'}),el('span',{class:'soon',style:info.verified?{background:'var(--accent-2)',color:'var(--accent)'}:null,text:info.verified?'Convention verified':'Unverified'})),
-      el('p',{class:'muted small',text:info.basis})));
+      el('p',{class:'muted small',text:info.basis}),
+      PIN_TYPES.has(fs.type)?(()=>{ const used=new Set(); for(const L of items()) if(isLine(L)) for(const k of ['from','to']) if(L[k].id===fs.id&&L[k].port) used.add(L[k].port);
+        const X=xf(fs), pins=geom(fs.type,X.gw,X.gh,fs.style).pins||[];
+        return el('div',null,el('div',{class:'sec-sub',text:'Wire terminals ('+pins.length+')'}),
+          el('div',{class:'dev-ports'},pins.map(q=>el('div',{class:'dev-port'+(used.has(q.id)?' used':'')},el('b',{text:q.lab||q.id}),el('span',{text:used.has(q.id)?'connected':'free'})))),
+          el('p',{class:'muted small',style:{marginTop:'6px'},text:'Hover the symbol to see its terminals and drag a line from one. Terminal names are typical, not from a specific product [Unverified]; check the device data sheet.'})); })():null));
   }
   const arr=[el('div',{class:'btn-grid'},
     shapes.length?el('button',{class:'btn','data-cmd':'rotate',text:'Rotate 90\u00b0'}):null,shapes.length?el('button',{class:'btn','data-cmd':'flipH',text:'Flip horizontal'}):null,
@@ -3539,11 +3605,11 @@ function applyProp(prop,v,final){
   if(prop==='pageBgNone'){ const pg=page(); if(v) delete pg.bg; else pg.bg='#fffdf5'; commit(); invalidate(); return; }
   if(prop.startsWith('layerName:')){ const L=ensureLayers(page()).find(l=>l.id===prop.slice(10)); if(L){ L.name=String(v).slice(0,60)||'Layer'; if(final) commit(); } return; }
   if(prop==='itemLayer'){ if(v) moveSelToLayer(v); return; }
-  if(prop==='ioFam'||prop==='ioKind'||prop==='ioN'){
+  if(prop==='ioFam'||prop==='ioKind'||prop==='ioN'||prop==='ioSide'){
     if(!final) return; const sh=unlockedSel().filter(isShape); const s0=sh.length===1&&ioParse(sh[0].type)?sh[0]:null; if(!s0) return;
     const c=ioParse(s0.type);
     if(prop==='ioN'){ const n=+v; if(!(Number.isInteger(n)&&n>=1&&n<=IO_MAX)){ toast('Enter a whole number of points from 1 to '+IO_MAX+'.'); invalidate({props:true}); return; } }
-    if(setIo(s0,prop==='ioFam'?v:c.fam,prop==='ioKind'?v:c.kind,prop==='ioN'?+v:c.n)){ commit(); invalidate(); }
+    if(setIo(s0,prop==='ioFam'?v:c.fam,prop==='ioKind'?v:c.kind,prop==='ioN'?+v:c.n,prop==='ioSide'?v:undefined)){ commit(); invalidate(); }
     return; }
   if(prop.startsWith('pref:')){ S.prefs[prop.slice(5)]=!!v; savePrefs(); invalidate({overlay:true,chrome:true}); return; }
   const sel=unlockedSel(); if(!sel.length) return;
@@ -4413,8 +4479,9 @@ function showHelp(){
     el('h3',{text:'PDF'}),el('p',{text:'File > Export PDF makes a PDF of this page, or all pages with one PDF page each, sized to the drawing. Pages are high-resolution images of the diagram, so the text in the PDF is not selectable.'}),
     el('h3',{text:'Page size and background'}),el('p',{text:'Click empty canvas to see Page settings in the right panel. Size is Infinite canvas (the default) or a sheet: Letter, Legal, Tabloid, ANSI C, D and E, or A4 to A0. The sheet is drawn at 96 pixels per inch on a gray pasteboard, and Orientation switches Portrait and Landscape. Background sets the sheet color (or the canvas color on an infinite canvas); tick Default to go back to white. SVG, PNG and PDF exports of a sized page are cut to the sheet, so anything outside it is left out.'}),
     el('h3',{text:'Layers'}),el('p',{text:'Each page has its own layers, listed under Layers when nothing is selected. The top row draws on top. Click the dot at the left of a layer to make it active: new shapes and lines go on the active layer. Use the eye to hide a layer (hidden layers are left out of exports too), the lock to stop its items being selected or moved, the arrows to change the stacking order, and the trash can to delete a layer with everything on it (Ctrl+Z brings it back). Rename a layer by typing in its name. To move items to another layer, select them and pick the layer under Layer in the right panel. Within a layer, Bring to front and Send to back still work as usual.'}),
-    el('h3',{text:'Generic I/O modules'}),el('p',{text:'The Rockwell I/O modules (generic) library has a block for ControlLogix 1756, CompactLogix 5069 (Compact 5000), CompactLogix 1769 (Compact I/O) and POINT I/O 1734. When you drop or click one, Linework asks for the signal type (digital input, digital output, analog input or analog output) and the number of I/O points, 1 to 32. Every point has its own pin: hover the block to see the pins, then drag from a pin to another pin or shape. Points 0 to 15 run down the left side; with more than 16 points, the rest run down the right side. Type a slot or node name in the gray header (double-click it).'}),
-    el('p',{text:'To change a placed block, select it and use I/O module in the right panel: family, signal type and points. If you lower the point count, lines on the removed points stay where they were with a loose end. These blocks are generic placeholders, not specific catalog numbers, and are marked Unverified; real POINT I/O 1734 modules have 1 to 8 points each, so check the module wiring diagram.'}),
+    el('h3',{text:'Generic I/O modules'}),el('p',{text:'The Rockwell I/O modules (generic) library has a block for ControlLogix 1756, CompactLogix 5069 (Compact 5000), CompactLogix 1769 (Compact I/O) and POINT I/O 1734. When you drop or click one, Linework asks for the signal type (digital input, digital output, analog input or analog output) and the number of I/O points, 1 to 32. Every point has its own pin: hover the block to see the pins, then drag from a pin to another pin or shape. Pins on picks the edge: Left, Right, or Both sides (first half left, rest right). Automatic uses the left side up to 16 points and both sides above that. Type a slot or node name in the gray header (double-click it).'}),
+    el('p',{text:'To change a placed block, select it and use I/O module in the right panel: family, signal type, points and Pins on. Lines stay on their points when the pins change sides. If you lower the point count, lines on the removed points stay where they were with a loose end. These blocks are generic placeholders, not specific catalog numbers, and are marked Unverified; real POINT I/O 1734 modules have 1 to 8 points each, so check the module wiring diagram.'}),
+    el('h3',{text:'Wire terminals on symbols'}),el('p',{text:'Symbols with more than two wires have a pin for each terminal: 2-channel emergency stops and guard switches (11-12, 21-22), guard locking switches (A1-A2 solenoid, 11-12 and 21-22 contacts), coded switches, light curtains and laser scanners (+24V, 0V, OSSD1, OSSD2), enabling switches, two-hand controls, safety mats, safety relays, safety contactors, drives with STO, safety valves, stack lights, 3-pole breakers, disconnects, contactors and overloads (L1-L3, T1-T3), 3-phase motors, transformers (H1, H2, X1, X2), drives, the PLC I/O module, selector switches and the power supply. Hover the symbol to see its terminals and drag a line from one, or drop a line end near a terminal to pin it. The right panel lists which terminals have a wire. Terminal names are typical and marked Unverified, since they vary by product.'}),
     el('h3',{text:'Rotating shapes'}),el('p',{text:'Rotation is in 90\u00b0 steps. Before you add a shape, pick Place at 0, 90, 180 or 270 in the library header; every shape you add from the library uses it. While dragging a tile, press R to turn the shape another 90\u00b0 (Shift+R the other way) before you drop it. After placing, click the round arrow button above the selection (Shift-click turns the other way), press Alt+R or Alt+Shift+R, or use Arrange > Rotate. Lines stay attached and ports turn with the symbol. Text inside a shape turns with it; to keep it level, select the shape and set Text > When rotated to Stay level. Labels written beside electrical symbols always stay level so ladder drawings stay readable. Rotation to any angle is not available yet.'}),
     el('h3',{text:'Electrical and safety devices'}),el('p',{text:'The Electrical library adds timed contacts (TC and TO), mushroom-head pushbuttons, 2 and 3 position selector switches, limit, pressure, temperature, float, flow and foot switches, proximity and photoelectric sensors, solenoid, horn, plug, 3-pole breaker, disconnect, contactor and overload, 3-phase motor, power supply, diode, LED, battery, meters, heater, current transformer and an IEC rectangle coil. The Electrical safety devices library, right below it, has emergency stops (1 and 2 channel), guard interlock and guard locking switches, coded non-contact switch, enabling switch, two-hand control, light curtain, laser scanner, safety mat and edge, safety relay, safety controller, safety contactor with mirror contact, drive with Safe Torque Off, redundant safety valve, stack light, lockout point, trapped key, guard fence and door, and a hazard warning triangle.'}),
     el('p',{text:'All of these drawings are marked Unverified in the right panel. The emergency stop follows the IEC 60617 description of symbol S00258 (mushroom head, positive opening, maintain position), but its proportions were not checked against the official graphic. Safety relay terminal names are typical, not from a particular product, so edit them to match the data sheet. Many safety devices have no single standard symbol and are drawn as labeled blocks.'}),
