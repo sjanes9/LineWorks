@@ -315,6 +315,17 @@ button{cursor:pointer}
 .present-bar{display:flex;gap:10px;align-items:center;justify-content:center;padding:8px;background:#1b2027;color:#e5e7eb;font-size:var(--fs-sm)}
 .present-n{min-width:180px;text-align:center}
 .present-bar .btn{background:#e5e7eb;color:#111418;border-color:#e5e7eb} .present-bar .btn:disabled{opacity:.45}
+.minimap{position:absolute;right:12px;bottom:12px;z-index:4;width:200px;height:140px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md,8px);box-shadow:0 4px 16px rgba(0,0,0,.14);cursor:crosshair;overflow:hidden;touch-action:none}
+.cmt-open .minimap{right:342px}
+.mini-svg{width:100%;height:100%;display:block} .mini-shape{fill:#cfd6e2;stroke:#7b8494;stroke-width:2;vector-effect:non-scaling-stroke} .mini-line{fill:none;stroke:#7b8494;stroke-width:1;vector-effect:non-scaling-stroke}
+.mini-sheet{fill:#ffffff;stroke:#c4c9d1;stroke-width:1;vector-effect:non-scaling-stroke} .mini-view{fill:rgba(47,111,237,.12);stroke:var(--accent);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.cmt-panel{position:absolute;top:10px;right:10px;bottom:10px;z-index:7;width:320px;max-width:calc(100% - 20px);display:flex;flex-direction:column;gap:8px;padding:10px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md,8px);box-shadow:0 6px 24px rgba(0,0,0,.18);overflow:hidden}
+.cmt-head{display:flex;align-items:center;justify-content:space-between} .cmt-list{flex:1;min-height:0;overflow:auto;display:grid;align-content:start;gap:8px}
+.cmt-thread{border:1px solid var(--border);border-radius:var(--r-sm);padding:8px;display:grid;gap:6px} .cmt-thread.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-2)} .cmt-thread.res{opacity:.7}
+.cmt-top{display:flex;align-items:center;gap:6px} .cmt-top .small{flex:1} .cmt-num{width:22px;height:22px;border-radius:50%;border:0;background:#f59e0b;color:#fff;font-weight:700;font-size:var(--fs-xs);cursor:pointer}
+.cmt-meta{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-xs)} .cmt-text{font-size:var(--fs-sm);white-space:pre-wrap;word-break:break-word} .cmt-msg.reply{margin-left:12px;padding-left:8px;border-left:2px solid var(--border)}
+.cmt-reply{margin-top:0;min-height:30px} .btn.sm-t{height:24px;padding:0 8px;font-size:var(--fs-xs)}
+.ov-cmt{cursor:pointer} .ov-cmt path{fill:#f59e0b;stroke:#ffffff} .ov-cmt text{fill:#ffffff;font-weight:700;pointer-events:none;font-family:sans-serif} .ov-cmt.on path{fill:#d97706} .ov-cmt.res path{fill:#9ca3af}
 .vers-list{display:grid;gap:6px;max-height:50vh;overflow:auto} .vers-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm)}
 .line-label{cursor:move}
 .ov-lock rect{fill:var(--panel);stroke:var(--border-strong)} .ov-lock path{stroke:var(--text-2)} .ov-lock{pointer-events:none}
@@ -481,7 +492,7 @@ button{cursor:pointer}
   </footer>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<input type="file" id="fileInput" accept=".json,application/json" hidden>
+<input type="file" id="fileInput" accept=".json,.vsdx,.lucid,application/json" hidden>
 <input type="file" id="imgInput" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/bmp" hidden>
 <noscript>This diagram editor needs JavaScript. If you opened it from the iOS Files app, host the file instead: Quick Look blocks scripts.</noscript>
 
@@ -491,7 +502,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.12.0';
+const APP_VERSION='1.13.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -2021,7 +2032,7 @@ let V={tx:80,ty:60,z:1};
 
 function defaultPrefs(){
   const narrow=(window.innerWidth||1200)<820;
-  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,recent:[],endings:END_DEFAULT.slice(),dragMode:'pan'};
+  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,minimap:false,userName:'',recent:[],endings:END_DEFAULT.slice(),dragMode:'pan'};
 }
 function loadPrefs(){
   const p=defaultPrefs(); const raw=store.get(KEY_PREFS);
@@ -2033,6 +2044,7 @@ function loadPrefs(){
   if(!Array.isArray(p.collapsed)) p.collapsed=[]; p.collapsed=p.collapsed.filter(c=>typeof c==='string').slice(0,40);
   if(!['auto','icons','labeled','names'].includes(p.libView)) p.libView='auto';
   if(![0,90,180,270].includes(p.placeRot)) p.placeRot=0;
+  p.userName=String(p.userName||'').slice(0,60);
   if(!Array.isArray(p.opened)) p.opened=[]; p.opened=p.opened.filter(c=>typeof c==='string').slice(0,40);
   return p;
 }
@@ -2246,7 +2258,7 @@ function migrate(raw){
     const shapeIds=new Set(its.filter(isShape).map(s=>s.id));
     for(const L of its) if(isLine(L)) for(const k of ['from','to']) if(L[k].id&&!shapeIds.has(L[k].id)) L[k]={x:0,y:0};
     let pid=(typeof p.id==='string'&&p.id)?p.id:uid(); if(seenPages.has(pid)) pid=uid(); seenPages.add(pid);
-    return Object.assign({id:pid,name:str(p.name).slice(0,80)||('Page '+(i+1)),items:its},sanPageExtras(p,its));
+    return Object.assign({id:pid,name:str(p.name).slice(0,80)||('Page '+(i+1)),items:its},sanPageExtras(p,its),sanComments(p));
   });
   const active=pages.some(p=>p.id===d.activePage)?d.activePage:pages[0].id;
   return Object.assign({schema:SCHEMA,app:'linework',title:str(d.title).slice(0,200)||'Untitled diagram',pages,activePage:active},sanDocExtras(d));
@@ -2280,7 +2292,7 @@ function saveLocal(){
   const ok=store.set(KEY_DOC,JSON.stringify(S.doc))&&store.set(KEY_SCHEMA,String(SCHEMA));
   S.storageOk=ok;
   if(ok&&pendingLegacy){ store.del(pendingLegacy); pendingLegacy=null; }
-  setStatus(ok?'All changes saved in this browser':'Browser storage is blocked here. Use File > Save as JSON to keep your work.',!ok);
+  setStatus(fileStatus()?fileStatus()+(ok?'':'. Browser storage is blocked.'):ok?'All changes saved in this browser':'Browser storage is blocked here. Use File > Save to keep your work.',!ok);
   return ok;
 }
 function loadLocal(){
@@ -2656,6 +2668,8 @@ function flush(){
   applyView();
   if(d.props) renderProps();
   if(d.pages) renderPages();
+  if(d.content) miniContent(); miniView();
+  if(CMT.open&&cmtEl&&cmtEl._pg!==S.doc.activePage) renderComments();
   if(ftb.el){ if(ftb.open&&selItems().length&&selKey()===ftb.key&&(d.content||d.ftb)) buildFtbBar(); positionFtb(); }
   updateChrome();
 }
@@ -2878,6 +2892,7 @@ function renderOverlay(){
   }
   if(op&&op.type==='marquee'){ const a=op.start,b=op.cur; out.push(sv('rect',{x:r2(Math.min(a.x,b.x)),y:r2(Math.min(a.y,b.y)),width:r2(Math.abs(a.x-b.x)),height:r2(Math.abs(a.y-b.y)),class:'ov-marquee','stroke-width':r2(1/z)})); }
   for(const gd of S.guides) out.push(sv('line',{x1:r2(gd.x1),y1:r2(gd.y1),x2:r2(gd.x2),y2:r2(gd.y2),class:'ov-guide','stroke-width':r2(1/z)}));
+  cmtPins(out,z);
   overlayG.replaceChildren(...out);
 }
 
@@ -3375,6 +3390,7 @@ function onPointerDown(e){
   if(react){ const it=byId(react.closest('[data-id]').getAttribute('data-id')); if(it&&it.reactions){ it.reactions=it.reactions.filter(x=>x!==react.getAttribute('data-react')); if(!it.reactions.length) delete it.reactions; commit(); invalidate(); } return; }
   const port=t&&t.closest('[data-port]'), handle=t&&t.closest('[data-handle]'), itemEl=t&&t.closest('[data-id]'), labEl=t&&t.closest('[data-label]'), segEl=t&&t.closest('[data-seg]');
   const addEl=t&&t.closest('[data-addchild]');
+  const pinEl=t&&t.closest('[data-cmtpin]'); if(pinEl){ e.preventDefault(); openComments(pinEl.getAttribute('data-cmtpin')); return; }
   const actEl=t&&t.closest('[data-act]'); if(actEl){ e.preventDefault(); runAction(byId(actEl.getAttribute('data-act'))); return; }
   const rotEl=t&&t.closest('[data-rotate]');
   if(rotEl){ const sh=unlockedSel().filter(isShape); if(selItems().length===1&&sh.length===1){ S.op={type:'rotate',id:sh[0].id,sx:e.clientX,sy:e.clientY,moved:false,shift:e.shiftKey}; return; } rotateSel(e.shiftKey); return; }
@@ -4013,6 +4029,309 @@ function extraCmd(name){
     else { S.doc.rules=rules.filter(r=>r.id!==p[2]); }
     if(S.doc.rules&&!S.doc.rules.length) delete S.doc.rules; commit(); invalidate(); return true; }
   return false;
+}
+/* ============================== files: open, save, save as ============================== */
+const FILE={handle:null,name:null,saved:null};
+const FILE_TYPES=[{description:'Linework diagram',accept:{'application/json':['.json']}}];
+function canPick(){ return !hostDownloads&&typeof window.showSaveFilePicker==='function'; }
+function docJson(){ return JSON.stringify(docForSave(),null,2); }
+function fileDirty(){ return FILE.saved!==null&&FILE.saved!==JSON.stringify(S.doc); }
+function fileStatus(){
+  if(!FILE.name) return null;
+  return fileDirty()?'Unsaved changes in '+FILE.name+' (Ctrl+S to save)':'Saved to '+FILE.name;
+}
+function markSaved(name,handle){ FILE.name=name; FILE.handle=handle||null; FILE.saved=JSON.stringify(S.doc); setStatus(fileStatus()); }
+function fileReset(){ FILE.handle=null; FILE.name=null; FILE.saved=null; }
+async function writeHandle(h){ const w=await h.createWritable(); await w.write(docJson()); await w.close(); }
+// Save: writes back to the open file. With no file yet it behaves like Save as.
+async function saveFile(){
+  if(FILE.handle){ try{ await writeHandle(FILE.handle); markSaved(FILE.handle.name,FILE.handle); toast('Saved '+FILE.name); return true; }
+    catch(e){ toast('Could not write to '+FILE.name+' ('+(e&&e.name||'error')+'). Use Save as.'); return false; } }
+  if(canPick()) return saveFileAs();
+  const name=FILE.name||fileBase()+'.json'; download(name,docJson(),'application/json','Saved '+name); markSaved(name,null); return true;
+}
+// Save as: always asks where to save. Browsers without a file picker ask for a name and download it.
+async function saveFileAs(){
+  if(canPick()){
+    try{ const h=await window.showSaveFilePicker({suggestedName:FILE.name||fileBase()+'.json',types:FILE_TYPES}); await writeHandle(h); markSaved(h.name,h); toast('Saved '+h.name); return true; }
+    catch(e){ if(e&&e.name==='AbortError') return false; /* blocked (for example inside a frame): fall through to a named download */ }
+  }
+  const inp=el('input',{type:'text',value:FILE.name||fileBase()+'.json',maxlength:120,'aria-label':'File name','data-saveas':'name'});
+  const go=()=>{ let n=inp.value.trim().replace(/[\\/:*?"<>|]+/g,'-').slice(0,120)||'diagram'; if(!/\.json$/i.test(n)) n+='.json'; closeModal(); download(n,docJson(),'application/json','Saved '+n); markSaved(n,null); };
+  openModal('Save as',el('div',{class:'io-form'},el('label',null,el('span',{text:'File name'}),inp)),
+    el('p',{class:'muted small',text:'This browser saves through its Downloads. To choose a folder each time, turn on "Ask where to save each file" in the browser settings, or use Chrome or Edge, where Save writes straight back to the file you opened.'}),
+    el('div',{class:'modal-actions'},el('button',{type:'button',class:'btn','data-close':'btn',text:'Cancel'}),el('button',{type:'button',class:'btn primary','data-saveas':'go',text:'Save'})));
+  modalEl.querySelector('[data-saveas="go"]').addEventListener('click',go);
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); go(); } });
+  try{ inp.focus(); inp.setSelectionRange(0,inp.value.replace(/\.json$/i,'').length); }catch(e){}
+  return false;
+}
+function readFileBytes(file){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(new Uint8Array(fr.result)); fr.onerror=()=>rej(new Error('Could not read that file.')); fr.readAsArrayBuffer(file); }); }
+// Opens a Linework .json, a Visio .vsdx, or a Lucid .lucid / document.json file.
+async function openAnyFile(file,handle){
+  try{
+    const name=file.name||'file'; if(/\.(vsd|vss|vst)$/i.test(name)) throw new Error('older binary Visio files (.vsd) cannot be read. In Visio use File > Save As > Visio Drawing (*.vsdx) first.');
+    const bytes=await readFileBytes(file);
+    if(bytes.length>60*1024*1024) throw new Error('That file is over 60 MB.');
+    if(bytes[0]===0x50&&bytes[1]===0x4b){ await importZipBytes(bytes,name); return true; }
+    const raw=JSON.parse(new TextDecoder().decode(bytes));
+    if(isLucidJson(raw)){ finishImport(lucidToDoc(raw,name),name,'Lucid'); return true; }
+    const d=migrate(raw), n=importAssets(raw&&raw.assets);
+    loadDocument(d,'Opened "'+(name||d.title)+'"'+(n?' with '+n+' picture'+(n>1?'s':''):'')); markSaved(name,handle&&/\.json$/i.test(name)?handle:null); return true;
+  }catch(e){ toast('Could not open file: '+(e&&e.message?e.message:'not a file Linework can read')); return false; }
+}
+async function openFilePick(){
+  if(!hostDownloads&&typeof window.showOpenFilePicker==='function'){
+    try{ const [h]=await window.showOpenFilePicker({types:[{description:'Diagrams (Linework, Visio, Lucid)',accept:{'application/json':['.json'],'application/vnd.ms-visio.drawing':['.vsdx'],'application/zip':['.lucid']}}]}); return openAnyFile(await h.getFile(),h); }
+    catch(e){ if(e&&e.name==='AbortError') return false; }
+  }
+  const f=$('#fileInput'); f.value=''; f.click(); return false;
+}
+/* ============================== import: ZIP reader, Visio .vsdx, Lucid .lucid ============================== */
+async function inflateRaw(u8){
+  if(typeof DecompressionStream==='undefined') throw new Error('This browser cannot unpack that file. Use a current Chrome, Edge, Firefox or Safari.');
+  const ds=new DecompressionStream('deflate-raw'), w=ds.writable.getWriter(); w.write(u8).catch(()=>{}); w.close().catch(()=>{});
+  const rd=ds.readable.getReader(), parts=[]; let n=0;
+  for(;;){ const r=await rd.read(); if(r.done) break; parts.push(r.value); n+=r.value.length; if(n>250e6) throw new Error('That file is too large when unpacked.'); }
+  const out=new Uint8Array(n); let o=0; for(const p of parts){ out.set(p,o); o+=p.length; } return out;
+}
+function zipOpen(u8){
+  const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength); let i=u8.length-22; const stop=Math.max(0,u8.length-66000);
+  while(i>=stop&&dv.getUint32(i,true)!==0x06054b50) i--; if(i<stop) throw new Error('That is not a ZIP-based diagram file.');
+  const n=dv.getUint16(i+10,true); let p=dv.getUint32(i+16,true); const ents=new Map(), td=new TextDecoder();
+  for(let k=0;k<n&&p+46<=u8.length;k++){ if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true), nl=dv.getUint16(p+28,true), xl=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true), lho=dv.getUint32(p+42,true);
+    ents.set(td.decode(u8.subarray(p+46,p+46+nl)).replace(/\\/g,'/'),{method,csize,lho}); p+=46+nl+xl+cl; }
+  const get=async name=>{ const e=ents.get(name); if(!e) return null; const nl=dv.getUint16(e.lho+26,true), xl=dv.getUint16(e.lho+28,true), st=e.lho+30+nl+xl, data=u8.subarray(st,st+e.csize);
+    if(e.method===0) return data; if(e.method===8) return inflateRaw(data); throw new Error('That file uses a compression type Linework cannot read.'); };
+  return {names:[...ents.keys()],get,text:async name=>{ const b=await get(name); return b?new TextDecoder().decode(b):null; }};
+}
+async function importZipBytes(bytes,name){
+  const zip=zipOpen(bytes);
+  if(zip.names.includes('visio/pages/pages.xml')){ finishImport(await vsdxToDoc(zip,name),name,'Visio'); return; }
+  if(zip.names.includes('document.json')){ const raw=JSON.parse(await zip.text('document.json')); finishImport(lucidToDoc(raw,name),name,'Lucid'); return; }
+  throw new Error('No Visio pages or Lucid document.json found in that file.');
+}
+function finishImport(res,name,kind){
+  const d=migrate(res.doc), st=res.stats; fileReset(); loadDocument(d,null);
+  const notes=[]; if(st.pictures) notes.push(st.pictures+' picture'+(st.pictures>1?'s':'')+' shown as placeholders'); if(st.skipped) notes.push(st.skipped+' item'+(st.skipped>1?'s':'')+' skipped');
+  toast('Imported from '+kind+': '+d.pages.length+' page'+(d.pages.length>1?'s':'')+', '+st.shapes+' shape'+(st.shapes===1?'':'s')+', '+st.lines+' line'+(st.lines===1?'':'s')+(notes.length?'. '+notes.join(', '):'')+'. Check it against the original.');
+  return d;
+}
+const IMP_PX=96;
+function impAngle(s,A){ // A in degrees clockwise, about the shape's center
+  A=normAng(A); if(Math.abs(A)<0.5) return; const base=Math.round(A/90), rest=A-base*90, st=((base%4)+4)%4;
+  if(st%2){ const cx=s.x+s.w/2, cy=s.y+s.h/2, w=s.w; s.w=s.h; s.h=w; s.x=cx-s.w/2; s.y=cy-s.h/2; }
+  if(st) s.rot=st*90; if(Math.abs(rest)>=0.5) s.ang=r2(rest);
+}
+function impType(name){
+  const n=String(name||'').toLowerCase();
+  if(/decision|diamond/.test(n)) return 'diamond'; if(/start\/end|terminat|start|\bend\b/.test(n)) return 'terminator'; if(/database|stored data|datastore|cylinder|\bcan\b/.test(n)) return 'cylinder';
+  if(/document/.test(n)) return 'document'; if(/off-?page/.test(n)) return 'offpage'; if(/subprocess|predefined/.test(n)) return 'predefined'; if(/manual input/.test(n)) return 'manualInput';
+  if(/\bdata\b|parallelogram|input\/output/.test(n)) return 'parallelogram'; if(/circle|ellipse|oval|on-?page|connector$/.test(n)) return 'ellipse'; if(/triangle/.test(n)) return 'triangle';
+  if(/hexagon|preparation/.test(n)) return 'hexagon'; if(/octagon/.test(n)) return 'octagon'; if(/pentagon/.test(n)) return 'pentagon'; if(/cloud/.test(n)) return 'cloud'; if(/star/.test(n)) return 'star';
+  if(/cross/.test(n)) return 'cross'; if(/delay/.test(n)) return 'delay'; if(/trapezoid/.test(n)) return 'trapezoid'; if(/note|sticky/.test(n)) return 'note'; if(/arrow/.test(n)) return 'arrow';
+  return null;
+}
+const hexOk=v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v.trim())?v.trim().toLowerCase():null;
+// Visio: pages.xml lists pages, each pageN.xml holds Shape elements with ShapeSheet cells in inches, y up.
+// Cells a shape leaves out come from its master. Built against real .vsdx files; see Help for what is not carried over.
+async function vsdxToDoc(zip,fname){
+  const parse=t=>new DOMParser().parseFromString(t,'application/xml');
+  const kids=(e,n)=>e?[...e.children].filter(c=>c.localName===n):[];
+  const cellOf=(e,n)=>{ for(const c of kids(e,'Cell')) if(c.getAttribute('N')===n) return c.getAttribute('V'); return null; };
+  const rels=async path=>{ const t=await zip.text(path); const m=new Map(); if(t) for(const r of parse(t).getElementsByTagName('Relationship')) m.set(r.getAttribute('Id'),r.getAttribute('Target')); return m; };
+  const rid=e=>{ const r=kids(e,'Rel')[0]; return r?(r.getAttribute('r:id')||r.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id')):null; };
+  const stats={shapes:0,lines:0,pictures:0,skipped:0};
+  // masters: name and the cells of the master's first shape
+  const masters=new Map(), mt=await zip.text('visio/masters/masters.xml');
+  if(mt){ const mr=await rels('visio/masters/_rels/masters.xml.rels');
+    for(const m of parse(mt).getElementsByTagName('Master')){ const tgt=mr.get(rid(m)); let sh=null;
+      if(tgt){ const t=await zip.text('visio/masters/'+tgt.replace(/^.*\//,'')); if(t){ const d=parse(t), ss=d.getElementsByTagName('Shape'); sh=ss.length?ss[0]:null; } }
+      masters.set(m.getAttribute('ID'),{name:m.getAttribute('NameU')||m.getAttribute('Name')||'',sh}); } }
+  const pt=await zip.text('visio/pages/pages.xml'); if(!pt) throw new Error('No pages found in that Visio file.');
+  const pr=await rels('visio/pages/_rels/pages.xml.rels'), pages=[];
+  for(const pg of parse(pt).getElementsByTagName('Page')){
+    if(pg.getAttribute('Background')==='1') continue;
+    const tgt=pr.get(rid(pg)); if(!tgt) continue; const xml=await zip.text('visio/pages/'+tgt.replace(/^.*\//,'')); if(!xml) continue;
+    const ps=kids(pg,'PageSheet')[0], PH=num(parseFloat(cellOf(ps,'PageHeight')),11), d=parse(xml), root=d.documentElement, items=[], idMap=new Map(), lineOf=new Map();
+    const walk=(shapes,ox,oy,parentH,gid)=>{ for(const sh of shapes){
+      const ms=masters.get(sh.getAttribute('Master'))||null, C=n=>{ const v=cellOf(sh,n); return v!=null?v:(ms&&ms.sh?cellOf(ms.sh,n):null); }, F=(n,dflt)=>{ const v=parseFloat(C(n)); return Number.isFinite(v)?v:dflt; };
+      const nameU=sh.getAttribute('NameU')||sh.getAttribute('Name')||(ms?ms.name:''), W=Math.abs(F('Width',1)), Hh=Math.abs(F('Height',1));
+      const tEl=kids(sh,'Text')[0]||(ms&&ms.sh&&!kids(sh,'Text').length?null:null), text=tEl?tEl.textContent.replace(/\r/g,'').replace(/\n+$/,'').trim():'';
+      const toPx=(x,y)=>({x:r2((ox+x)*IMP_PX),y:r2((parentH-(oy+y))*IMP_PX)});
+      const bx=cellOf(sh,'BeginX'), ex=cellOf(sh,'EndX');
+      const lineCol=hexOk(C('LineColor')), lw=F('LineWeight',NaN), id=uid(); idMap.set(sh.getAttribute('ID'),id);
+      if(bx!=null&&ex!=null){ // 1-D shape: a connector or a plain line
+        const a=toPx(parseFloat(bx),F('BeginY',0)), b=toPx(parseFloat(ex),F('EndY',0)), conn=/connector/i.test(nameU);
+        const L={id,kind:'line',from:a,to:b,route:conn?'orthogonal':'straight',startArrow:F('BeginArrow',0)>0?'arrow':'none',endArrow:F('EndArrow',0)>0?'arrow':'none',labels:text?[{id:uid(),text,t:0.5,dx:0,dy:0}]:[],style:{}};
+        if(lineCol) L.style.stroke=lineCol; if(Number.isFinite(lw)) L.style.sw=clamp(r2(lw*IMP_PX),0.5,8); if(gid) L.groupId=gid;
+        items.push(L); lineOf.set(sh.getAttribute('ID'),L); stats.lines++; continue; }
+      const px=F('PinX',0), py=F('PinY',0), lx=F('LocPinX',W/2), ly=F('LocPinY',Hh/2), left=px-lx, bottom=py-ly;
+      const sub=kids(kids(sh,'Shapes')[0],'Shape'), isGroup=sh.getAttribute('Type')==='Group'||sub.length>0;
+      const tl=toPx(left,bottom+Hh);
+      const mk=()=>{ const geo=kids(sh,'Section').filter(s=>s.getAttribute('N')==='Geometry').concat(ms&&ms.sh?kids(ms.sh,'Section').filter(s=>s.getAttribute('N')==='Geometry'):[]);
+        const hasEll=geo.some(g=>kids(g,'Row').some(r=>r.getAttribute('T')==='Ellipse')), noFill=geo.length&&geo.every(g=>cellOf(g,'NoFill')==='1');
+        const pic=sh.getAttribute('Type')==='Foreign'; if(pic) stats.pictures++;
+        const s={id,kind:'shape',type:impType(nameU)||(hasEll?'ellipse':'rect'),x:tl.x,y:tl.y,w:Math.max(4,r2(W*IMP_PX)),h:Math.max(4,r2(Hh*IMP_PX)),text:pic&&!text?'[Picture]':text,style:{}};
+        const fill=hexOk(C('FillForegnd')); if(noFill||C('FillPattern')==='0') s.style.fill='none'; else if(fill) s.style.fill=fill;
+        if(lineCol) s.style.stroke=lineCol; if(C('LinePattern')==='0') s.style.stroke='none'; if(Number.isFinite(lw)) s.style.sw=clamp(r2(lw*IMP_PX),0.5,8);
+        const rd=F('Rounding',0); if(rd>0&&s.type==='rect') s.style.radius=clamp(r2(rd*IMP_PX),0,40);
+        const ch=kids(sh,'Section').find(x=>x.getAttribute('N')==='Character'), row=ch&&kids(ch,'Row')[0], fsz=row?parseFloat(cellOf(row,'Size')):NaN, fc=row?hexOk(cellOf(row,'Color')):null;
+        if(Number.isFinite(fsz)) s.style.fontSize=clamp(Math.round(fsz*IMP_PX),8,48); if(fc) s.style.fontColor=fc;
+        if(!text&&s.style.fill==='none'&&s.style.stroke==='none'){ stats.skipped++; return; }
+        if(text&&s.style.fill==='none'&&(s.style.stroke==='none'||/^text/i.test(nameU))){ s.type='text'; s.style.stroke='none'; }
+        const prop=kids(sh,'Section').find(x=>x.getAttribute('N')==='Property'); if(prop){ const dd={}; for(const row of kids(prop,'Row').slice(0,40)){ const k=(cellOf(row,'Label')||row.getAttribute('N')||'').trim().slice(0,40), v=cellOf(row,'Value'); if(k&&v!=null) dd[k]=String(v).slice(0,500); } if(Object.keys(dd).length) s.data=dd; }
+        impAngle(s,-F('Angle',0)*180/Math.PI); if(gid) s.groupId=gid; items.push(s); stats.shapes++; };
+      if(isGroup){ const g2=gid||uid(); if(text||!sub.length) mk(); walk(sub,ox+left,oy+bottom,parentH,g2); }
+      else mk();
+    } };
+    walk(kids(kids(root,'Shapes')[0],'Shape'),0,0,PH,null);
+    for(const c of root.getElementsByTagName('Connect')){ const L=lineOf.get(c.getAttribute('FromSheet')), to=idMap.get(c.getAttribute('ToSheet')), fc=c.getAttribute('FromCell')||'';
+      if(!L||!to||lineOf.has(c.getAttribute('ToSheet'))) continue; if(/^Begin/.test(fc)) L.from={id:to,side:'auto'}; else if(/^End/.test(fc)) L.to={id:to,side:'auto'}; }
+    pages.push({id:uid(),name:(pg.getAttribute('Name')||pg.getAttribute('NameU')||'Page '+(pages.length+1)).slice(0,80),items});
+  }
+  if(!pages.length) throw new Error('No readable pages in that Visio file.');
+  return {doc:{title:String(fname||'Imported').replace(/\.vsdx$/i,''),pages},stats};
+}
+// Lucid Standard Import (document.json inside a .lucid ZIP) and the similar JSON from Lucid's document contents API.
+function isLucidJson(raw){ return !!raw&&typeof raw==='object'&&!raw.app&&raw.schema==null&&Array.isArray(raw.pages)&&raw.pages.some(p=>p&&(Array.isArray(p.shapes)||Array.isArray(p.lines)||(p.items&&typeof p.items==='object'&&!Array.isArray(p.items)))); }
+const LUCID_TYPES={rectangle:'rect',process:'rect',text:'text',circle:'ellipse',ellipse:'ellipse',connector:'ellipse',diamond:'diamond',decision:'diamond',cloud:'cloud',cross:'cross',hexagon:'hexagon',preparation:'hexagon',octagon:'octagon',pentagon:'pentagon',
+  isoscelestriangle:'triangle',righttriangle:'triangle',triangle:'triangle',terminator:'terminator',data:'parallelogram',document:'document',multipledocuments:'document',database:'cylinder',harddisk:'cylinder',predefinedprocess:'predefined',
+  manualinput:'manualInput',manualoperation:'trapezoid',offpagelink:'offpage',delay:'delay',stickynote:'note',note:'note',star:'star',singlearrow:'arrow',storeddata:'cylinder',merge:'triangle',swimlanes:'container',container:'container',rectanglecontainer:'container'};
+const LUCID_ENDS={none:'none',arrow:'arrow',hollowarrow:'arrowOpen',openarrow:'open',aggregation:'diamondOpen',composition:'diamond',generalization:'arrowOpen',closedcircle:'circle',opencircle:'circleOpen',closedsquare:'square',opensquare:'squareOpen',
+  one:'erdOne',many:'erdMany',exactlyone:'erdOnlyOne',zeroorone:'erdZeroOrOne',zeroormore:'erdZeroOrMany',oneormore:'erdOneOrMany',async1:'half',async2:'half'};
+function stripHtml(t){ return String(t==null?'':t).replace(/<br\s*\/?>(?=.)/gi,'\n').replace(/<\/(p|div|li)>\s*(?=<)/gi,'\n').replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,'&').trim(); }
+function lucidColor(v){ if(v&&typeof v==='object') v=v.color; if(typeof v!=='string') return null; v=v.trim(); if(/^#[0-9a-f]{3}$/i.test(v)) v='#'+v[1]+v[1]+v[2]+v[2]+v[3]+v[3]; if(/^#[0-9a-f]{8}$/i.test(v)) v=v.slice(0,7); return hexOk(v); }
+function lucidToDoc(raw,fname){
+  const stats={shapes:0,lines:0,pictures:0,skipped:0}, pages=[];
+  for(const pg of raw.pages){ if(!pg||typeof pg!=='object') continue;
+    const src=pg.items&&!Array.isArray(pg.items)?pg.items:pg, items=[], idMap=new Map();
+    for(const sh of (Array.isArray(src.shapes)?src.shapes:[])){ const b=sh&&sh.boundingBox; if(!b||!Number.isFinite(+b.w)||!Number.isFinite(+b.h)){ stats.skipped++; continue; }
+      const tkey=String(sh.type||sh.class||'').toLowerCase().replace(/[^a-z]/g,''), id=uid(); idMap.set(String(sh.id),id);
+      const text=stripHtml(typeof sh.text==='string'?sh.text:Array.isArray(sh.textAreas)?sh.textAreas.map(t=>t&&t.text).filter(Boolean).join('\n'):(sh.title||''));
+      const pic=tkey==='image'; if(pic) stats.pictures++;
+      const s={id,kind:'shape',type:LUCID_TYPES[tkey]||impType(tkey)||'rect',x:r2(+b.x||0),y:r2(+b.y||0),w:Math.max(4,r2(+b.w)),h:Math.max(4,r2(+b.h)),text:pic&&!text?'[Picture]':text,style:{}};
+      const stl=sh.style||{}, fill=lucidColor(stl.fill), stroke=lucidColor(stl.stroke), sw=stl.stroke&&+stl.stroke.width;
+      if(fill) s.style.fill=fill; if(stroke) s.style.stroke=stroke; if(sw===0) s.style.stroke='none'; else if(Number.isFinite(sw)) s.style.sw=clamp(sw,0.5,8);
+      if(stl.stroke&&/dash/i.test(stl.stroke.style||'')) s.style.dash='dashed'; else if(stl.stroke&&/dot/i.test(stl.stroke.style||'')) s.style.dash='dotted';
+      if(+stl.rounding>0&&s.type==='rect') s.style.radius=clamp(+stl.rounding,0,40);
+      if(s.type==='text'){ s.style.fill='none'; s.style.stroke='none'; }
+      if(Number.isFinite(+b.rotation)) impAngle(s,+b.rotation);
+      if(Array.isArray(sh.customData)){ const dd={}; for(const c of sh.customData.slice(0,40)) if(c&&c.key!=null||c&&c.name!=null) dd[String(c.key!=null?c.key:c.name)]=String(c.value==null?'':c.value); if(Object.keys(dd).length) s.data=dd; }
+      items.push(s); stats.shapes++; }
+    const end=e=>{ if(!e||typeof e!=='object') return {x:0,y:0};
+      const sidOf=e.shapeId!=null?idMap.get(String(e.shapeId)):null, p=e.position||{};
+      if(sidOf){ const x=+p.x, y=+p.y; if(!Number.isFinite(x)||!Number.isFinite(y)) return {id:sidOf,side:'auto'};
+        if(x<=0.001) return {id:sidOf,side:'W',pos:clamp(y,0.02,0.98)}; if(x>=0.999) return {id:sidOf,side:'E',pos:clamp(y,0.02,0.98)};
+        if(y<=0.001) return {id:sidOf,side:'N',pos:clamp(x,0.02,0.98)}; if(y>=0.999) return {id:sidOf,side:'S',pos:clamp(x,0.02,0.98)}; return {id:sidOf,side:'auto'}; }
+      return {x:r2(+p.x||0),y:r2(+p.y||0)}; };
+    for(const ln of (Array.isArray(src.lines)?src.lines:[])){ if(!ln||typeof ln!=='object'){ stats.skipped++; continue; }
+      const e1=ln.endpoint1||{}, e2=ln.endpoint2||{}, lt=String(ln.lineType||'elbow').toLowerCase(), st=ln.stroke||{};
+      const L={id:uid(),kind:'line',from:end(e1),to:end(e2),route:lt==='straight'?'straight':lt==='curved'?'curved':'orthogonal',
+        startArrow:LUCID_ENDS[String(e1.style||'none').toLowerCase()]||'none',endArrow:LUCID_ENDS[String(e2.style||'none').toLowerCase()]||(e2.style?'arrow':'none'),labels:[],style:{}};
+      const texts=Array.isArray(ln.text)?ln.text:Array.isArray(ln.textAreas)?ln.textAreas:[]; for(const t of texts.slice(0,20)){ const tx=stripHtml(t&&t.text); if(tx) L.labels.push({id:uid(),text:tx,t:clamp(Number.isFinite(+t.position)?+t.position:0.5,0,1),dx:0,dy:0}); }
+      const sc=lucidColor(st.color||st); if(sc) L.style.stroke=sc; if(Number.isFinite(+st.width)&&+st.width>0) L.style.sw=clamp(+st.width,0.5,8); if(/dash/i.test(st.style||'')) L.style.dash='dashed'; else if(/dot/i.test(st.style||'')) L.style.dash='dotted';
+      items.push(L); stats.lines++; }
+    pages.push({id:uid(),name:String(pg.title||'Page '+(pages.length+1)).slice(0,80),items});
+  }
+  if(!pages.length) throw new Error('No pages found in that Lucid file.');
+  return {doc:{title:String(raw.title||fname||'Imported').replace(/\.(lucid|json)$/i,''),pages},stats};
+}
+/* ============================== mini map ============================== */
+let miniEl=null, miniBox=null, miniItems=null;
+function miniBuild(){
+  if(miniEl) return; const s=sv('svg',{class:'mini-svg','aria-hidden':'true'},sv('g',{class:'mini-items'}),sv('rect',{class:'mini-view'}));
+  miniEl=el('div',{class:'minimap',title:'Mini map: click or drag to move the view',role:'img','aria-label':'Mini map'}); miniEl.appendChild(s);
+  const go=e=>{ if(!miniBox) return; const r=s.getBoundingClientRect(); if(!r.width||!r.height) return; const k=Math.min(r.width/miniBox.w,r.height/miniBox.h), ox=(r.width-miniBox.w*k)/2, oy=(r.height-miniBox.h*k)/2;
+    miniCenter(miniBox.x+(e.clientX-r.left-ox)/k,miniBox.y+(e.clientY-r.top-oy)/k); };
+  let down=false; miniEl.addEventListener('pointerdown',e=>{ e.stopPropagation(); e.preventDefault(); down=true; try{ miniEl.setPointerCapture(e.pointerId); }catch(x){} go(e); });
+  miniEl.addEventListener('pointermove',e=>{ if(down) go(e); }); const up=()=>{ down=false; }; miniEl.addEventListener('pointerup',up); miniEl.addEventListener('pointercancel',up);
+  miniEl.addEventListener('wheel',e=>e.stopPropagation()); stage.appendChild(miniEl);
+}
+function miniCenter(wx,wy){ const s=stageSize(); V.tx=s.w/2-wx*V.z; V.ty=s.h/2-wy*V.z; invalidate({overlay:true,chrome:true}); }
+function miniContent(){
+  if(!S.prefs.minimap){ if(miniEl) miniEl.hidden=true; return; } miniBuild(); miniEl.hidden=false;
+  const g=miniEl.querySelector('.mini-items'), out=[], pg=page(), sz=pageSizePx(pg);
+  if(sz) out.push(sv('rect',{x:0,y:0,width:sz.w,height:sz.h,class:'mini-sheet'}));
+  for(const it of renderList(pg)){ if(isShape(it)){ const st=it.style, f=st.fill==='none'?null:st.fill;
+      out.push(sv('rect',{x:r2(it.x),y:r2(it.y),width:r2(it.w),height:r2(it.h),class:'mini-shape',fill:f&&f!=='#ffffff'?f:null,transform:angXf(it)})); }
+    else { const R=routeLine(it), P=R.kind==='curve'?[R.pts[0],R.pts[3]]:R.pts; out.push(sv('polyline',{points:P.map(q=>r2(q.x)+','+r2(q.y)).join(' '),class:'mini-line'})); } }
+  g.replaceChildren(...out); miniBox=null; miniItems=renderList(pg).length?bboxOf(renderList(pg)):null;
+}
+function miniView(){
+  if(!miniEl||miniEl.hidden) return; const s=stageSize(), vx=-V.tx/V.z, vy=-V.ty/V.z, vw=s.w/V.z, vh=s.h/V.z, sz=pageSizePx();
+  let b=miniItems||{x:vx,y:vy,w:vw,h:vh}; if(sz){ const x0=Math.min(b.x,0), y0=Math.min(b.y,0); b={x:x0,y:y0,w:Math.max(b.x+b.w,sz.w)-x0,h:Math.max(b.y+b.h,sz.h)-y0}; }
+  const x0=Math.min(b.x,vx), y0=Math.min(b.y,vy), x1=Math.max(b.x+b.w,vx+vw), y1=Math.max(b.y+b.h,vy+vh), pad=Math.max(x1-x0,y1-y0)*0.04+10;
+  miniBox={x:x0-pad,y:y0-pad,w:x1-x0+pad*2,h:y1-y0+pad*2};
+  const svgEl=miniEl.firstChild; svgEl.setAttribute('viewBox',r2(miniBox.x)+' '+r2(miniBox.y)+' '+r2(miniBox.w)+' '+r2(miniBox.h));
+  const r=svgEl.lastChild; r.setAttribute('x',r2(vx)); r.setAttribute('y',r2(vy)); r.setAttribute('width',r2(vw)); r.setAttribute('height',r2(vh));
+}
+/* ============================== comments (kept in the file; this is not live collaboration) ============================== */
+let cmtEl=null; const CMT={open:false,focus:null,resolved:false};
+function sanComments(p){
+  if(!Array.isArray(p.comments)) return {};
+  const one=c=>({id:sid(c.id)||uid(),text:str(c.text).slice(0,4000),author:str(c.author).slice(0,60)||'Me',ts:Number.isFinite(+c.ts)?+c.ts:0});
+  const list=p.comments.slice(0,500).map(c=>{ if(!c||typeof c!=='object'||!str(c.text).trim()) return null; const o=one(c); o.x=num(c.x,0); o.y=num(c.y,0);
+    if(sid(c.item)) o.item=sid(c.item); if(c.resolved===true) o.resolved=true; o.replies=(Array.isArray(c.replies)?c.replies:[]).slice(0,200).filter(r=>r&&typeof r==='object'&&str(r.text).trim()).map(one); return o; }).filter(Boolean);
+  return list.length?{comments:list}:{};
+}
+function comments(pg){ return (pg||page()).comments||[]; }
+function cmtPos(c){ const it=c.item&&byId(c.item); if(it){ const b=itemBBox(it); return {x:b.x+b.w,y:b.y}; } return {x:c.x,y:c.y}; }
+function cmtAuthor(){ return (S.prefs.userName||'').trim().slice(0,60)||'Me'; }
+function addComment(text,itemId,at){
+  text=String(text||'').trim().slice(0,4000); if(!text) return null;
+  const pg=page(), it=itemId&&byId(itemId), c={id:uid(),text,author:cmtAuthor(),ts:Date.now(),replies:[]};
+  if(it){ c.item=it.id; const q=cmtPos(c); c.x=r2(q.x); c.y=r2(q.y); } else { const q=at||viewCenterWorld(); c.x=r2(q.x); c.y=r2(q.y); }
+  (pg.comments||(pg.comments=[])).push(c); commit(); CMT.focus=c.id; invalidate({overlay:true,chrome:true}); renderComments(); return c;
+}
+function cmtCmd(action,id,text){
+  const pg=page(), list=comments(pg), c=list.find(x=>x.id===id); if(!c) return false;
+  if(action==='reply'){ text=String(text||'').trim().slice(0,4000); if(!text) return false; c.replies.push({id:uid(),text,author:cmtAuthor(),ts:Date.now()}); }
+  else if(action==='resolve'){ if(c.resolved) delete c.resolved; else c.resolved=true; }
+  else if(action==='del'){ pg.comments=list.filter(x=>x.id!==id); if(!pg.comments.length) delete pg.comments; if(CMT.focus===id) CMT.focus=null; }
+  else if(action==='go'){ CMT.focus=id; const q=cmtPos(c), s=stageSize(); V.tx=s.w/2-q.x*V.z; V.ty=s.h/2-q.y*V.z; if(c.item&&byId(c.item)&&selectable(byId(c.item))) S.sel=new Set([c.item]); invalidate(); renderComments(); return true; }
+  else return false;
+  commit(); invalidate({overlay:true,chrome:true}); renderComments(); return true;
+}
+function openComments(focusId){ CMT.open=true; stage.classList.add('cmt-open'); if(focusId) CMT.focus=focusId; renderComments(); invalidate({overlay:true,chrome:true}); }
+function closeComments(){ CMT.open=false; stage.classList.remove('cmt-open'); if(cmtEl){ cmtEl.remove(); cmtEl=null; } invalidate({overlay:true,chrome:true}); }
+function renderComments(){
+  if(!CMT.open){ return; }
+  if(cmtEl) cmtEl._pg=S.doc.activePage;
+  if(!cmtEl){ cmtEl=el('div',{class:'cmt-panel',role:'complementary','aria-label':'Comments'});
+    cmtEl.addEventListener('pointerdown',e=>e.stopPropagation()); cmtEl.addEventListener('wheel',e=>e.stopPropagation());
+    cmtEl.addEventListener('keydown',e=>{ e.stopPropagation(); const t=e.target;
+      if(e.key==='Escape'){ closeComments(); return; }
+      if(e.key==='Enter'&&!e.shiftKey&&t.matches&&t.matches('textarea[data-cmt]')){ e.preventDefault(); const k=t.getAttribute('data-cmt'), v=t.value;
+        if(k==='new'){ const sel=selItems(); if(addComment(v,sel.length===1?sel[0].id:null)) t.value=''; } else cmtCmd('reply',k.slice(6),v); } });
+    cmtEl.addEventListener('change',e=>{ const t=e.target; if(t.getAttribute('data-cmt')==='name'){ S.prefs.userName=t.value.trim().slice(0,60); savePrefs(); } else if(t.getAttribute('data-cmt')==='showres'){ CMT.resolved=t.checked; renderComments(); invalidate({overlay:true}); } });
+    cmtEl.addEventListener('click',e=>{ const b=e.target.closest('[data-cmtcmd]'); if(!b) return; const p=b.getAttribute('data-cmtcmd').split(':');
+      if(p[0]==='close') closeComments(); else if(p[0]==='post'){ const ta=cmtEl.querySelector('textarea[data-cmt="new"]'), sel=selItems(); if(addComment(ta.value,sel.length===1?sel[0].id:null)) ta.value=''; }
+      else if(p[0]==='reply'){ const ta=cmtEl.querySelector('textarea[data-cmt="reply:'+p[1]+'"]'); cmtCmd('reply',p[1],ta?ta.value:''); } else cmtCmd(p[0],p[1]); });
+    stage.appendChild(cmtEl); cmtEl._pg=S.doc.activePage; }
+  const all=comments(), list=all.filter(c=>CMT.resolved||!c.resolved), sel=selItems(), when=ts=>ts?new Date(ts).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+  const msg=(m,cls)=>el('div',{class:cls},el('div',{class:'cmt-meta'},el('b',{text:m.author}),el('span',{class:'muted',text:when(m.ts)})),el('div',{class:'cmt-text',text:m.text}));
+  cmtEl.replaceChildren(
+    el('div',{class:'cmt-head'},el('b',{text:'Comments on this page'}),el('button',{type:'button',class:'btn ghost icon','data-cmtcmd':'close','aria-label':'Close comments'},icon('x'))),
+    el('div',{class:'find-row'},el('input',{type:'text','data-cmt':'name',value:S.prefs.userName||'',placeholder:'Your name (shown on comments)',maxlength:60,'aria-label':'Your name'})),
+    el('textarea',{class:'note-in','data-cmt':'new',rows:2,placeholder:sel.length===1?'Comment on the selected item (Enter to post)':'Comment at the middle of the view (Enter to post)','aria-label':'New comment',maxlength:4000}),
+    el('div',{class:'find-row'},el('button',{type:'button',class:'btn primary','data-cmtcmd':'post',text:'Post'}),el('label',{class:'chk',style:{marginLeft:'auto'}},el('input',{type:'checkbox','data-cmt':'showres',checked:CMT.resolved}),'Show resolved ('+all.filter(c=>c.resolved).length+')')),
+    el('div',{class:'cmt-list'},list.length?list.map(c=>el('div',{class:'cmt-thread'+(c.id===CMT.focus?' on':'')+(c.resolved?' res':''),'data-thread':c.id},
+      el('div',{class:'cmt-top'},el('button',{type:'button',class:'cmt-num','data-cmtcmd':'go:'+c.id,title:'Show on the canvas','aria-label':'Show comment '+(all.indexOf(c)+1)+' on the canvas',text:String(all.indexOf(c)+1)}),
+        el('span',{class:'muted small',text:c.item?(byId(c.item)?'On an item':'Item was deleted'):'On the page'}),
+        el('button',{type:'button',class:'btn sm-t','data-cmtcmd':'resolve:'+c.id,text:c.resolved?'Reopen':'Resolve'}),el('button',{type:'button',class:'btn icon sm','data-cmtcmd':'del:'+c.id,'aria-label':'Delete comment'},icon('trash',15))),
+      msg(c,'cmt-msg'),...c.replies.map(r=>msg(r,'cmt-msg reply')),
+      c.resolved?null:el('div',{class:'find-row'},el('textarea',{class:'note-in cmt-reply','data-cmt':'reply:'+c.id,rows:1,placeholder:'Reply','aria-label':'Reply',maxlength:4000}),el('button',{type:'button',class:'btn','data-cmtcmd':'reply:'+c.id,text:'Reply'})))):[el('p',{class:'muted small',text:all.length?'All comments here are resolved.':'No comments on this page yet.'})]),
+    el('p',{class:'muted small',text:'Comments are saved in the diagram file and are not exported to SVG, PNG or PDF. Everyone who opens the file sees them; there is no live sharing.'}));
+}
+function cmtPins(out,z){
+  const all=comments(); if(!all.length) return;
+  all.forEach((c,i)=>{ if(c.resolved&&!(CMT.open&&CMT.resolved)) return; const q=cmtPos(c), r=10/z;
+    out.push(sv('g',{class:'ov-cmt'+(c.id===CMT.focus&&CMT.open?' on':'')+(c.resolved?' res':''),'data-cmtpin':c.id,transform:`translate(${r2(q.x+r*0.6)} ${r2(q.y-r*0.6)})`},
+      sv('title',null,c.author+': '+c.text.slice(0,200)+(c.replies.length?' ('+c.replies.length+' repl'+(c.replies.length>1?'ies':'y')+')':'')),
+      sv('path',{d:`M${r2(-r)} ${r2(r)}V${r2(-r*0.2)}A${r2(r*0.8)} ${r2(r*0.8)} 0 0 1 ${r2(-r*0.2)} ${r2(-r)}H${r2(r*0.2)}A${r2(r*0.8)} ${r2(r*0.8)} 0 0 1 ${r2(r)} ${r2(-r*0.2)}V${r2(r*0.2)}A${r2(r*0.8)} ${r2(r*0.8)} 0 0 1 ${r2(r*0.2)} ${r2(r)}Z`,'stroke-width':r2(1.2/z)}),
+      sv('text',{x:0,y:r2(r*0.36),'text-anchor':'middle','font-size':r2(11/z)},String(i+1)))); });
 }
 function soonSection(names){ return section('Coming soon',el('div',{class:'soon-list'},names.map(n=>el('div',{class:'soon-row'},el('span',{text:n}),el('span',{class:'soon',text:'Coming Soon'}))))); }
 function renderProps(){
@@ -4693,7 +5012,7 @@ async function insertImageData(data,type,at,size,name){
   const s={id:uid(),kind:'shape',type:'image',x:r2(c.x-w/2),y:r2(c.y-h/2),w,h,text:'',style:Object.assign({},DEF_SHAPE_STYLE,{fill:'none',stroke:'none',fontSize:12,valign:'top'}),layer:activeLayerId(),img:rec.id};
   if(S.prefs.snap){ s.x=Math.round(s.x/GRID)*GRID; s.y=Math.round(s.y/GRID)*GRID; }
   items().push(s); setSel([s.id]); commit(); invalidate();
-  toast(stored?'Picture added':'Picture added. This browser cannot keep pictures between visits, so use File > Save as JSON to keep it.');
+  toast(stored?'Picture added':'Picture added. This browser cannot keep pictures between visits, so use File > Save to keep it.');
   return s;
 }
 function importAssets(assets){
@@ -4712,7 +5031,7 @@ function wireImages(){
   stage.addEventListener('drop',e=>{
     const fl=e.dataTransfer&&e.dataTransfer.files; if(!fl||!fl.length) return; e.preventDefault();
     const w=toWorld(e); let off=0;
-    for(const f of fl){ if(/\.json$/i.test(f.name)||f.type==='application/json'){ openJsonFile(f); return; } insertImageFile(f,{x:w.x+off,y:w.y+off}); off+=24; }
+    for(const f of fl){ if(/\.(json|vsdx|vsd|lucid)$/i.test(f.name)||f.type==='application/json'){ openAnyFile(f,null); return; } insertImageFile(f,{x:w.x+off,y:w.y+off}); off+=24; }
   });
   document.addEventListener('paste',e=>{
     const t=e.target, tag=t&&t.tagName; if(tag==='INPUT'||tag==='TEXTAREA'||(t&&t.isContentEditable)) return;
@@ -4793,11 +5112,11 @@ async function exportPdf(all){
 
 /* ============================== menus & context menu ============================== */
 const MENUS={
-  file:[['New diagram','newDoc'],['Duplicate page','duplicatePage'],['Open JSON file...','openJson','Ctrl+O'],['Save as JSON','saveJson','Ctrl+S'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import CSV data...','importData'],['Version history...','versions'],['Import Visio or Lucidchart file','soon:Import from other diagram tools',null,true]],
+  file:[['New diagram','newDoc'],['Duplicate page','duplicatePage'],['Open...','openJson','Ctrl+O'],['Save','save','Ctrl+S'],['Save as...','saveAs','Ctrl+Shift+S'],['Import Visio or Lucid file...','openJson'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import CSV data...','importData'],['Version history...','versions']],
   edit:[['Undo','undo','Ctrl+Z'],['Redo','redo','Ctrl+Shift+Z'],'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',['Select all','selectAll','Ctrl+A'],['Select all shapes','selectShapes'],['Select all lines','selectLines'],['Select same fill color','selectSameFill'],'-',['Edit text','editText','Enter'],['Add text to line','addLineText'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],'-',['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],'-',['Find and replace','find','Ctrl+F']],
   insert:[['Picture...','insertImage'],['Text box','insertText'],['Sticky note','insertNote'],['Page','addPage'],'-',['Icons','soon:Icon sets',null,true],['Freehand drawing','soon:Freehand pen',null,true]],
   arrange:[['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',['Group','group','Ctrl+G'],['Ungroup','ungroup','Ctrl+Shift+G'],'-',['Align left','alignL'],['Align center','alignC'],['Align right','alignR'],['Align top','alignT'],['Align middle','alignM'],['Align bottom','alignB'],'-',['Distribute horizontally','distH'],['Distribute vertically','distV'],'-',['Rotate 90\u00b0 clockwise','rotate','Alt+R'],['Rotate 90\u00b0 counterclockwise','rotateCcw','Alt+Shift+R'],['Flip horizontal','flipH'],['Flip vertical','flipV'],'-',['Match width','matchW'],['Match height','matchH'],['Match size','matchSize'],'-',['Lock / unlock','toggleLock','Ctrl+Shift+L'],['Swap line endpoints','swapEnds']],
-  view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','soon:Mini map',null,true],['Present','present','F5'],['Comments','soon:Comments',null,true]],
+  view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','toggleMinimap',null,false,()=>S.prefs.minimap],['Present','present','F5'],['Comments','comments','Ctrl+Alt+M',false,()=>CMT.open]],
   help:[['Getting started and shortcuts','help','F1'],['About Linework','about']]
 };
 let openMenu=null;
@@ -4983,8 +5302,8 @@ function showTextModal(name,text){
   try{ ta.focus(); ta.select(); }catch(e){}
 }
 function showHelp(){
-  const sc=[['Drag from library','Add a shape where you drop it'],['Click or tap a shape tile','Add it in the middle of the view'],['Double-click / double-tap','Edit shape text, or add a text box on a line where you click'],['Click a line','Open the editing bar (right-click a shape for its bar)'],['Type with a shape selected','Add to its text (Ctrl+A in the editor selects all to replace it)'],['Double-click inside text','Place the cursor there to edit'],['Ctrl+Enter or Esc','Finish editing text'],['Shift+click','Add to or remove from selection'],['Drag on empty canvas','Pan the view (Select mode: box-select)'],['Shift+drag on empty canvas','Box-select'],['Shift while dragging','Turn off grid and alignment snapping'],['Tab / Enter on a topic or org box','Add a child / add a sibling'],['Space+drag, middle-drag, scroll','Pan the canvas'],['Ctrl+scroll, pinch','Zoom'],['Shift while resizing','Keep proportions'],['Arrow keys (Shift for 10)','Nudge selection'],['Ctrl+Z / Ctrl+Shift+Z','Undo / redo'],['Ctrl+C / X / V / D','Copy, cut, paste, duplicate'],['Ctrl+G / Ctrl+Shift+G','Group / ungroup'],['Ctrl+] / Ctrl+[','Bring forward / send backward (add Shift for front / back)'],['Ctrl+= / Ctrl+- / Ctrl+0','Zoom in, out, actual size'],['Shift+1','Zoom to fit'],['Ctrl+S / Ctrl+O','Save as JSON / open JSON'],['Delete or Backspace','Delete selection'],['Ctrl+K','Attach a link'],['Ctrl+Alt+C / Ctrl+Alt+V','Copy style / paste style'],['Ctrl+Shift+L','Lock or unlock'],['Alt+R / Alt+Shift+R','Rotate selection 90\u00b0 clockwise / counterclockwise'],['Drag the round arrow above a shape','Rotate to any angle (snaps to 15\u00b0, Shift for free)'],['Ctrl+F','Find and replace'],['F5','Present'],['R while dragging a library tile','Turn the shape 90\u00b0 before you drop it (Shift+R the other way)'],['F1 or ?','Open this help']];
-  const soon=['Sharing and real-time collaboration','Comments','Icon sets and freehand pen','Mini map','Line jumps where lines cross','Page tab colors and master pages','Templates gallery','Embedded links','Full IEC 60617 electrical library','Free-form bends on straight and curved lines','Live data sources (Google Sheets, Excel) and auto-refresh','Import from Visio, Lucidchart and other diagram tools','Slides that frame part of a page in Present mode'];
+  const sc=[['Drag from library','Add a shape where you drop it'],['Click or tap a shape tile','Add it in the middle of the view'],['Double-click / double-tap','Edit shape text, or add a text box on a line where you click'],['Click a line','Open the editing bar (right-click a shape for its bar)'],['Type with a shape selected','Add to its text (Ctrl+A in the editor selects all to replace it)'],['Double-click inside text','Place the cursor there to edit'],['Ctrl+Enter or Esc','Finish editing text'],['Shift+click','Add to or remove from selection'],['Drag on empty canvas','Pan the view (Select mode: box-select)'],['Shift+drag on empty canvas','Box-select'],['Shift while dragging','Turn off grid and alignment snapping'],['Tab / Enter on a topic or org box','Add a child / add a sibling'],['Space+drag, middle-drag, scroll','Pan the canvas'],['Ctrl+scroll, pinch','Zoom'],['Shift while resizing','Keep proportions'],['Arrow keys (Shift for 10)','Nudge selection'],['Ctrl+Z / Ctrl+Shift+Z','Undo / redo'],['Ctrl+C / X / V / D','Copy, cut, paste, duplicate'],['Ctrl+G / Ctrl+Shift+G','Group / ungroup'],['Ctrl+] / Ctrl+[','Bring forward / send backward (add Shift for front / back)'],['Ctrl+= / Ctrl+- / Ctrl+0','Zoom in, out, actual size'],['Shift+1','Zoom to fit'],['Ctrl+O','Open a diagram, Visio or Lucid file'],['Delete or Backspace','Delete selection'],['Ctrl+K','Attach a link'],['Ctrl+Alt+C / Ctrl+Alt+V','Copy style / paste style'],['Ctrl+Shift+L','Lock or unlock'],['Alt+R / Alt+Shift+R','Rotate selection 90\u00b0 clockwise / counterclockwise'],['Drag the round arrow above a shape','Rotate to any angle (snaps to 15\u00b0, Shift for free)'],['Ctrl+F','Find and replace'],['Ctrl+S / Ctrl+Shift+S','Save / Save as'],['Ctrl+Alt+M','Comments'],['F5','Present'],['R while dragging a library tile','Turn the shape 90\u00b0 before you drop it (Shift+R the other way)'],['F1 or ?','Open this help']];
+  const soon=['Sharing and real-time collaboration (live co-editing)','Icon sets and freehand pen','Line jumps where lines cross','Page tab colors and master pages','Templates gallery','Embedded links','Full IEC 60617 electrical library','Free-form bends on straight and curved lines','Live data sources (Google Sheets, Excel) and auto-refresh','Import of older binary Visio .vsd and draw.io files','Slides that frame part of a page in Present mode'];
   openModal('Getting started with Linework',
     el('h3',{text:'Add shapes'}),el('p',{text:'Drag any shape from the library on the left onto the canvas, or click or tap a tile to drop it in the middle of the view. Use the search box to filter shapes.'}),
     el('h3',{text:'Connect shapes'}),el('p',{text:'Hover a shape to show four blue dots. Drag a dot onto another shape. Drop it on one of the green side dots to pin the line to that side, or anywhere on the shape body for a floating connection that picks the best side as shapes move. Release on empty canvas to choose a new shape to create at the end of the line.'}),
@@ -5028,7 +5347,11 @@ function showHelp(){
     el('h3',{text:'Electrical and safety devices'}),el('p',{text:'The Electrical library adds timed contacts (TC and TO), mushroom-head pushbuttons, 2 and 3 position selector switches, limit, pressure, temperature, float, flow and foot switches, proximity and photoelectric sensors, solenoid, horn, plug, 3-pole breaker, disconnect, contactor and overload, 3-phase motor, power supply, diode, LED, battery, meters, heater, current transformer and an IEC rectangle coil. The Electrical safety devices library, right below it, has emergency stops (1 and 2 channel), guard interlock and guard locking switches, coded non-contact switch, enabling switch, two-hand control, light curtain, laser scanner, safety mat and edge, safety relay, safety controller, safety contactor with mirror contact, drive with Safe Torque Off, redundant safety valve, stack light, lockout point, trapped key, guard fence and door, and a hazard warning triangle.'}),
     el('p',{text:'All of these drawings are marked Unverified in the right panel. The emergency stop follows the IEC 60617 description of symbol S00258 (mushroom head, positive opening, maintain position), but its proportions were not checked against the official graphic. Safety relay terminal names are typical, not from a particular product, so edit them to match the data sheet. Many safety devices have no single standard symbol and are drawn as labeled blocks.'}),
     el('h3',{text:'Pages'}),el('p',{text:'Use the tabs at the bottom to switch pages. The plus button adds a page, double-click a tab to rename it, and the x on the active tab deletes it (undo brings it back).'}),
-    el('h3',{text:'Saving'}),el('p',{text:'Your diagram autosaves in this browser. The status at the top right tells you if browser storage is blocked. Use File > Save as JSON for a portable copy you can reopen anywhere, and File > Export SVG or PNG for images.'}),
+    el('h3',{text:'Save and Save as'}),el('p',{text:'File > Save (Ctrl+S) and Save as (Ctrl+Shift+S) work like a desktop program. In Chrome and Edge, Save as opens the system Save dialog so you pick the folder and name, and after that Save writes straight back to that same file. Opening a .json with File > Open does the same, so Save updates the file you opened. The status at the top right shows the file name and whether there are unsaved changes, and the browser warns before you close the tab with unsaved changes. In browsers without that dialog (Firefox, Safari, and inside the claude.ai preview), Save as asks for a file name and the file goes to your Downloads folder.'}),
+    el('h3',{text:'Importing Visio and Lucid files'}),el('p',{text:'File > Open or File > Import Visio or Lucid file (or drag the file onto the canvas) reads Visio .vsdx files and Lucid .lucid files (the Lucid Standard Import format, a ZIP holding document.json), as well as a bare Lucid document.json. Each page becomes a page. Shapes keep position, size, text, rotation and basic fill, line color and line width; Visio shape data and Lucid custom data become data fields; connectors stay attached to their shapes; groups stay grouped. Common flowchart shapes (decision, start/end, database, document and so on) are matched by name; anything else comes in as a rectangle, and pictures come in as [Picture] placeholders. Text formatting, themes, line routing points, master-shape artwork and Visio background pages are not carried over. Older binary .vsd files cannot be read: save them as .vsdx in Visio first. The imported diagram opens as a new, unsaved file, so the original is never overwritten. Check the result against the original.'}),
+    el('h3',{text:'Mini map'}),el('p',{text:'View > Mini map shows a small overview in the bottom right corner of the canvas with every shape and line on the page and a blue box for what is on screen. Click or drag in the map to move the view there. The setting is remembered.'}),
+    el('h3',{text:'Comments'}),el('p',{text:'View > Comments (Ctrl+Alt+M) opens the comments panel. Type your name once at the top. With one item selected, a new comment attaches to that item and its numbered pin follows the item; with nothing selected, the comment is pinned at the middle of the view. Press Enter to post (Shift+Enter for a new line). Reply, Resolve, Reopen and Delete work per thread, Show resolved brings resolved threads back, and clicking a pin or a thread number jumps to it. Comments are saved in the diagram file and undo like any other edit, but they are not live: other people see them when they open the file, and they are left out of SVG, PNG and PDF exports.'}),
+    el('h3',{text:'Saving'}),el('p',{text:'Your diagram autosaves in this browser. The status at the top right tells you if browser storage is blocked. Use File > Save for a portable copy you can reopen anywhere, and File > Export SVG or PNG for images.'}),
     el('h3',{text:'On iPad'}),el('p',{text:'One finger on empty canvas pans, two fingers pinch to zoom. Drag shapes sideways out of the library onto the canvas (scrolling the library vertically still works). If the page opens from the Files app with nothing working, host the file instead: Quick Look blocks JavaScript.'}),
     el('h3',{text:'Keyboard and mouse'}),el('table',null,el('tbody',null,sc.map(r=>el('tr',null,el('td',{text:r[0]}),el('td',{text:r[1]}))))),
     el('h3',{text:'Coming soon'}),el('ul',null,soon.map(s=>el('li',{text:s}))));
@@ -5062,10 +5385,12 @@ const CMDS={
   toggleLeft:()=>togglePref('left'), toggleRight:()=>togglePref('right'),
   toggleTheme:()=>{ S.prefs.theme=S.prefs.theme==='dark'?'light':'dark'; savePrefs(); applyTheme(); invalidate({chrome:true}); },
   routeStraight:()=>setRoute('straight'), routeOrthogonal:()=>setRoute('orthogonal'), routeCurved:()=>setRoute('curved'),
-  newDoc:()=>loadDocument(newDoc(),'New diagram. Ctrl+Z brings back the previous one.'),
+  newDoc:()=>{ fileReset(); loadDocument(newDoc(),'New diagram. Ctrl+Z brings back the previous one.'); },
   loadSample:()=>loadDocument(sampleDoc(),'Sample loaded. Ctrl+Z brings back your previous diagram.'),
   loadSample2:()=>loadDocument(sampleDoc2(),'Sample loaded. Ctrl+Z brings back your previous diagram.'),
-  openJson:()=>{ const f=$('#fileInput'); f.value=''; f.click(); },
+  openJson:()=>{ openFilePick(); },
+  save:()=>{ saveFile(); }, saveAs:()=>{ saveFileAs(); }, toggleMinimap:()=>togglePref('minimap'), comments:()=>{ if(CMT.open) closeComments(); else openComments(); },
+  addComment:()=>{ openComments(); setTimeout(()=>{ const t=cmtEl&&cmtEl.querySelector('textarea[data-cmt="new"]'); if(t) t.focus(); },0); },
   saveJson:()=>download(fileBase()+'.json',JSON.stringify(docForSave(),null,2),'application/json','Saved '+fileBase()+'.json'),
   exportPdf:()=>exportPdf(false), exportPdfAll:()=>exportPdf(true),
   insertImage:()=>pickImage(null), replaceImage:()=>{ const s=selItems().find(i=>i.type==='image'); if(s&&!s.locked) pickImage(s.id); }, imageAspect,
@@ -5115,7 +5440,8 @@ function wireChrome(){
   const t=$('#docTitle');
   t.addEventListener('change',()=>{ S.doc.title=t.value.trim().slice(0,200)||'Untitled diagram'; commit(); invalidate({props:true,chrome:true}); });
   t.addEventListener('keydown',e=>{ e.stopPropagation(); if(e.key==='Enter'||e.key==='Escape') t.blur(); });
-  $('#fileInput').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) openJsonFile(f); });
+  $('#fileInput').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) openAnyFile(f,null); });
+  window.addEventListener('beforeunload',e=>{ if(FILE.name&&fileDirty()){ e.preventDefault(); e.returnValue=''; } });
   stage.addEventListener('click',e=>{ const q=e.target.closest('[data-quick]'); if(q) quickPick(q.getAttribute('data-quick')); });
   svg.addEventListener('pointerdown',onPointerDown);
   svg.addEventListener('pointermove',onPointerMove);
@@ -5145,10 +5471,11 @@ function wireKeys(){
     if(mod&&!e.shiftKey&&!e.altKey&&(k==='f'||k==='h')){ e.preventDefault(); openFind(); return; }
     if(mod&&e.altKey&&(e.code==='KeyC'||e.code==='KeyV')){ e.preventDefault(); runCmd(e.code==='KeyC'?'copyStyle':'pasteStyle'); return; }
     if(mod&&e.shiftKey&&(e.code==='KeyL')){ e.preventDefault(); runCmd('toggleLock'); return; }
+    if(mod&&e.altKey&&e.code==='KeyM'){ e.preventDefault(); runCmd('comments'); return; }
     if(mod&&!e.shiftKey&&k==='k'){ e.preventDefault(); runCmd('openLink'); return; }
     if(e.key===' '){ e.preventDefault(); if(!S.spaceDown){ S.spaceDown=true; stage.classList.add('panning'); } return; }
     if(mod){
-      const map={z:e.shiftKey?'redo':'undo',y:'redo',c:'copy',x:'cut',v:'paste',d:'duplicate',a:'selectAll',g:e.shiftKey?'ungroup':'group',s:'saveJson',o:'openJson','=':'zoomIn','+':'zoomIn','-':'zoomOut','0':'zoom100',']':e.shiftKey?'front':'forward','[':e.shiftKey?'back':'backward','}':'front','{':'back'};
+      const map={z:e.shiftKey?'redo':'undo',y:'redo',c:'copy',x:'cut',v:'paste',d:'duplicate',a:'selectAll',g:e.shiftKey?'ungroup':'group',s:e.shiftKey?'saveAs':'save',o:'openJson','=':'zoomIn','+':'zoomIn','-':'zoomOut','0':'zoom100',']':e.shiftKey?'front':'forward','[':e.shiftKey?'back':'backward','}':'front','{':'back'};
       const c=map[k]; if(c){ e.preventDefault(); runCmd(c); }
       return;
     }
@@ -5176,7 +5503,7 @@ function boot(){
   S.doc=stored||newDoc();
   V=viewFor(S.doc.activePage);
   commit(); invalidate(); flush();
-  if(!saveLocal()) setStatus('Browser storage is blocked here. Use File > Save as JSON to keep your work.',true);
+  if(!saveLocal()) setStatus('Browser storage is blocked here. Use File > Save to keep your work.',true);
   if(stored&&items().length) raf(()=>fitView());
   loadAssets();
 }
@@ -5193,6 +5520,7 @@ window.__app={
     geom, sampleDoc, saveLocal, loadLocal, expandGroups, alignSel, distributeSel, reorder, newDoc,
     insertImageData, importAssets, exportAssets, docForSave, buildPdf, pageSvgs, assets:ASSETS, geoBBox,
     findTarget, lineDefaults, raPorts, raPort, RA_DEV, RA_SRC, filterLibrary, duplicate,
+    saveFile, saveFileAs, openAnyFile, fileStatus, fileDirty, FILE, zipOpen, vsdxToDoc, lucidToDoc, isLucidJson, importZipBytes, miniContent, miniView, addComment, cmtCmd, openComments, closeComments, comments,
     setAngle, totalAngle, rotPt, itemBBox, shapeAt, parseCsv, importCsv, fieldsOf, resolveText, ruleHit, runAction, startPresent, stopPresent, presentGo, exportSVGNode,
     findMatches, findStep, replaceAll, openFind, closeFind, saveVersion, listVersions, restoreVersion, deleteVersion, showVersions, matchSize, extraCmd, portPoint2:portPoint, UML_TYPES,
     layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO,
