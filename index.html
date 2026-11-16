@@ -548,7 +548,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.16.0';
+const APP_VERSION='1.17.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -724,7 +724,7 @@ const CLOUD=[['M',25,58],['C',8,58,2,44,10,36],['C',2,26,12,12,26,16],['C',30,4,
 const GEOM_TYPES=['image','rect','text','terminator','ellipse','diamond','triangle','hexagon','parallelogram','document','cylinder','predefined','manualInput','delay','trapezoid','offpage','note','star','pentagon','octagon','cross','arrow','cloud','callout'];
 
 function geom(type,w,h,st){
-  const dvg=devDef(type); if(dvg) return dvg.io?ioGeom(dvg,w,h):raGeom(dvg,w,h);
+  const dvg=devDef(type); if(dvg) return dvg.io?ioGeom(dvg,w,h):dvg.robot?robotGeom(dvg,w,h):raGeom(dvg,w,h);
   let d,decor=null,tb={x:0,y:0,w,h};
   switch(type){
     case 'rect': case 'text': { const r=Math.max(0,Math.min(num(st&&st.radius,0),w/2,h/2)); d=roundRect(w,h,r2(r)); break; }
@@ -1572,23 +1572,261 @@ const RA_FAMS=[
   {g:'g',fam:'ArmorBlock Guard I/O',cats:['1732ES-IB16','1732ES-IB8XOB8','1732ES-IB8XOBV4','1732ES-IB12XOB4','1732ES-IB12XOBV2'],ports:PS.dual,src:'s1732es'},
   {g:'g',fam:'CompactBlock Guard I/O',cats:['1791ES-IB16','1791ES-IB8XOBV4'],ports:[P('ENET','eth','EtherNet/IP port, RJ45')],src:'s1791es'}
 ];
-const RA_GROUPS={c:'Rockwell controllers',s:'Rockwell Stratix switches',a:'Rockwell comm modules and adapters',d:'Rockwell drives and motion',h:'Rockwell HMIs',g:'Gateways and safety I/O'};
+const RA_GROUPS={c:'Rockwell controllers',s:'Rockwell Stratix switches',a:'Rockwell comm modules and adapters',d:'Rockwell drives and motion',h:'Rockwell HMIs',g:'Gateways and safety I/O',yc:'Yaskawa robot controllers',yd:'Yaskawa drives and motion',fc:'FANUC robot controllers'};
 const RA_DEV={};
 const RA_PITCH=22, RA_ROW=10;
-(function buildRa(){
+function buildRa(){
   const groups={};
   for(const f of RA_FAMS) f.cats.forEach((cat,ci)=>{
     const key='ra_'+cat.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
     const n=f.ports.length, two=n>RA_ROW, m=two?Math.ceil(n/2):n;
-    const w=Math.max(two?130:110,m*RA_PITCH+16,Math.round(f.fam.length*5.2+16)), h=two?96:78;
+    const idw=Math.max(...f.ports.map(p=>p.id.length)), pitch=idw>=5?Math.max(RA_PITCH,Math.ceil(idw*4.4+6)):RA_PITCH;
+    const w=Math.max(two?130:110,m*pitch+16,Math.round(f.fam.length*5.2+16)), h=two?96:78;
     const src=RA_SRC[f.src];
     RA_DEV[key]={key,cat,fam:f.fam,ports:f.ports.map(p=>Object.assign({},p)),two,src,note:f.note||src.note||'',v:!!src.v};
     const text=f.texts?f.texts[ci]:(f.text||cat);
         const cap=/^(1756|1769|5069|2080|1763|1766|1747|1783|1734|2711P|2715P|2713P|1732ES|1791ES)-/.test(cat)?cat.replace(/^[0-9A-Z]+-/,''):text;
     (groups[f.g]=groups[f.g]||[]).push({key,name:(cat===text?cat+' '+f.fam:cat),type:key,w,h,text,cap,dev:true,style:{fill:'#ffffff',stroke:'#1f2430',fontSize:11,valign:'middle'}});
   });
-  for(const g of ['c','s','a','d','h','g']) if(groups[g]) LIB.push({cat:RA_GROUPS[g],closed:true,items:groups[g]});
-})();
+  for(const g of ['c','s','a','d','h','g','yc','fc','yd']) if(groups[g]) LIB.push({cat:RA_GROUPS[g],closed:true,items:groups[g]});
+}
+/* ============================== robots, robot controllers, Yaskawa drives ==============================
+   Same pattern as the Rockwell devices: every entry carries a source record {doc, sec, q, v}.
+   v:true means the value was read from a manufacturer publication or page (or a distributor copy of one);
+   v:false means a secondary source, a summary written by a third party, or a best reading, and the app
+   shows it as Unverified. A null spec value means it was not found in the sources checked; it is shown
+   as "Not found" and never filled in from the model name. */
+Object.assign(PORT_KINDS,{tp:'Teach pendant connection',rob:'Robot (manipulator) cable',bus:'Fieldbus or network option',sio:'I/O signal connector',safe:'Safety connection',enc:'Encoder feedback',pwr:'Power input',mot:'Motor output'});
+Object.assign(RA_LINE,{tp:{stroke:'#4b5563',sw:1.5,dash:'dashed'},rob:{stroke:'#7a4b12',sw:3},bus:{stroke:'#6d28d9',sw:2},sio:{stroke:'#4b5563',sw:1.5},
+  safe:{stroke:'#c0392b',sw:2},enc:{stroke:'#0f766e',sw:1.5,dash:'dotted'},pwr:{stroke:'#1f2430',sw:2.5},mot:{stroke:'#1f2430',sw:2.5}});
+const ROBO_SRC={
+  // ---- robot controllers ----
+  cyrc:{doc:'Yaskawa Motoman knowledge base, "EtherNet/IP and YRC1000 - LAN2 ONLY"',sec:'Article body',q:'only the port labeled LAN2 can be used for EtherNet/IP communication',v:true,
+    note:'Same article: LAN1 is used for the programming pendant, LAN3 is for MotoCom, FTP and job backup (not industrial protocols), and LAN2 and LAN3 must be on different subnets. USB (CN102) and RS-232C/RS-422 (CN103) come from a copy of the YRC1000 maintenance manual signal-flow figure (Scribd upload, secondary).'},
+  cyrcm:{doc:'Yaskawa Motoman knowledge base, "How to Connect Ethernet to a YRC Controller"',sec:'Connection step',q:'plugged into the LAN2 (YRC1000) or LAN (YRC1000 Micro) port',v:true,
+    note:'The pendant connector name was not checked. motoman.com says the YRC1000micro pairs with the Smart Pendant.'},
+  cdx2:{doc:'Industrial Monitor Direct knowledge base (secondary)',sec:'Controller compatibility table, Ethernet Server',q:'DX200 ... LAN1 or LAN2 TCP/IP socket',v:false,
+    note:'Yaskawa says most of its controllers label ports LAN1, LAN2 and LAN3 with LAN1 reserved for the pendant; whether that applies to the DX200 was not confirmed. An EtherNet/IP option for the standard LAN port exists (Yaskawa manual HW1481985, DX200 Options).'},
+  cfs1:{doc:'Industrial Monitor Direct knowledge base (secondary)',sec:'Controller compatibility table, Ethernet Server',q:'FS100 ... LAN1 TCP/IP socket',v:false,note:'Other ports were not found.'},
+  cdx1:{doc:'Yaskawa Motoman knowledge base, "Remote Operations with Yaskawa Motoman Robots"',sec:'References, LAN Interface Settings',q:'DX100 | Ethernet Function',v:false,
+    note:'The DX100 has an Ethernet function manual, but the port count and names were not found. EtherNet/IP is an option (Yaskawa Omron NX/NJ setup guide covers DX100).'},
+  cyleg:{doc:'Yaskawa YRC1000 Options manual HW1483560, Definition of Terms (general statement)',sec:'Definition of Terms Used Often in This Manual',q:'consists of the manipulator, the controller, the programming pendant, and supply cables',v:false,
+    note:'Listed as a legacy controller on motoman.com. Communication ports were not found, so only the pendant and manipulator connections, which every MOTOMAN system has, are drawn.'},
+  cynx:{doc:'motoman.com NEX10 product page',sec:'Overview',q:'Driven by the YNX1000 controller and an integrated Autonomous Control Unit',v:false,
+    note:'Ports were not found. Only the manipulator connection is drawn.'},
+  cfr30bp:{doc:'Industrial Monitor Direct knowledge base (secondary), citing FANUC manual MAROU91EN02171E',sec:'R-30iB+ Dual Ethernet Architecture Overview',q:'two independent 10/100BASE-TX Ethernet ports on the main CPU board',v:false,
+    note:'Conflict: FANUC America product information says the R-30iB Plus main board has a "Gigabit Ethernet Port", so port speed is left open. Fieldbus is an option: FANUC sells EtherNet/IP and EtherNet/IP Safety options, and PI lists the R-30iB Plus as a certified PROFINET device.'},
+  cfr30b:{doc:'Industrial Monitor Direct knowledge base (secondary)',sec:'R-30iB+ Dual Ethernet Architecture Overview',q:'(and R-30iB) ships with two independent 10/100BASE-TX Ethernet ports',v:false},
+  cfr50:{doc:'FANUC catalog R-50iA(E)-02',sec:'Features, Hardware/Control Performance; communication functions',q:'Flexible network configuration using 4 Ethernet ports and PROFINET without an option board',v:true,
+    note:'Port names E1 to E4 are placeholders, not FANUC connector names. Field networks listed: Ethernet, FL-net, DeviceNet, PROFIBUS, PROFINET, CC-Link, CC-Link IE, EtherNet/IP, EtherCAT.'},
+  cfr30a:{doc:'Ballard International, FANUC Controller Overview (secondary)',sec:'R-30iA highlights',q:'built-in Ethernet (100 BaseTX), Fanuc I/O-link (Master)',v:false},
+  cfrmini:{doc:'FANUC America, R-30iB Plus controller series page',sec:'Controllers in R-30iB Plus Series',q:'Lightweight R-30iB Mini Plus controller for CRX cobots',v:false,note:'Communication ports were not found; only the pendant and robot connections are drawn.'},
+  cfrcomp:{doc:'FANUC America, R-30iB Plus controller series page',sec:'Controllers in R-30iB Plus Series',q:'Compact R-30iB Compact Plus controller for SCARA robots',v:false,note:'Communication ports were not found; only the pendant and robot connections are drawn.'},
+  cfrleg:{doc:'Ballard International, FANUC Controller Overview (secondary)',sec:'R-J3 and R-J3iB entries',q:'digital and analog I/O modules through "Plug-In Options"',v:false,note:'Communication ports were not found; only the pendant and robot connections are drawn.'},
+  // ---- Yaskawa drives and servo ----
+  dga800:{doc:'Yaskawa America GA800 Drive page, Network Communications; GA800 programming manual (ManualsLib copy), F6/F7 parameters',sec:'GA800 - Options table',q:'Network Protocol ... EtherNet/IP ... Modbus TCP/IP ... Modbus RTU',v:true,
+    note:'Option cards include SI-EN3 (EtherNet/IP), SI-EP3 (PROFINET), SI-ES3 (EtherCAT) and SI-EM3 (Modbus TCP/IP). The main input and motor output pins are generic, not terminal names from the manual.'},
+  dga500:{doc:'Yaskawa GA500 Drive page, Network Communications; GA500 information sheet (RSP Supply copy)',sec:'Options; System Integration',q:'Embedded functional safety (STO: SIL3, PLe) • Embedded Modbus RTU',v:true,
+    note:'Any option card needs the JOHB-GA50 Option Card Carrier. One option card can serve up to 5 drives through the RS-485 terminals. The main input and motor output pins are generic.'},
+  dga700:{doc:'Yaskawa Europe, Accessories for AC drives',sec:'Communication options',q:'EtherNet/IP A1000, D1000, R1000, U1000 CR700, GA700',v:true,note:'Only the option slot is confirmed; a built-in serial port was not checked. The power and motor pins are generic.'},
+  da1000:{doc:'Yaskawa Europe, Accessories for AC drives',sec:'Communication options',q:'ProfiNet A1000, U1000',v:true,note:'Only the option slot is confirmed. The power and motor pins are generic.'},
+  dv1000:{doc:'Yaskawa Europe, Accessories for AC drives',sec:'CANopen - SI-S3, SI-S3/V',q:'SI-S3/V V1000',v:true,note:'V1000 takes the /V versions of the option cards. Only the option slot is confirmed. The power and motor pins are generic.'},
+  ds7ec:{doc:'Yaskawa America SGD7S EtherCAT pages (Features, FAQs) and SGD7S product manual (ManualsLib copy)',sec:'FAQ titles; 4.5.2 I/O Signal Connector (CN1) Pin Arrangement',q:'What should be done with the CN8 connection when using the Safety Option Module',v:false,
+    note:'CN1 (I/O) and CN8 (safety) names come from Yaskawa pages. The network IN and OUT, encoder and motor pins are generic labels; check the product manual for connector names.'},
+  ds7m3:{doc:'Yaskawa Sigma-7 200 V catalog (distributor copy)',sec:'Amplifiers list',q:'Sigma-7S MECHATROLINK-III with RJ45',v:false,note:'Network IN and OUT, encoder and motor pins are generic labels.'},
+  ds7an:{doc:'Yaskawa Sigma-7 200 V catalog (distributor copy)',sec:'SERVOPACKs',q:'Single-axis Analog Voltage/ Pulse Train Reference SGD7S-oooA00A',v:false,note:'Encoder and motor pins are generic labels.'},
+  // ---- robot arms ----
+  ymot:{doc:'Yaskawa Motoman robot catalog, motoman.com/en-us/products/robots',sec:'Series tables: Payload, Vert. Reach, Hor. Reach',q:'PL190 190.00 3024 3159',v:true,note:'This catalog gives payload and horizontal reach. It does not list the number of axes.'},
+  ydi:{doc:'DirectIndustry, Motoman (Yaskawa America) product listing',sec:'Product tags',q:'GP50 6-axis handling for assembly articulated robot',v:false,note:'Axis count from a third-party marketplace listing, not a Yaskawa document.'},
+  ypl:{doc:'Yaskawa America PL-series datasheet (distributor copy, baa.vn)',sec:'PL190 specifications',q:'Controlled axes 4 Maximum payload kg 190',v:true,note:'The datasheet says the PL190 uses a compact YRC controller.'},
+  yplq:{doc:'QVIRO product pages quoting Yaskawa descriptions',sec:'PL320 and PL800 descriptions',q:'the fast and powerful 4-axis MOTOMAN PL320 robot',v:false},
+  yph:{doc:'Yaskawa America datasheet DS-922 (distributor copy) and motoman.com PH130RF page',sec:'Specifications',q:'Item Unit PH130RF Controlled axes 6 Maximum payload kg 130',v:true},
+  ynex:{doc:'motoman.com NEX10 product page',sec:'Overview',q:'10.0 kg Payload YNX1000 Controller 1101 mm Horizontal Reach',v:true,note:'The number of axes is not shown on the page.'},
+  ysg:{doc:'Yaskawa Europe listings on DirectIndustry',sec:'SCARA product entries',q:'the SG650 4- axis SCARA robot',v:false},
+  ymh50:{doc:'Motoman MH50 / MH50-35 datasheet (DX100 era), DirectIndustry copy',sec:'Features',q:'MH50: 50 kg (110.3 lb) payload; 2,061 mm (81.1") horizontal reach',v:true,note:'The number of axes is not stated in the part read.'},
+  ymh50ii:{doc:'MMS Online product note on the Yaskawa MH50 II series; DirectIndustry MH50 II-20 datasheet summary',sec:'Product description',q:'The robots have brakes on all six axes',v:true},
+  ymh24:{doc:'DirectIndustry summary of the Motoman MH24 datasheet',sec:'Key features',q:'The MH24 has a 24 kg payload capacity, with a horizontal reach of 1,730 mm',v:false,note:'Summary written by DirectIndustry. It calls the MH24 a six-axis robot.'},
+  ymh5:{doc:'Motoman MH5 / MH5L datasheet, DirectIndustry copy',sec:'Features',q:'MH5 model: 706 mm (27.8") reach',v:true,note:'Payload 5 kg from the same sheet. The number of axes is not stated in the part read.'},
+  ymh6:{doc:'DirectIndustry, Motoman MH6-Series datasheet (catalog summary)',sec:'Summary',q:'Paraphrase, not verbatim: MH6 6 kg, MH6-10 10 kg, 1,422 mm reach, six-axis',v:false},
+  yhp20:{doc:'DirectIndustry Yaskawa Europe HP20D-6 catalog (summary)',sec:'Summary',q:'Paraphrase, not verbatim: HP20D 20 kg, HP20D-6 6 kg, six-axis',v:false,note:'Reach was not found.'},
+  yma1400:{doc:'DirectIndustry summary of the Yaskawa Europe MA1400 brochure',sec:'Specifications',q:'Controlled Axes: 6 • Max. Payload: 3 kg',v:false},
+  ympl:{doc:'QVIRO and DirectIndustry listings quoting Yaskawa Europe',sec:'MPL-series entries',q:'MPL800 II 4-axis robot has a payload of 800 kg',v:false},
+  ympl100:{doc:'QVIRO listing quoting Yaskawa Europe',sec:'MPL100II entry',q:'MPL100II ... payload of 115 kg, a horizontal reach of 2,150 mm',v:false},
+  ysia:{doc:'DirectIndustry Motoman catalog titles and Yaskawa Europe listing',sec:'Catalog list',q:'Motoman SIA10D 7-Axis Robot',v:false,note:'Payload and reach were not found for the SIA10D, SIA20D and SIA50D.'},
+  ysda:{doc:'DirectIndustry, Motoman product listing',sec:'Product tags',q:'SDA20F 15-axis handling',v:false,note:'The axis count is read from the SDA20F tag. Payload and reach were not found.'},
+  yys:{doc:'DirectIndustry summary of the Motoman YS650L datasheet',sec:'Overview',q:'a reach of 650 mm, a Z-axis stroke of 320 mm',v:false},
+  ymys:{doc:'Motoman MYS850LF datasheet, DirectIndustry copy',sec:'Features; Specifications',q:'Features a radial reach of 850 mm',v:true},
+  ysh:{doc:'Motoman YSH850L datasheet, DirectIndustry copy',sec:'Features',q:'20 kg payload ... The YSH850L 4-axis, SCARA robots',v:true,note:'Reach was not found.'},
+  yeph:{doc:'DirectIndustry summary of the Yaskawa press handling catalog',sec:'Specifications',q:'MOTOMAN-EPH130: A floor-mounted, vertically articulated robot with a 130 kg payload',v:false,note:'Reach was not found.'},
+  fov:{doc:'FANUC America Robot Product Overview brochure (R-30 multi-page edition)',sec:'Series tables: Max. Payload (kg), Reach (mm), Mass (kg), Axes',q:'M-20iD/25 25 1831 250 6',v:true},
+  fov22:{doc:'FANUC America Robot Product Line brochure, 2022 (distributor copy)',sec:'LR Mate and M-710 tables',q:'LR Mate 200iD/4SH 4 550 19 5',v:true},
+  fcob:{doc:'FANUC America 2023 Collaborative Robot brochure',sec:'Specifications tables',q:'Controlled axes 6 6 6 6 6 6',v:true},
+  fcrx30:{doc:'FANUC America 2025 CRX brochure',sec:'Model list',q:'CRX-30iA Payload: 30/25 kg Reach: 1,756/1,889* mm',v:true,note:'Six axes from the CRX-30iA (For Arc) row of the Robot Product Overview.'},
+  fcr35a:{doc:'FANUC America Collaborative Robot Series Brochure 2021',sec:'Model list',q:'CR-35iA Payload: 35 kg Reach: 1,813 mm',v:true,note:'The number of axes is not in the part read.'},
+  fr2kib:{doc:'FANUC R-2000iB catalog (E) v08',sec:'Specifications',q:'Controlled axes 6 axes (J1, J2, J3, J4, J5, J6)',v:true,
+    note:'The part read gives axes and reach. Payload was not in it; the number in the model name is the usual FANUC payload marking but is not filled in here.'},
+  fr2kia:{doc:'R-2000iA/165F specification sheet (Scribd upload)',sec:'Specification',q:'Payload at wrist 165 kg ... Reach 2650mm',v:false},
+  fspr:{doc:'SprutCAM component library (third party)',sec:'Fanuc entries',q:'M-10iA Axes 6 Payload 10 kg Reach 1420 mm',v:false},
+  fq:{doc:'QVIRO product listing (third party)',sec:'M-710 series',q:'FANUC M-710iC/70T Payload 70kg | Reach 1900mm',v:false}
+};
+Object.assign(RA_SRC,ROBO_SRC);
+const RB_P={
+  ROB:P('ROB','rob','Manipulator (robot) cable to the arm'),
+  PP:P('PP','tp','Programming pendant'),
+  TP:P('TP','tp','iPendant teach pendant'),
+  RCB:P('ROB','rob','Robot connection cable to the arm')
+};
+const yLeg=[RB_P.PP,RB_P.ROB], fLeg=[RB_P.TP,RB_P.RCB];
+const fr30=[P('CD38A','eth','Ethernet port 1 (CD38A), main board'),P('CD38B','eth','Ethernet port 2 (CD38B), main board'),RB_P.TP,P('BUS','bus','Fieldbus option: EtherNet/IP, PROFINET, DeviceNet and others'),RB_P.RCB];
+const ydrv=(extra)=>[P('OPT','bus','Communication option card slot')].concat(extra||[],[P('L','pwr','Main AC input (generic pin)'),P('M','mot','Motor output (generic pin)')]);
+const s7=(a,b,d)=>[P(a,'eth',d+' IN (generic label)'),P(b,'eth',d+' OUT (generic label)'),P('CN1','sio','I/O signal connector CN1'),P('CN8','safe','Safety connector CN8'),P('ENC','enc','Encoder (generic label)'),P('MOT','mot','Motor U V W (generic label)')];
+RA_FAMS.push(
+  {g:'yc',fam:'Yaskawa robot controller',cats:['YRC1000'],ports:[P('LAN1','tp','LAN1 (CN105), programming pendant'),P('LAN2','eth','LAN2 (CN106), EtherNet/IP when the option is enabled'),P('LAN3','eth','LAN3 (CN107), TCP/IP: MotoCom, FTP, job backup'),P('USB','usb','USB (CN102), CPU board'),P('SER','ser','RS-232C / RS-422 (CN103)'),RB_P.ROB],src:'cyrc'},
+  {g:'yc',fam:'Yaskawa robot controller',cats:['YRC1000micro'],ports:[P('LAN','eth','LAN port, one IP address'),RB_P.PP,RB_P.ROB],src:'cyrcm'},
+  {g:'yc',fam:'Yaskawa robot controller',cats:['DX200'],ports:[P('LAN1','eth','LAN1'),P('LAN2','eth','LAN2'),RB_P.PP,RB_P.ROB],src:'cdx2'},
+  {g:'yc',fam:'Yaskawa robot controller',cats:['FS100'],ports:[P('LAN1','eth','LAN1'),RB_P.PP,RB_P.ROB],src:'cfs1'},
+  {g:'yc',fam:'Yaskawa robot controller',cats:['DX100','NX100','XRC','MLX100'],ports:yLeg,src:'cyleg'},
+  {g:'yc',fam:'Yaskawa robot controller',cats:['YNX1000'],ports:[RB_P.ROB],src:'cynx'},
+  {g:'fc',fam:'FANUC robot controller',cats:['R-50iA A-cabinet','R-50iA B-cabinet','R-50iA Mate'],ports:[P('E1','eth','Ethernet port 1 (placeholder name)'),P('E2','eth','Ethernet port 2 (placeholder name)'),P('E3','eth','Ethernet port 3 (placeholder name)'),P('E4','eth','Ethernet port 4 (placeholder name)'),RB_P.TP,P('BUS','bus','Field network option: DeviceNet, PROFIBUS, CC-Link and others'),RB_P.RCB],src:'cfr50'},
+  {g:'fc',fam:'FANUC robot controller',cats:['R-30iB Plus A-cabinet','R-30iB Plus B-cabinet','R-30iB Plus Mate','R-30iB Plus Mate Open-Air'],ports:fr30,src:'cfr30bp'},
+  {g:'fc',fam:'FANUC robot controller',cats:['R-30iB Mini Plus'],ports:fLeg,src:'cfrmini'},
+  {g:'fc',fam:'FANUC robot controller',cats:['R-30iB Compact Plus'],ports:fLeg,src:'cfrcomp'},
+  {g:'fc',fam:'FANUC robot controller',cats:['R-30iB A-cabinet','R-30iB B-cabinet','R-30iB Mate'],ports:fr30,src:'cfr30b'},
+  {g:'fc',fam:'FANUC robot controller',cats:['R-30iA A-cabinet','R-30iA B-cabinet','R-30iA Mate'],ports:[P('ENET','eth','Built-in Ethernet, 100BASE-TX'),P('IOL','bus','FANUC I/O Link (master)'),RB_P.TP,RB_P.RCB],src:'cfr30a'},
+  {g:'fc',fam:'FANUC robot controller',cats:['R-J3iB','R-J3'],ports:fLeg,src:'cfrleg'},
+  {g:'yd',fam:'Yaskawa AC drive',cats:['GA800'],ports:ydrv([P('485','ser','RS-485, Modbus RTU')]),src:'dga800'},
+  {g:'yd',fam:'Yaskawa AC drive',cats:['GA500'],ports:ydrv([P('485','ser','RS-485, embedded Modbus RTU'),P('STO','safe','Safe Torque Off, SIL3 / PLe'),P('24V','pwr','External +24 VDC input')]),src:'dga500'},
+  {g:'yd',fam:'Yaskawa AC drive',cats:['GA700'],ports:ydrv(),src:'dga700'},
+  {g:'yd',fam:'Yaskawa AC drive',cats:['A1000'],ports:ydrv(),src:'da1000'},
+  {g:'yd',fam:'Yaskawa AC drive',cats:['V1000'],ports:ydrv(),src:'dv1000'},
+  {g:'yd',fam:'Yaskawa Sigma-7 servo',cats:['SGD7S EtherCAT'],ports:s7('IN','OUT','EtherCAT'),src:'ds7ec'},
+  {g:'yd',fam:'Yaskawa Sigma-7 servo',cats:['SGD7S MECHATROLINK-III'],ports:s7('IN','OUT','MECHATROLINK-III'),src:'ds7m3'},
+  {g:'yd',fam:'Yaskawa Sigma-7 servo',cats:['SGD7S analog/pulse'],ports:[P('CN1','sio','I/O and analog/pulse reference connector CN1'),P('CN8','safe','Safety connector CN8'),P('ENC','enc','Encoder (generic label)'),P('MOT','mot','Motor U V W (generic label)')],src:'ds7an'}
+);
+/* Robot arms. Each row: [model, payload kg, horizontal reach mm, axes, options]. Numbers may be strings
+   when the source gives two modes. options: {as: axes source key, s: spec source key, c: controller, n: note}. */
+const ROBO_FAMS=[
+  // ---------------- Yaskawa Motoman, current ----------------
+  {mk:'Yaskawa',ser:'Motoman GP',kin:'art',src:'ymot',rows:[['GP4',4,550],['GP7',7,927],['GP8',8,727],['GP8L',8,1636],['GP10',10,1101],['GP12',12,1440],['GP20HL',20,3124],['GP25',25,1730],['GP25-12',12,2010],['GP35L',35,2538],
+    ['GP50',50,2061,6,{as:'ydi'}],['GP70L',70,2732,6,{as:'ydi'}],['GP88',88,2236,6,{as:'ydi'}],['GP110',110,2236,6,{as:'ydi'}],['GP110B',110,2236,7,{as:'ydi'}],['GP165R',165,3140],['GP180',180,2702],['GP180-120',120,3058],['GP200R',200,3140],['GP200S',200,1886],
+    ['GP215',215,2912],['GP225',225,2702],['GP250',250,2710],['GP280',280,2446],['GP280L',280,3114],['GP400',400,2942,6,{as:'ydi'}],['GP400R',400,3518],['GP600',600,2942,6,{as:'ydi'}]]},
+  {mk:'Yaskawa',ser:'Motoman HC (collaborative)',kin:'cob',src:'ymot',rows:[['HC10DTP',10,1200,6,{as:'ydi'}],['HC20DTP',20,1700],['HC30PL',30,1700,6,{as:'ydi'}],['HC10 for Welding',10,1200],['HC20 for Welding',20,1700]]},
+  {mk:'Yaskawa',ser:'Motoman NEX',kin:'art',src:'ymot',rows:[['NEX7',7,927],['NEX10',10,1101,null,{s:'ynex',c:'YNX1000'}],['NEX20',20,1552],['NEX35',35,2063]]},
+  {mk:'Yaskawa',ser:'Motoman PL (palletizing)',kin:'pal',src:'ymot',rows:[['PL80',80,2061,6,{as:'ydi'}],['PL190',190,3159,4,{s:'ypl',c:'Compact YRC controller'}],['PL320',320,3159,4,{as:'yplq'}],['PL500',500,3159],['PL800',800,3159,4,{as:'yplq'}]]},
+  {mk:'Yaskawa',ser:'Motoman MPP (delta)',kin:'delta',src:'ymot',rows:[['MPP3H',3,1300,4,{as:'ydi'}],['MPP3S',3,800,4,{as:'ydi'}]]},
+  {mk:'Yaskawa',ser:'Motoman SG (SCARA)',kin:'scara',src:'ymot',rows:[['SG400',3,400,4,{as:'ydi'}],['SG650',6,650,4,{as:'ysg'}]]},
+  {mk:'Yaskawa',ser:'Motoman MotoMini',kin:'art',src:'ymot',rows:[['MotoMini',0.5,350,6,{as:'ydi'}]]},
+  {mk:'Yaskawa',ser:'Motoman MH',kin:'art',src:'ymot',rows:[['MH900',900,4683,6,{as:'ydi'}]]},
+  {mk:'Yaskawa',ser:'Motoman PH (press handling)',kin:'art',src:'yph',rows:[['PH130RF',130,3474,6,{c:'YRC1000'}],['PH200RF',200,3505,6,{c:'YRC1000'}]]},
+  {mk:'Yaskawa',ser:'Motoman AR (arc welding)',kin:'art',src:'ymot',rows:[['AR700',8,727],['AR900',7,927],['AR1440',12,1440],['AR1440E',6,1440],['AR1730',25,1730],['AR2010',12,2010],['AR3120',20,3124]]},
+  {mk:'Yaskawa',ser:'Motoman GA',kin:'art',src:'ymot',rows:[['GA50',50,2038]]},
+  {mk:'Yaskawa',ser:'Motoman SP (spot welding)',kin:'art',src:'ymot',rows:[['SP80',80,2236],['SP100',100,2236],['SP100B',100,2236],['SP110H',110,2044],['SP150R',150,3140],['SP165',165,2702],['SP165-105',105,3058],['SP180H',180,2702],['SP180H-110',110,2702],['SP185R',185,3140],['SP210',210,2702],['SP225H',225,2702],['SP235',235,2710]]},
+  {mk:'Yaskawa',ser:'Motoman MHP',kin:'art',src:'ymot',rows:[['MHP45L',45,2850]]},
+  {mk:'Yaskawa',ser:'Motoman MPX (painting)',kin:'art',src:'ymot',rows:[['MPX1150',5,727],['MPX1400',5,1256],['MPX1950',7,1450],['MPX2600',15,2000],['MPXL2600',10,2100],['MPX3500',15,2700]]},
+  // ---------------- Yaskawa Motoman, legacy ----------------
+  {mk:'Yaskawa',ser:'Motoman MH (legacy)',kin:'art',leg:true,src:'ymh50',rows:[['MH5',5,706,null,{s:'ymh5'}],['MH6',6,1422,6,{s:'ymh6'}],['MH6-10',10,null,6,{s:'ymh6'}],['MH24',24,1730,6,{s:'ymh24'}],['MH50',50,2061],['MH50-35',35,2538],
+    ['MH50 II',50,2061,6,{s:'ymh50ii'}],['MH50 II-35',35,2538,6,{s:'ymh50ii'}],['MH50 II-20',20,3106,6,{s:'ymh50ii'}]]},
+  {mk:'Yaskawa',ser:'Motoman HP (legacy)',kin:'art',leg:true,src:'yhp20',rows:[['HP20D',20,null,6],['HP20D-6',6,null,6]]},
+  {mk:'Yaskawa',ser:'Motoman MA (legacy)',kin:'art',leg:true,src:'yma1400',rows:[['MA1400',3,1434,6]]},
+  {mk:'Yaskawa',ser:'Motoman MPL (legacy palletizing)',kin:'pal',leg:true,src:'ympl',rows:[['MPL160II',160,3159,4],['MPL300II',300,3159,4],['MPL500II',500,3024,4],['MPL800II',800,3159,4],['MPL100II',115,2150,5,{s:'ympl100'}]]},
+  {mk:'Yaskawa',ser:'Motoman SIA (legacy 7-axis)',kin:'art',leg:true,src:'ysia',rows:[['SIA5F',5,559,7],['SIA10D',null,null,7],['SIA20D',null,null,7],['SIA50D',null,null,7]]},
+  {mk:'Yaskawa',ser:'Motoman SDA (legacy dual-arm)',kin:'dual',leg:true,src:'ysda',rows:[['SDA20D',null,null,15]]},
+  {mk:'Yaskawa',ser:'Motoman YS / MYS (legacy SCARA)',kin:'scara',leg:true,src:'yys',rows:[['YS650L',5,650,4],['MYS850LF',5,850,4,{s:'ymys'}],['YSH850L',20,null,4,{s:'ysh'}]]},
+  {mk:'Yaskawa',ser:'Motoman EPH (legacy press handling)',kin:'art',leg:true,src:'yeph',rows:[['EPH130',130,null,6],['EPH4000',200,null,null]]},
+  // ---------------- FANUC, current ----------------
+  {mk:'FANUC',ser:'FANUC delta',kin:'delta',src:'fov',rows:[['M-1iA/0.5A','0.5 (1 opt.)',280,6],['M-1iA/0.5AL','0.5 (1 opt.)',420,6],['M-1iA/0.5S','0.5 (1 opt.)',280,4],['M-1iA/0.5SL','0.5 (1 opt.)',420,4],['M-2iA/3S',3,800,4],['M-2iA/3SL',3,1130,4],
+    ['M-3iA/6S','6 (8 high-inertia)',1350,4],['M-3iA/12H',12,1350,3],['DR-3iB/8L',8,1600,4],['DR-3iB/6 Stainless',6,1200,4]]},
+  {mk:'FANUC',ser:'FANUC SR (SCARA)',kin:'scara',src:'fov',rows:[['SR-3iA',3,400,4],['SR-3iA/H',3,400,3],['SR-3iA/C',3,400,4],['SR-3iA/U',3,350,4],['SR-6iA',6,650,4],['SR-6iA/H',6,650,3],['SR-6iA/C',6,650,4],['SR-9iA/R',9,620,4],['SR-12iA',12,900,4],['SR-12iA/C',12,900,4],['SR-20iA',20,1100,4]]},
+  {mk:'FANUC',ser:'FANUC LR Mate',kin:'art',src:'fov',rows:[['ER-4iA',4,550,6],['LR Mate 200iD/4S',4,550,6,{c:'R-30iB Mate Plus'}],['LR Mate 200iD/4SH',4,550,5,{s:'fov22',c:'R-30iB Mate Plus'}],['LR Mate 200iD/4SC',4,550,6,{s:'fov22',c:'R-30iB Mate Plus'}],
+    ['LR Mate 200iD',7,717,6,{c:'R-30iB Mate Plus'}],['LR Mate 200iD/7H',7,717,5],['LR Mate 200iD/7C',7,717,6],['LR Mate 200iD/7WP',7,717,6],['LR Mate 200iD/7WE',7,717,6],['LR Mate 200iD/7L',7,911,6,{c:'R-30iB Mate Plus'}],['LR Mate 200iD/7LC',7,911,6],
+    ['LR Mate 200iD/14L',14,'911 (820 over 12 kg)',6,{c:'R-30iB Mate Plus'}],['LR-10iA/10',10,1101,6]]},
+  {mk:'FANUC',ser:'FANUC ARC Mate',kin:'art',src:'fov',rows:[['ARC Mate 50iD/7L',7,911,6],['ARC Mate 100iD',12,1441,6],['ARC Mate 100iD/10L',10,1636,6],['ARC Mate 100iD/8L',8,2032,6],['ARC Mate 120iD',25,1831,6],['ARC Mate 120iD/12L',12,2272,6]]},
+  {mk:'FANUC',ser:'FANUC paint',kin:'art',src:'fov',rows:[['Paint Mate 200iA/5L',5,892,6],['P-40iA',5,1300,6],['P-50iB/10L',10,1800,6],['P-250iB',15,2800,6],['P-350iA',45,2606,6],['P-700iB plastic arm',15,3150,7],['P-700iB metal arm',15,3200,7],
+    ['P-1000iA plastic arm',15,2848,7],['P-1000iA metal arm',15,2896,7],['CRX-10iA/L Paint',10,1418,6]]},
+  {mk:'FANUC',ser:'FANUC M-10',kin:'art',src:'fov',rows:[['M-10iD/8L',8,2032,6],['M-10iD/10L',10,1636,6],['M-10iD/12',12,1441,6],['M-10iD/12 Food',12,1441,6],['M-10iD/12 Dustproof',12,1441,6],['M-10iD/16S',16,1103,6]]},
+  {mk:'FANUC',ser:'FANUC M-20',kin:'art',src:'fov',rows:[['M-20iB/25',25,1853,6],['M-20iB/25C',25,1853,6],['M-20iB/35S',35,1445,6],['M-20iD/12L',12,2272,6],['M-20iD/25',25,1831,6],['M-20iD/25 Food',25,1831,6],['M-20iD/35',35,1831,6]]},
+  {mk:'FANUC',ser:'FANUC M-410 (palletizing)',kin:'pal',src:'fov',rows:[['M-410iB/140H',140,2850,5],['M-410iB/700',700,3143,4],['M-410iC/110',110,2403,4],['M-410iC/185',185,3143,4],['M-410iC/315',315,3143,4],['M-410iC/500',500,3143,4]]},
+  {mk:'FANUC',ser:'FANUC M-710',kin:'art',src:'fov',rows:[['M-710iC/12L',12,3123,6],['M-710iC/20L',20,3110,6],['M-710iC/20M',20,2582,6],['M-710iC/45M',45,2606,6],['M-710iC/50',50,2050,6],['M-710iC/50E',50,2050,6,{s:'fov22'}],['M-710iC/50H',50,2003,5],['M-710iC/50S',50,1359,6],['M-710iC/70',70,2050,6],['M-710iD/50M',50,2606,6],['M-710iD/70',70,2104,6]]},
+  {mk:'FANUC',ser:'FANUC M-800',kin:'art',src:'fov',rows:[['M-800iB/60',60,2040,6]]},
+  {mk:'FANUC',ser:'FANUC R-1000',kin:'art',src:'fov',rows:[['R-1000iA/80F',80,2230,6],['R-1000iA/100F',100,2230,6],['R-1000iA/130F',130,2230,6]]},
+  {mk:'FANUC',ser:'FANUC R-2000',kin:'art',src:'fov',rows:[['R-2000iC/100PH',100,3540,6],['R-2000iC/125L',125,3100,6],['R-2000iC/165F',165,2655,6],['R-2000iC/165R',165,3095,6],['R-2000iC/190S',190,2040,6],['R-2000iC/210F',210,2655,6],['R-2000iC/210L',210,3100,6],
+    ['R-2000iC/210R',210,3095,6],['R-2000iC/210WE',210,2450,6],['R-2000iC/220U',220,2518,6],['R-2000iC/240F',240,2655,6],['R-2000iC/270F','270 (300 opt.)',2655,6],['R-2000iC/270R',270,3095,6],['R-2000iD/100FH',100,2605,6],['R-2000iD/165FH',165,2605,6],['R-2000iD/210FH',210,2605,6]]},
+  {mk:'FANUC',ser:'FANUC M-900',kin:'art',src:'fov',rows:[['M-900iA/200P',200,3507,6],['M-900iB/280',280,2655,6],['M-900iB/280L',280,3103,6],['M-900iB/330L',330,3203,6],['M-900iB/360E',360,2655,6],['M-900iB/400L',400,3704,6],['M-900iB/700E',700,2832,6],['M-950iA/500',500,2830,6]]},
+  {mk:'FANUC',ser:'FANUC M-1000 / M-2000',kin:'art',src:'fov',rows:[['M-1000iA',1000,3253,6],['M-2000iA/900L',900,4683,6],['M-2000iA/1200','1200 (1350 opt.)',3734,6],['M-2000iA/1700L',1700,4683,6],['M-2000iA/2300',2300,3734,6]]},
+  {mk:'FANUC',ser:'FANUC CR (collaborative)',kin:'cob',src:'fcob',rows:[['CR-14iA/L',14,911,6],['CR-15iA',15,1441,6],['CR-35iB','35 (50 alt.)','1831 (1643 alt.)',6]]},
+  {mk:'FANUC',ser:'FANUC CRX (collaborative)',kin:'cob',src:'fcob',rows:[['CRX-5iA',5,994,6],['CRX-10iA',10,1249,6],['CRX-10iA/L',10,1418,6],['CRX-20iA/L',20,1418,6],['CRX-25iA','25 (30 alt.)','1889 (1756 alt.)',6],['CRX-30iA','30 (25 alt.)','1756 (1889 alt.)',6,{s:'fcrx30'}]]},
+  // ---------------- FANUC, legacy ----------------
+  {mk:'FANUC',ser:'FANUC CR (legacy)',kin:'cob',leg:true,src:'fcob',rows:[['CR-4iA',4,550,6],['CR-7iA',7,717,6],['CR-7iA/L',7,911,6],['CR-35iA',35,1813,null,{s:'fcr35a'}]]},
+  {mk:'FANUC',ser:'FANUC R-2000iB (legacy)',kin:'art',leg:true,src:'fr2kib',rows:[['R-2000iB/165F',null,2655,6],['R-2000iB/210F',null,2655,6],['R-2000iB/250F',null,2655,6],['R-2000iB/210WE',null,2655,6],['R-2000iB/100H',null,2655,5],['R-2000iB/125L',null,3005,6],['R-2000iB/175L',null,2852,6],['R-2000iB/185L',null,3060,6],['R-2000iB/150U',null,2655,6],['R-2000iB/220U',null,2470,6]]},
+  {mk:'FANUC',ser:'FANUC R-2000iA (legacy)',kin:'art',leg:true,src:'fr2kia',rows:[['R-2000iA/165F',165,2650,6]]},
+  {mk:'FANUC',ser:'FANUC M-10iA / M-710 (legacy)',kin:'art',leg:true,src:'fspr',rows:[['M-10iA',10,1420,6],['M-10iA/7L',7,1633,6],['M-710iC/70T',70,1900,null,{s:'fq'}]]}
+];
+const ROBO_GROUPS=[['Yaskawa','Yaskawa Motoman robots',false],['Yaskawa','Yaskawa Motoman robots (legacy)',true],['FANUC','FANUC robots',false],['FANUC','FANUC robots (legacy)',true]];
+const RB_W=124, RB_H=150;
+const ROBO_KIN={art:'Articulated arm',cob:'Collaborative arm',pal:'Palletizing arm',scara:'SCARA',delta:'Delta (parallel)',dual:'Dual-arm'};
+function buildRobots(){
+  const groups={};
+  for(const f of ROBO_FAMS) for(const r of f.rows){
+    const [model,pay,reach,axes,o0]=r, o=o0||{}, sk=o.s||f.src, ak=axes==null?null:(o.as||sk);
+    const key='rb_'+(f.mk+' '+model).toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+    const src=RA_SRC[sk], asrc=ak?RA_SRC[ak]:null;
+    const robot={mk:f.mk,ser:f.ser,model,kin:f.kin,pay,reach,axes,src,asrc,ctrl:o.c||'',leg:!!f.leg};
+    const v=!!src.v&&(axes==null||!!asrc.v);
+    RA_DEV[key]={key,cat:f.mk+' '+model,fam:f.ser,ports:[P('ROB','rob','Controller cable (manipulator cable) to the robot controller')],two:false,src,note:[src.note,asrc&&asrc!==src?asrc.note:''].filter(Boolean).join(' '),v,robot};
+    (groups[f.mk+(f.leg?'L':'')]=groups[f.mk+(f.leg?'L':'')]||[]).push({key,name:f.mk+' '+model,type:key,w:RB_W,h:RB_H,text:model,cap:model,dev:true,props:{data:robotData(robot)},
+      style:{fill:'#ffffff',stroke:'#1f2430',fontSize:11,valign:'middle'}});
+  }
+  for(const [mk,cat,leg] of ROBO_GROUPS){ const it=groups[mk+(leg?'L':'')]; if(it) LIB.push({cat,closed:true,items:it}); }
+}
+function rbNum(v){ return v==null?'Not found':String(v); }
+// Data fields a placed robot carries. Values the app could not verify say so in the Spec status field.
+function robotData(R){
+  const ax=R.axes==null?'Not found':String(R.axes);
+  const st=[(R.src.v?'Payload and reach verified':'Payload and reach unverified')+' ('+R.src.doc+')',
+    R.axes==null?'axes not found':(R.asrc.v?'axes verified':'axes unverified')+(R.asrc!==R.src?' ('+R.asrc.doc+')':'')].join('; ');
+  return {'Manufacturer':R.mk,'Model':R.model,'Series':R.ser.replace(/^(FANUC|Motoman) /,'')+(R.leg?'':''),'Type':ROBO_KIN[R.kin],
+    'Payload (kg)':rbNum(R.pay),'Reach (mm)':rbNum(R.reach),'Axes':ax,'Controller':R.ctrl,'Spec status':st};
+}
+const ROBO_DATA_KEYS=['Manufacturer','Model','Series','Type','Payload (kg)','Reach (mm)','Axes','Controller','Spec status'];
+// Short spec line on the shape. A star marks a value from an unverified source; a dash means not found.
+function robotSpecLine(R){
+  const f=(v,ok,u)=>v==null?'?'+u:String(v).replace(/\s*\(.*$/,'')+u+(ok?'':'*');
+  return f(R.pay,R.src.v,' kg')+'  '+f(R.reach,R.src.v,' mm')+'  '+(R.axes==null?'? ax':R.axes+'-ax'+(R.asrc.v?'':'*'));
+}
+// Pictogram in a 100 x 100 unit box. Original line drawings, not product outlines.
+function robotPicto(kin){
+  const L=(a,b,t)=>{ const dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, nx=-dy/l*t/2, ny=dx/l*t/2;
+    return {p:[[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]]}; };
+  const B=(x0,y0,x1,y1)=>({p:[[x0,y0],[x1,y0],[x1,y1],[x0,y1]]}), J=(x,y,r)=>({c:[x,y,r||4.5]}), Ln=(...p)=>({l:p});
+  const base=[{p:[[28,100],[72,100],[66,90],[34,90]]},{p:[[38,90],[62,90],[60,76],[40,76]]}];
+  switch(kin){
+    case 'pal': return base.concat([L([50,74],[44,30],9),Ln([58,74],[53,32]),L([44,30],[86,30],6),L([86,30],[86,52],5),Ln([79,55],[93,55]),J(50,74),J(44,30),J(86,30,3.5)]);
+    case 'scara': return [{p:[[28,100],[72,100],[70,92],[30,92]]},B(42,92,58,42),L([50,40],[74,40],11),L([74,31],[94,31],8),B(89,16,95,64),J(50,40,5),J(74,35,4.5)];
+    case 'delta': return [B(14,8,86,20),L([30,20],[18,44],5),L([70,20],[82,44],5),L([50,20],[50,42],5),Ln([16,44],[39,74]),Ln([21,44],[43,74]),Ln([84,44],[61,74]),Ln([79,44],[57,74]),Ln([48,42],[48,74]),Ln([52,42],[52,74]),
+      B(36,74,64,80),Ln([50,80],[50,90]),J(18,44,3),J(82,44,3),J(50,42,3)];
+    case 'dual': return [{p:[[32,100],[68,100],[64,92],[36,92]]},B(40,92,60,40),B(44,40,56,28),L([40,48],[24,62],7),L([24,62],[16,84],6),L([60,48],[76,62],7),L([76,62],[84,84],6),J(40,48),J(24,62,3.5),J(60,48),J(76,62,3.5)];
+    case 'cob': return base.concat([L([50,74],[36,38],11),L([36,38],[78,30],10),L([78,30],[86,44],8),J(50,74,7),J(36,38,7),J(78,30,6),J(86,46,4.5)]);
+    default: return base.concat([L([50,74],[36,38],9),L([36,38],[80,30],7),L([80,30],[88,44],5),Ln([88,46],[88,54]),J(50,74),J(36,38),J(80,30,3.5)]);
+  }
+}
+function robotGeom(def,w,h){
+  const R=def.robot, decor=[], glyphs=[], D=(d,f,o)=>Object.assign({d,f:f||'none',dash:false},o||{});
+  const hb=16, pb={x:w/2-33,y:hb+4,w:66,h:64}, X=u=>pb.x+u*pb.w/100, Y=v=>pb.y+v*pb.h/100;
+  glyphs.push({t:R.ser,x:w/2,y:8.5,s:Math.min(8,(w-8)/Math.max(1,R.ser.length)*1.9),b:true});
+  decor.push(D(PL([0,hb],[w,hb])));
+  for(const e of robotPicto(R.kin)){
+    if(e.p) decor.push(D(poly(e.p.map(q=>[X(q[0]),Y(q[1])])),'fill',{pg:true}));
+    else if(e.c) decor.push(D(circ(X(e.c[0]),Y(e.c[1]),e.c[2]*pb.w/100),'fill',{pg:true}));
+    else decor.push(D(PL(...e.l.map(q=>[X(q[0]),Y(q[1])])),'none',{pg:true}));
+  }
+  const tY=pb.y+pb.h+2, sY=h-31;
+  decor.push(D(PL([0,sY-6],[w,sY-6])));
+  glyphs.push({t:robotSpecLine(R),x:w/2,y:sY,s:7});
+  for(const q of raLayout(def,w,h)){ for(const g of raPortGlyph(q.p.k,q.x,q.y,1)) decor.push(D(g.d,g.f,{dash:!!g.dash})); glyphs.push({t:q.p.id,x:q.x,y:h-15.5,s:7}); }
+  return {d:roundRect(w,h,3),decor,glyphs,tb:{x:2,y:tY,w:w-4,h:Math.max(8,sY-6-tY)},picBox:{x:pb.x-8,y:pb.y-2,w:pb.w+16,h:pb.h+4},label:false,hit:false,ports:null};
+}
+
+buildRa(); buildRobots();
 // Port positions in unrotated shape coordinates. One row along the bottom edge, or for more
 // than RA_ROW ports, odd-numbered positions along the top edge and even along the bottom.
 function raLayout(def,w,h){
@@ -1610,6 +1848,12 @@ function raPortGlyph(k,x,y,dn){
     case 'mdin': out.push({d:circ(x,dn>0?yE-4.5:yE+4.5,4)},{d:circ(x-1.6,dn>0?yE-4.5:yE+4.5,0.7)+circ(x+1.6,dn>0?yE-4.5:yE+4.5,0.7),f:'stroke'}); break;
     case 'dp': { const a=dn>0?yE-5:yE; out.push({d:`M${r2(x-5)} ${r2(a)}H${r2(x+5)}V${r2(a+5)}H${r2(x-3.5)}L${r2(x-5)} ${r2(a+3.5)}Z`}); break; }
     case 'dsi': out.push({d:R(x-5.5,y0,11,8),dash:true}); break;
+    case 'bus': out.push({d:R(x-5.5,y0,11,8),dash:true},{d:R(x-2.5,y0+3,5,2),f:'stroke'}); break;
+    case 'rob': case 'pwr': case 'mot': { const cy=dn>0?yE-4.5:yE+4.5; out.push({d:circ(x,cy,4.5)},{d:circ(x-1.8,cy-1,0.8)+circ(x+1.8,cy-1,0.8)+circ(x,cy+1.8,0.8),f:'stroke'}); break; }
+    case 'enc': { const cy=dn>0?yE-4:yE+4; out.push({d:circ(x,cy,3.8)},{d:circ(x,cy,1.2),f:'stroke'}); break; }
+    case 'tp': out.push({d:R(x-5,y0,10,8)},{d:circ(x,y0+4,1.6),f:'stroke'}); break;
+    case 'safe': out.push({d:R(x-5,y0,10,8)},{d:PL([x-3,y0+2],[x+3,y0+6])+PL([x+3,y0+2],[x-3,y0+6])}); break;
+    case 'sio': { const a=dn>0?yE-6:yE, b=a+6; out.push({d:`M${r2(x-6)} ${r2(a)}H${r2(x+6)}L${r2(x+4.5)} ${r2(b)}H${r2(x-4.5)}Z`},{d:R(x-3,a+2,6,1.6),f:'stroke'}); break; }
     default: {
       out.push({d:R(x-5.5,y0,11,8)});
       const ty=dn>0?y0:y0+8-2.2; out.push({d:R(x-2.5,ty,5,2.2),f:'stroke'});
@@ -2247,7 +2491,8 @@ TYPE_NAMES.rect='Rectangle'; TYPE_NAMES.ellipse='Ellipse'; TYPE_NAMES.image='Pic
 
 function makeShape(key,x,y){
   const def=LIB_MAP[key]||LIB_MAP.rect;
-  return Object.assign({id:uid(),kind:'shape',type:def.type,x:r2(x),y:r2(y),w:def.w,h:def.h,text:def.text||'',style:Object.assign({},DEF_SHAPE_STYLE,def.style||{}),layer:activeLayerId()},def.props||{});
+  const s=Object.assign({id:uid(),kind:'shape',type:def.type,x:r2(x),y:r2(y),w:def.w,h:def.h,text:def.text||'',style:Object.assign({},DEF_SHAPE_STYLE,def.style||{}),layer:activeLayerId()},def.props||{});
+  if(s.data) s.data=Object.assign({},s.data); return s;
 }
 function makeLine(from,to,extra){
   return Object.assign({id:uid(),kind:'line',from,to,route:S.prefs.route||'orthogonal',startArrow:'none',endArrow:'arrow',labels:[],style:Object.assign({},DEF_LINE_STYLE),layer:activeLayerId()},extra||{});
@@ -2967,8 +3212,9 @@ function renderShape(it,o){
   const bare=it.type==='icon'||it.type==='ink';
   inner.appendChild(sv('path',{d:G.d,class:o.export?null:'body',fill:bare?(o.export?'none':'transparent'):st.fill,stroke:bare?'none':st.stroke,'stroke-width':st.sw,'stroke-dasharray':dashArr(st.dash,st.sw),'stroke-linecap':st.dash==='dotted'?'round':null,'stroke-linejoin':'round'}));
   if(it.type==='icon') drawIcon(inner,it,X.gw,X.gh,st); else if(it.type==='ink') drawInk(inner,it,X.gw,X.gh,st);
-  { const pic=devPicOf(it); if(pic){ const bx=devPicBox(it,X,G); inner.appendChild(sv('image',{href:o.export?pic.data:pic.url,x:r2(bx.x),y:r2(bx.y),width:r2(bx.w),height:r2(bx.h),preserveAspectRatio:'xMidYMid meet',class:'devpic'})); } }
-  if(st.stroke!=='none') for(const dd of decorList(G)) inner.appendChild(sv('path',{d:dd.d,fill:dd.f==='stroke'?st.stroke:dd.f==='fill'?(st.fill==='none'?'#ffffff':st.fill):'none','fill-opacity':dd.op!=null?dd.op:null,stroke:dd.ns?'none':st.stroke,'stroke-width':st.sw,'stroke-dasharray':dd.dash?dashArr('dashed',st.sw):null,'stroke-linejoin':'round'}));
+  const pic0=devPicOf(it);
+  { const pic=pic0; if(pic){ const bx=devPicBox(it,X,G); inner.appendChild(sv('image',{href:o.export?pic.data:pic.url,x:r2(bx.x),y:r2(bx.y),width:r2(bx.w),height:r2(bx.h),preserveAspectRatio:'xMidYMid meet',class:'devpic'})); } }
+  if(st.stroke!=='none') for(const dd of decorList(G)) if(!(dd.pg&&pic0)) inner.appendChild(sv('path',{d:dd.d,fill:dd.f==='stroke'?st.stroke:dd.f==='fill'?(st.fill==='none'?'#ffffff':st.fill):'none','fill-opacity':dd.op!=null?dd.op:null,stroke:dd.ns?'none':st.stroke,'stroke-width':st.sw,'stroke-dasharray':dd.dash?dashArr('dashed',st.sw):null,'stroke-linejoin':'round'}));
   if(X.m) g.appendChild(inner);
   const turnG=glyphsTurn(it,G), Xr=it.rot?turnXf(it):null, gg=turnG&&(G.glyphs||[]).length?sv('g',{transform:'matrix('+Xr.m.join(' ')+')'}):null;
   for(const gl of (G.glyphs||[])){ const q=turnG?{x:X.flip?X.gw-gl.x:gl.x,y:gl.y}:tp(X,gl.x,gl.y); (gg||g).appendChild(sv('text',{x:r2(q.x),y:r2(q.y+gl.s*0.35),'text-anchor':gl.a?(X.flip?(gl.a==='start'?'end':'start'):gl.a):'middle','font-size':r2(gl.s),'font-family':FONTS.sans,'font-weight':gl.b?'bold':null,fill:st.stroke==='none'?st.fontColor:st.stroke},gl.t)); }
@@ -4601,7 +4847,7 @@ function sanDevPics(d){ if(!d.devPics||typeof d.devPics!=='object') return {}; c
   return n?{devPics:o}:{}; }
 function devPicOf(it){ if(!it||it.noPic||!RA_DEV[it.type]||!S.doc||!S.doc.devPics) return null; const id=S.doc.devPics[it.type]; const a=id&&ASSETS.get(id); return a||null; }
 // The picture fills the area between the model header and the port row.
-function devPicBox(it,X,G){ const t=G.tb; return {x:t.x+2,y:t.y+2,w:Math.max(4,t.w-4),h:Math.max(4,t.h-4)}; }
+function devPicBox(it,X,G){ const t=G.picBox||G.tb; return {x:t.x+2,y:t.y+2,w:Math.max(4,t.w-4),h:Math.max(4,t.h-4)}; }
 function adoptLibPic(s){
   if(!RA_DEV[s.type]) return; const lib=picLib(), id=lib[s.type];
   if(id&&!(S.doc.devPics&&S.doc.devPics[s.type])&&ASSETS.get(id)) (S.doc.devPics||(S.doc.devPics={}))[s.type]=id;
@@ -5027,7 +5273,11 @@ function renderProps(){
   if(fs&&RA_DEV[fs.type]&&shapes.length===1){
     const dv=RA_DEV[fs.type], used=new Set();
     for(const L of items()) if(isLine(L)) for(const k of ['from','to']) if(L[k].id===fs.id&&L[k].port) used.add(L[k].port);
-    K.splice(1,0,section('Device',el('div',{class:'soon-row',style:{marginBottom:'6px'}},el('span',{text:dv.fam}),el('span',{class:'soon',style:dv.v?{background:'var(--accent-2)',color:'var(--accent)'}:null,text:dv.v?'Ports verified':'Unverified'})),
+    const R=dv.robot, specRow=(k,v,src)=>el('div',{class:'dev-port'},el('b',{text:k}),el('span',{text:v==null?'Not found in the sources checked':String(v)+(src&&!src.v?' [Unverified]':'')}));
+    K.splice(1,0,section('Device',el('div',{class:'soon-row',style:{marginBottom:'6px'}},el('span',{text:dv.fam}),el('span',{class:'soon',style:dv.v?{background:'var(--accent-2)',color:'var(--accent)'}:null,text:dv.v?(R?'Specs verified':'Ports verified'):'Unverified'})),
+      R?el('div',{class:'dev-ports',style:{marginBottom:'6px'}},specRow('Type',ROBO_KIN[R.kin]+(R.leg?', legacy':'')),specRow('Payload',R.pay==null?null:R.pay+' kg',R.src),specRow('Reach',R.reach==null?null:R.reach+' mm',R.src),specRow('Axes',R.axes,R.asrc),R.ctrl?specRow('Controller',R.ctrl,R.src):null):null,
+      R&&R.asrc&&R.asrc!==R.src?el('p',{class:'muted small',text:'Axes source: '+R.asrc.doc+'. Section: '+R.asrc.sec+'. Quote: "'+R.asrc.q+'"'}):null,
+      R?el('p',{class:'muted small',text:'The same values are in the shape\'s data fields (Data section), so they can be shown in text with {{Payload (kg)}} and exported to CSV. On the shape, a star marks a value from an unverified source and a question mark one that was not found.'}):null,
       el('p',{class:'small',style:{margin:'0 0 6px'},text:'Catalog: '+dv.cat}),
       el('div',{class:'dev-ports'},dv.ports.map(q=>el('div',{class:'dev-port'+(used.has(q.id)?' used':'')},el('b',{text:q.id}),el('span',{text:q.d+(used.has(q.id)?' (connected)':'')})))),
       el('p',{class:'muted small',style:{marginTop:'6px'},text:'Source: '+dv.src.doc+'. Section: '+dv.src.sec+'. Quote: "'+dv.src.q+'"'}),
@@ -5386,8 +5636,10 @@ function applyLink(v){
 }
 function changeShape(key){
   const sel=unlockedSel().filter(isShape); const def=LIB_MAP[key]; if(sel.length!==1||!def) return;
-  const s=sel[0], wasCat=RA_DEV[s.type]&&s.text===RA_DEV[s.type].cat; s.type=def.type; delete s.rot; delete s.flip;
+  const s=sel[0], wasCat=RA_DEV[s.type]&&(s.text===RA_DEV[s.type].cat||(LIB_MAP[s.type]&&s.text===LIB_MAP[s.type].text)); s.type=def.type; delete s.rot; delete s.flip;
   if(def.dev){ s.w=def.w; s.h=def.h; if(wasCat||!s.text) s.text=def.text; }
+  // A robot swapped for another model takes the new spec fields; fields the user added stay.
+  if(RA_DEV[def.type]&&RA_DEV[def.type].robot){ const nd=robotData(RA_DEV[def.type].robot), d=Object.assign({},s.data||{}); for(const k of ROBO_DATA_KEYS) if(k!=='Controller'||!d[k]) d[k]=nd[k]; s.data=d; }
   if(def.style&&'radius' in def.style) s.style.radius=def.style.radius; else if(def.type!=='rect') s.style.radius=0;
   commit(); buildFtbBar(); renderFtbPop(); invalidate();
 }
@@ -5944,6 +6196,11 @@ function showHelp(){
     el('h3',{text:'Cloud and building architecture'}),el('p',{text:'Cloud architecture has vendor-neutral icons for clients, networking, compute, storage, databases, integration, security and management, plus region, availability zone, virtual network, subnet and security group frames. Vendor icon sets (AWS, Azure, Google Cloud) are not included. Building architecture has floor plan walls, doors, windows, stairs, fixtures and furniture, a dimension line and a few electrical plan symbols; the electrical plan symbols follow common practice and are marked unverified.'}),
     el('h3',{text:'Rockwell PLCs, switches and network devices'}),el('p',{text:'Six libraries hold Rockwell controllers, Stratix switches, comm modules and adapters, drives and motion, HMIs, and gateways and safety I/O, with one tile per catalog number. They start collapsed; type a catalog number such as L33ER or BMS10 in Search shapes to find one quickly. Each device has its own connection point for every communication port (Ethernet, SFP, combo, PoE, USB, serial, DSI and DisplayPort). Hover a device to see its port dots, then drag from a dot to draw a cable, or drop a line end on a port. The port name appears while you aim. Cables from copper ports start blue, fiber and SFP ports orange, and serial or USB ports dotted.'}),
     el('p',{text:'Select a device to see its port list, which ports are connected, and the source the port set was checked against. Devices marked Unverified came from a secondary source or an ambiguous one. Port placement on the shape is schematic: one row along the bottom, or odd positions on top and even on the bottom for large switches. Drives, Kinetix and PanelView Plus 7 Standard tiles cover a whole family; type the full catalog number into the shape.'}),
+    el('h3',{text:'Robots and robot controllers (Yaskawa and FANUC)'}),
+    el('p',{text:'The Yaskawa Motoman robots, FANUC robots and their legacy libraries hold one tile per robot model. Each robot is a card with a line drawing of its kind of arm (articulated, collaborative, palletizing, SCARA, delta or dual-arm), the model name, a spec line with payload, horizontal reach and number of axes, and one ROB pin at the bottom for the controller cable. Draw a line from ROB to the ROB pin of a controller; robot cable lines are thick and brown.'}),
+    el('p',{text:'Every robot also carries data fields: Manufacturer, Model, Series, Type, Payload (kg), Reach (mm), Axes, Controller and Spec status. Use them in text with {{Payload (kg)}}, in conditional formatting, or export them with the other data to CSV. Change model in the floating toolbar swaps a robot for another model of the same series and updates these fields; fields you added yourself stay.'}),
+    el('p',{text:'Values come from the source shown in the right panel. A star after a value on the shape means it came from a secondary or third-party source and is marked Unverified. A question mark, and Not found in the panel, means the value was not in the sources checked; it is never filled in from the model name. Many Yaskawa models show ? ax because the Yaskawa catalog used does not list the number of axes.'}),
+    el('p',{text:'Yaskawa robot controllers, FANUC robot controllers and Yaskawa drives and motion work like the Rockwell devices: one pin per port. Controllers have pendant (TP or PP), robot cable (ROB), Ethernet, and where known USB, serial and fieldbus option pins. Drives have the communication option slot, serial and safety pins where the source confirms them, plus generic power and motor pins. Legacy controllers whose ports were not found show only the pendant and robot pins and are marked Unverified. The R-30iB Plus Ethernet port speed is left open because the sources disagree.'}),
     el('h3',{text:'Mind maps and org charts'}),el('p',{text:'Drag a Central topic or an org chart box onto the canvas. With it selected, press Tab (or click the blue + button) to add a child and Enter to add a sibling; the new box opens for typing. Tab while typing adds the next level. Children are spaced automatically, and Tidy layout in the right-click menu re-spaces a whole tree. Typing on library placeholder text such as Central topic replaces it.'}),
     el('h3',{text:'Resizing groups'}),el('p',{text:'Select several items (or a group) and drag any of the eight handles on the dashed box to resize them together. Positions and sizes scale with the box; text size stays the same. Hold Shift on a corner to keep proportions.'}),
     el('h3',{text:'Re-routing lines'}),el('p',{text:'Select an elbow line to show a small handle on each segment. Drag a handle to move that segment; the bends stay where you put them when shapes move. Right-click the line and choose Reset line path to go back to automatic routing. Changing the line shape or reconnecting an end also resets it.'}),
@@ -6163,7 +6420,7 @@ window.__app={
     setAngle, totalAngle, rotPt, itemBBox, shapeAt, parseCsv, importCsv, fieldsOf, resolveText, ruleHit, runAction, startPresent, stopPresent, presentGo, exportSVGNode,
     findMatches, findStep, replaceAll, openFind, closeFind, saveVersion, listVersions, restoreVersion, deleteVersion, showVersions, matchSize, extraCmd, portPoint2:portPoint, UML_TYPES,
     layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO,
-    devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf },
+    devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf, ROBO_FAMS, robotData, robotSpecLine, robotGeom, changeShape, PORT_KINDS, RA_LINE },
   LIB, LIB_MAP, KEYS:{doc:KEY_DOC,schema:KEY_SCHEMA,prefs:KEY_PREFS,legacy:LEGACY_KEYS}
 };
 boot();
