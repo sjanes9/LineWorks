@@ -399,6 +399,9 @@ button{cursor:pointer}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 
 .devpic-prev{display:block;max-width:100%;max-height:140px;margin:0 auto 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:#fff}
+.fold-btn{cursor:pointer} .fold-btn circle{fill:var(--panel,#fff);stroke:#7b8494;stroke-width:1.2} .fold-btn path{stroke:#475467} .fold-btn .fold-pad{fill:transparent;stroke:none}
+.fold-btn:hover circle:not(.fold-pad){stroke:var(--accent,#2f6fed)} .fold-btn.shut circle:not(.fold-pad){fill:#e8f1fe;stroke:#3a7bec} .fold-n{fill:#98a2b3;font-weight:700;font-family:sans-serif;pointer-events:none}
+.present .fold-btn circle:not(.fold-pad){fill:#ffffff}
 .hint-btn{pointer-events:auto;margin-top:10px}
 .modal.modal-wide{width:min(1080px,100%);height:min(86vh,900px)}
 .tpl-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 8px} .tpl-search{flex:0 1 260px;height:32px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel);color:var(--text)}
@@ -538,7 +541,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.14.0';
+const APP_VERSION='1.15.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -2120,7 +2123,7 @@ function renderList(pg){
   pg=pg||page(); const ls=ensureLayers(pg), idx=new Map(ls.map((l,i)=>[l.id,i])), buckets=ls.map(()=>[]);
   for(const it of pg.items) buckets[idx.has(it.layer)?idx.get(it.layer):0].push(it);
   const out=[]; ls.forEach((l,i)=>{ if(l.visible) out.push(...drawOrder(buckets[i])); });
-  return out;
+  const hid=foldedIds(pg); return hid?out.filter(it=>isShape(it)?foldVisible(it,hid):!lineFolded(it,hid)):out;
 }
 // Items the pointer can reach: visible and not on a locked layer.
 function pickList(pg){ pg=pg||page(); return renderList(pg).filter(it=>!layerOf(it,pg).locked); }
@@ -2129,6 +2132,8 @@ function renderSheet(){
   const g=$('#sheet'), pg=page(), sz=pageSizePx(pg), bg=pg.bg;
   stage.classList.toggle('has-sheet',!!sz);
   stage.style.background=!sz&&bg?bg:'';
+  { const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(bg||''), dark=m&&(0.299*parseInt(m[1],16)+0.587*parseInt(m[2],16)+0.114*parseInt(m[3],16))<110;
+    if(dark){ stage.style.setProperty('--grid-minor','rgba(255,255,255,.045)'); stage.style.setProperty('--grid-major','rgba(255,255,255,.09)'); } else { stage.style.removeProperty('--grid-minor'); stage.style.removeProperty('--grid-major'); } }
   g.replaceChildren(...(sz?[sv('rect',{x:0,y:0,width:sz.w,height:sz.h,class:'sheet',fill:bg||'#ffffff'})]:[]));
 }
 function layerCmd(action,id){
@@ -2251,6 +2256,7 @@ function sanAttrs(it){
   if(it.link){ const u=normUrl(it.link); if(u) o.link=u; }
   if(it.locked===true) o.locked=true;
   if(it.noPic===true) o.noPic=true;
+  if(it.collapsed===true&&(it.family==='mindmap'||it.family==='org')) o.collapsed=true;
   Object.assign(o,sanExtras(it));
   return o;
 }
@@ -2774,6 +2780,7 @@ function renderShape(it,o){
   if(G.hit&&!o.export) g.appendChild(sv('rect',{x:0,y:0,width:r2(it.w),height:r2(it.h),fill:'transparent',class:'body'}));
   if(!(S.editing===it.id&&!o.export)){ if(it.type==='er_entity'&&!it.rot) renderEntityText(g,it); else if(isUmlBox(it)) renderUmlText(g,it,st); else { const tb=textBox(it); let tg=g; if(tb.turn){ tg=sv('g',{transform:'matrix('+turnXf(it).m.join(' ')+')'}); g.appendChild(tg); } renderTextBlock(tg,resolveText(it),tb,textStyle(it,tb)); } }
   if(!o.export) renderBadges(g,it,null,false);
+  if((!o.export||o.present)&&it.family){ const fb=foldButton(it,o.present); if(fb) g.appendChild(fb); }
   return decorateItem(g,it,o);
 }
 function renderLine(it,o){
@@ -2839,7 +2846,7 @@ function drawOrder(list){
 function renderContent(){
   const frag=document.createDocumentFragment();
   renderSheet(); const pg=page();
-  for(const it of renderList(pg)){ const n=isShape(it)?renderShape(it):renderLine(it); if(n){ if(layerOf(it,pg).locked) n.classList.add('on-locked'); frag.appendChild(n); } }
+  for(const it of renderList(pg)){ let n=isShape(it)?renderShape(it):renderLine(it); if(n){ if(layerOf(it,pg).locked) n.classList.add('on-locked'); n=twWrap(n,it); frag.appendChild(n); } }
   contentG.replaceChildren(frag);
   const hint=$('#emptyHint'); if(hint) hint.hidden=items().length>0;
 }
@@ -2914,7 +2921,8 @@ function renderOverlay(){
       const off=16*uiK()/z;
       for(const side of SIDE_KEYS){
         const s0=s.ang?Object.assign({},s,{ang:0}):s, p=portPoint(s0,side), d=SIDES[side], extra=side==='E'?s.x+s.w-p.x:side==='W'?p.x-s.x:side==='N'?p.y-s.y:s.y+s.h-p.y;
-        const pc=rotPt(s,{x:p.x+d.x*(off+extra),y:p.y+d.y*(off+extra)}), cx=pc.x, cy=pc.y;
+        const fb=s.family&&side===(s.family==='mindmap'?'E':'S')&&hasKids(s)?26/z:0;
+        const pc=rotPt(s,{x:p.x+d.x*(off+extra+fb),y:p.y+d.y*(off+extra+fb)}), cx=pc.x, cy=pc.y;
         out.push(sv('g',{class:'ov-port','data-port':side,'data-sid':s.id},
           sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(11*uiK()/z),class:'pad'}),
           sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(5/z),class:'vis','stroke-width':r2(1.5/z)})));
@@ -3430,6 +3438,7 @@ function onPointerDown(e){
   if(react){ const it=byId(react.closest('[data-id]').getAttribute('data-id')); if(it&&it.reactions){ it.reactions=it.reactions.filter(x=>x!==react.getAttribute('data-react')); if(!it.reactions.length) delete it.reactions; commit(); invalidate(); } return; }
   const port=t&&t.closest('[data-port]'), handle=t&&t.closest('[data-handle]'), itemEl=t&&t.closest('[data-id]'), labEl=t&&t.closest('[data-label]'), segEl=t&&t.closest('[data-seg]');
   const addEl=t&&t.closest('[data-addchild]');
+  const foldEl=t&&t.closest('[data-fold]'); if(foldEl&&!e.button){ e.preventDefault(); setFold(foldEl.getAttribute('data-fold'),'toggle'); return; }
   const pinEl=t&&t.closest('[data-cmtpin]'); if(pinEl){ e.preventDefault(); openComments(pinEl.getAttribute('data-cmtpin')); return; }
   const actEl=t&&t.closest('[data-act]'); if(actEl){ e.preventDefault(); runAction(byId(actEl.getAttribute('data-act'))); return; }
   const rotEl=t&&t.closest('[data-rotate]');
@@ -3841,7 +3850,7 @@ function exportSVGNode(opts){
   if(opts.background!==false||pg.bg) root.appendChild(sv('rect',{x:x0,y:y0,width:W,height:H,fill:pg.bg||'#ffffff'}));
   const wasEditing=S.editing; S.editing=null;
   const ro={export:true,present:!!opts.present};
-  for(const it of its) root.appendChild(isShape(it)?renderShape(it,ro):renderLine(it,ro));
+  for(const it of its) root.appendChild(twWrap(isShape(it)?renderShape(it,ro):renderLine(it,ro),it));
   S.editing=wasEditing;
   return root;
 }
@@ -3857,7 +3866,7 @@ function presentRender(){
 function presentGo(i){ if(!presentEl) return; const n=S.doc.pages.length; presentState.idx=clamp(i,0,n-1); presentRender(); }
 function startPresent(){
   if(presentEl) return; if(S.editing) finishEdit(); hideFtb();
-  presentState={idx:Math.max(0,S.doc.pages.findIndex(p=>p.id===S.doc.activePage)),vis:S.doc.pages.map(p=>ensureLayers(p).map(l=>[l.id,l.visible]))};
+  presentState={snap:JSON.stringify(S.doc),idx:Math.max(0,S.doc.pages.findIndex(p=>p.id===S.doc.activePage)),vis:S.doc.pages.map(p=>ensureLayers(p).map(l=>[l.id,l.visible]))};
   presentEl=el('div',{class:'present',role:'dialog','aria-modal':'true','aria-label':'Presentation',tabindex:'-1'},
     el('div',{class:'present-stage'}),
     el('div',{class:'present-bar'},
@@ -3867,6 +3876,7 @@ function startPresent(){
       el('button',{type:'button',class:'btn','data-pres':'exit','aria-label':'Exit presentation',text:'Exit (Esc)'})));
   presentEl.addEventListener('click',e=>{ const b=e.target.closest('[data-pres]');
     if(b){ const k=b.getAttribute('data-pres'); if(k==='exit') stopPresent(); else presentGo(presentState.idx+(k==='next'?1:-1)); return; }
+    const fb=e.target.closest('[data-fold]'); if(fb){ const pg=S.doc.pages[presentState.idx], prev=S.doc.activePage; try{ S.doc.activePage=pg.id; setFold(fb.getAttribute('data-fold'),'toggle',{present:true,noPan:true}); } finally{ S.doc.activePage=prev; } return; }
     const a=e.target.closest('[data-pact]'); if(a){ const pg=S.doc.pages[presentState.idx], it=pg.items.find(x=>x.id===a.getAttribute('data-pact')), prev=S.doc.activePage;
       try{ S.doc.activePage=pg.id; runAction(it,true); } finally{ S.doc.activePage=prev; } } });
   presentEl.addEventListener('keydown',e=>{ e.stopPropagation();
@@ -3878,7 +3888,8 @@ function startPresent(){
   try{ presentEl.focus(); if(presentEl.requestFullscreen) presentEl.requestFullscreen().catch(()=>{}); }catch(e){}
 }
 function stopPresent(){
-  if(!presentEl) return;
+  if(!presentEl) return; if(TW) tweenEnd();
+  if(JSON.stringify(S.doc)!==presentState.snap){ const ap=S.doc.activePage; S.doc=JSON.parse(presentState.snap); S.doc.activePage=ap; }
   // Layers shown or hidden by actions during the presentation go back to how they were.
   S.doc.pages.forEach((p,i)=>{ const m=new Map(presentState.vis[i]||[]); ensureLayers(p).forEach(l=>{ if(m.has(l.id)) l.visible=m.get(l.id); }); });
   try{ if(document.fullscreenElement===presentEl&&document.exitFullscreen) document.exitFullscreen().catch(()=>{}); }catch(e){}
@@ -4459,6 +4470,18 @@ const TEMPLATES=[
     let y=60; topics.forEach(([t,subs])=>{ const m=b.s('mm_main',310,y+((subs.length-1)*44)/2,t); b.l(root,'E',m,'W',{route:'curved',end:'none',style:{stroke:'#3a7bec',sw:2}});
       subs.forEach((st,j)=>{ const c=b.s('mm_sub',530,y+j*44+9,st); b.l(m,'E',c,'W',{route:'curved',end:'none',style:{stroke:'#3a7bec',sw:2}}); }); y+=subs.length*44+40; });
     return b.doc; }},
+  {id:'mind_fold',cat:'Brainstorming',name:'Collapsible mind map (manual outline)',desc:'Dark outline of a manual. Click the arrows to unfold and fold branches; they animate, also in Present mode.',build(){
+    const b=tplBuilder('Equipment manual outline').page('Outline'); b.doc.pages[0].bg='#1e2127';
+    const N={fill:'#3a3f4b',stroke:'#5b6170',fontColor:'#e8eaed',fontSize:13,radius:6,bold:false,align:'center',valign:'middle',sw:1}, LEAF=Object.assign({},N,{fill:'#2f4a37',stroke:'#4f7a5a',fontSize:12});
+    const node=(text,lvl,st)=>{ const sh=b.s(lvl?'mm_main':'mm_central',0,0,text,{w:Math.max(90,Math.round(String(text).length*(lvl?6.6:7.2)+28)),h:lvl?30:36,style:Object.assign({},st||N,lvl?{}:{fontSize:14,radius:8,fill:'#4a5063'}),family:'mindmap',level:lvl}); sh.type='rect'; return sh; };
+    const link=(a,c)=>b.l(a,'E',c,'W',{route:'curved',end:'none',style:{stroke:'#8a90a0',sw:1.5}});
+    const tree=[['Overview',[['Device function',[]],['Device features',['Messaging: polled, cyclic, change of state','Network speed: check the manual','Alignment: preset by network or push button','Counting direction: CW or CCW','Scaling: resolution and turns','Diagnostics: cams and speed warnings']]]],
+      ['Installation',['Mounting','Wiring','Grounding']],['Hardware configuration',['Address switches','Data rate']],['Network configuration',['Add the device','Set parameters']],['Scanner configuration',['Scan list','I/O mapping']],['Device objects',['Identity object','Assembly objects']]];
+    const root=node('Equipment manual',0), toFold=[];
+    const add=(par,lvl,list)=>{ for(const e of list){ const [t,kids]=Array.isArray(e)?e:[e,[]]; const leaf=!kids.length&&lvl>=2; const c=node(t,lvl,leaf?LEAF:N); link(par,c); if(kids.length){ add(c,lvl+1,kids); toFold.push(c); } } };
+    add(root,1,tree);
+    tplLayout(b.doc,root.id); toFold.forEach(c=>{ c.collapsed=true; }); tplLayout(b.doc,root.id);
+    return b.doc; }},
   {id:'concept',cat:'Brainstorming',name:'Concept map',desc:'Ideas linked by labeled relationships.',build(){
     const b=tplBuilder('Concept map').page('Concept map'); const n=(x,y,t,c)=>b.s('ellipse',x,y,t,{w:150,h:70,style:c||TC.blue});
     const a=n(330,40,'Automation',TC.violet), p=n(80,200,'PLC'), h=n(330,220,'HMI'), d=n(580,200,'Drives'), s=n(80,380,'Sensors'), o=n(330,400,'Operators',TC.green), m=n(580,380,'Motors');
@@ -4575,6 +4598,8 @@ const TEMPLATES=[
     b.l(tk,'E',pu,'W',{end:'arrow',signal:'process',style:{sw:2}}); b.l(pu,'E',cv,'W',{end:'arrow',signal:'process',style:{sw:2}}); b.l(cv,'E',gv,'W',{end:'none',signal:'process',style:{sw:2}});
     b.l(tk,'N',lt,'W',{end:'none',signal:'electric'}); b.l(lt,'E',lc,'W',{end:'none',signal:'electric'}); b.l(lc,'S',cv,'N',{end:'none',signal:'electric'}); return b.doc; }}
 ];
+// Runs the normal tree layout on a template that is not open yet.
+function tplLayout(d,rootId){ const prev=S.doc; try{ S.doc=d; const r=byId(rootId); if(r) layoutTree(r); } finally{ S.doc=prev; } }
 function tplDoc(t){ return migrate(JSON.parse(JSON.stringify(t.build()))); }
 // Draws page 1 of a template doc to an SVG preview, using the normal renderer.
 function tplThumb(d){ const prev=S.doc, ed=S.editing; let node; try{ S.doc=d; S.editing=null; node=exportSVGNode({pad:16}); } catch(e){ node=null; } finally{ S.doc=prev; S.editing=ed; }
@@ -4618,6 +4643,101 @@ function longPressStart(e){
 }
 function longPressMove(e){ if(lpAt&&Math.hypot(e.clientX-lpAt.x,e.clientY-lpAt.y)>9){ clearTimeout(lpTimer); lpAt=null; } }
 function longPressEnd(){ clearTimeout(lpTimer); lpAt=null; }
+/* ============================== collapsible branches with animation ==============================
+   A mind map topic or org chart box with children shows a small arrow button. Clicking it folds its
+   branch away (children slide back into it and fade) or unfolds it (children slide out and fade in),
+   the tree closes up or opens out, and the view glides to keep the branch on screen. it.collapsed is
+   saved with the diagram. Animation is a short tween of real positions, so lines follow the shapes. */
+const FOLD_MS=340;
+function reduceMotion(){ try{ return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches); }catch(e){ return false; } }
+function hasKids(s){ return !!s&&!!s.family&&familyKids(s).length>0; }
+// Ids hidden because an ancestor is folded.
+function foldedIds(pg){
+  pg=pg||page(); const its=pg.items; if(!its.some(i=>i.collapsed)) return null;
+  const prev=S.doc.activePage; let out=new Set();
+  try{ S.doc.activePage=pg.id; for(const s of its) if(s.collapsed&&s.family) for(const k of familyKids(s)) subtreeIds(k,out); } finally{ S.doc.activePage=prev; }
+  return out.size?out:null;
+}
+// Items folded away but still drawn because they are animating.
+function foldVisible(it,hid){ return !hid||!hid.has(it.id)||(TW&&TW.items.has(it.id)); }
+function lineFolded(L,hid){ return !!hid&&((L.from.id&&hid.has(L.from.id)&&!(TW&&TW.items.has(L.from.id)))||(L.to.id&&hid.has(L.to.id)&&!(TW&&TW.items.has(L.to.id)))); }
+let TW=null; // {items:Map(id->{x0,y0,x1,y1,o0,o1}), t0, dur, view:{tx0,ty0,z0,tx1,ty1,z1}|null, done, present}
+function twOpacity(id){ const r=TW&&TW.items.get(id); if(!r) return 1; return r.cur==null?r.o1:r.cur; }
+function lineOpacity(L){ if(!TW) return 1; let o=1; for(const k of ['from','to']){ const id=L[k].id; if(id&&TW.items.has(id)) o=Math.min(o,twOpacity(id)); } return o; }
+const ease=t=>t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+function tweenStep(now){
+  if(!TW) return; const t=clamp((now-TW.t0)/TW.dur,0,1), k=ease(t);
+  for(const [id,r] of TW.items){ const it=byId(id)||(TW.pg&&TW.pg.items.find(i=>i.id===id)); if(!it) continue; it.x=r2(r.x0+(r.x1-r.x0)*k); it.y=r2(r.y0+(r.y1-r.y0)*k); r.cur=r.o0+(r.o1-r.o0)*k; }
+  if(TW.view){ const v=TW.view; V.tx=v.tx0+(v.tx1-v.tx0)*k; V.ty=v.ty0+(v.ty1-v.ty0)*k; V.z=v.z0+(v.z1-v.z0)*k; }
+  if(t<1){ if(TW.present) presentRender(); else { invalidate({content:true,overlay:true,chrome:true}); flush(); } (window.requestAnimationFrame||(f=>setTimeout(()=>f(performance.now()),16)))(tweenStep); return; }
+  tweenEnd();
+}
+function tweenEnd(){
+  if(!TW) return; const w=TW; TW=null;
+  for(const [id,r] of w.items){ const it=byId(id)||(w.pg&&w.pg.items.find(i=>i.id===id)); if(it){ it.x=r.x1; it.y=r.y1; } }
+  if(w.view){ V.tx=w.view.tx1; V.ty=w.view.ty1; V.z=w.view.z1; }
+  if(w.present) presentRender(); else invalidate();
+  if(w.done) w.done();
+}
+// Folds or unfolds a branch. mode: 'toggle' | 'open' | 'close'. Returns the new collapsed state.
+function setFold(id,mode,opts){
+  opts=opts||{}; const s=byId(id); if(!s||!s.family) return null;
+  const want=mode==='toggle'?!s.collapsed:mode==='close';
+  if(want===!!s.collapsed) return want;
+  if(want&&!hasKids(s)) return false;
+  if(TW) tweenEnd();
+  const pg=page(), before=new Map(pg.items.filter(isShape).map(i=>[i.id,{x:i.x,y:i.y}])), hid0=foldedIds(pg)||new Set();
+  if(want) s.collapsed=true; else delete s.collapsed;
+  const root=familyRoot(s); if(!root.locked) layoutTree(root);
+  const hid1=foldedIds(pg)||new Set();
+  if(hid1.size) S.sel=new Set([...S.sel].filter(x=>!hid1.has(x)));
+  if(!opts.present) commit();
+  const anim=!reduceMotion()&&opts.animate!==false, items2=new Map();
+  if(anim){
+    for(const it of pg.items){ if(!isShape(it)) continue; const b=before.get(it.id); if(!b) continue;
+      const wasHid=hid0.has(it.id), isHid=hid1.has(it.id);
+      if(wasHid&&isHid) continue;
+      if(wasHid&&!isHid){ const par=familyParent(it)||s; items2.set(it.id,{x0:r2(par.x+par.w/2-it.w/2),y0:r2(par.y+par.h/2-it.h/2),x1:it.x,y1:it.y,o0:0,o1:1}); }
+      else if(!wasHid&&isHid){ items2.set(it.id,{x0:b.x,y0:b.y,x1:r2(s.x+s.w/2-it.w/2),y1:r2(s.y+s.h/2-it.h/2),o0:1,o1:0}); }
+      else if(b.x!==it.x||b.y!==it.y) items2.set(it.id,{x0:b.x,y0:b.y,x1:it.x,y1:it.y,o0:1,o1:1});
+    }
+  }
+  // Keep the branch in view: after unfolding, glide so the node and its shown children fit.
+  let view=null;
+  if(!opts.noPan&&(!opts.present)){
+    const shown=[s].concat(want?[]:[...subtreeIds(s)].map(byId).filter(x=>x&&isShape(x)&&!hid1.has(x.id))), b=bboxOf(shown), st=stageSize(), pad=40;
+    let z=V.z; const fitZ=Math.min((st.w-pad*2)/Math.max(b.w,1),(st.h-pad*2)/Math.max(b.h,1)); if(fitZ<z) z=Math.max(0.2,fitZ);
+    let tx=V.tx, ty=V.ty; const sx0=tx+b.x*z, sy0=ty+b.y*z, sx1=sx0+b.w*z, sy1=sy0+b.h*z;
+    if(z!==V.z||sx0<pad||sx1>st.w-pad||sy0<pad||sy1>st.h-pad){ tx=(st.w-b.w*z)/2-b.x*z; ty=(st.h-b.h*z)/2-b.y*z; if(z===V.z){ /* only pan as far as needed */ if(b.w*z<st.w-pad*2){ tx=V.tx+(sx0<pad?pad-sx0:sx1>st.w-pad?st.w-pad-sx1:0); } if(b.h*z<st.h-pad*2){ ty=V.ty+(sy0<pad?pad-sy0:sy1>st.h-pad?st.h-pad-sy1:0); } }
+      view={tx0:V.tx,ty0:V.ty,z0:V.z,tx1:tx,ty1:ty,z1:z}; }
+  }
+  if(anim&&(items2.size||view)){
+    for(const [id,r] of items2){ const it=byId(id); it.x=r.x0; it.y=r.y0; r.cur=r.o0; }
+    TW={items:items2,t0:performance.now(),dur:opts.dur||FOLD_MS,view,present:!!opts.present,pg,done:opts.done||null};
+    (window.requestAnimationFrame||(f=>setTimeout(()=>f(performance.now()),16)))(tweenStep);
+  } else { if(view){ V.tx=view.tx1; V.ty=view.ty1; V.z=view.z1; } if(opts.present) presentRender(); else invalidate(); if(opts.done) opts.done(); }
+  return want;
+}
+// Fold or unfold every branch under the selected tree (or every tree on the page).
+function foldAll(close){
+  const sel=selItems().filter(i=>i.family), roots=new Set((sel.length?sel:items().filter(i=>i.family)).map(familyRoot)); if(!roots.size){ toast('No mind map or org chart on this page.'); return; }
+  let n=0; for(const r of roots) for(const id of subtreeIds(r)){ const s=byId(id); if(!s||!hasKids(s)) continue; if(close&&id===r.id) continue; if(close&&!s.collapsed){ s.collapsed=true; n++; } if(!close&&s.collapsed){ delete s.collapsed; n++; } }
+  for(const r of roots) if(!r.locked) layoutTree(r);
+  const hid=foldedIds(); if(hid) S.sel=new Set([...S.sel].filter(x=>!hid.has(x)));
+  commit(); invalidate(); fitView(); toast(close?'Branches folded to the first level':'All branches unfolded');
+}
+// The arrow button drawn beside a node with children, in the node's own coordinates.
+function twWrap(n,it){ if(!TW) return n; const o=isShape(it)?twOpacity(it.id):lineOpacity(it); if(o>=0.999) return n; const g=sv('g',{opacity:r2(Math.max(0,o))}); g.appendChild(n); return g; }
+function foldButton(it,present){
+  if(!it.family||!hasKids(it)) return null;
+  const mm=it.family==='mindmap', r=present?8:7, cx=mm?it.w+r+4:it.w/2, cy=mm?it.h/2:it.h+r+4, open=!it.collapsed, n=familyKids(it).length;
+  // Mind maps point right when folded and left when open; org charts point down when folded, up when open.
+  const d=mm?(open?`M${r2(cx+2)} ${r2(cy-3.5)}L${r2(cx-1.5)} ${r2(cy)}L${r2(cx+2)} ${r2(cy+3.5)}`:`M${r2(cx-2)} ${r2(cy-3.5)}L${r2(cx+1.5)} ${r2(cy)}L${r2(cx-2)} ${r2(cy+3.5)}`)
+                :(open?`M${r2(cx-3.5)} ${r2(cy+2)}L${r2(cx)} ${r2(cy-1.5)}L${r2(cx+3.5)} ${r2(cy+2)}`:`M${r2(cx-3.5)} ${r2(cy-2)}L${r2(cx)} ${r2(cy+1.5)}L${r2(cx+3.5)} ${r2(cy-2)}`);
+  return sv('g',{class:'fold-btn'+(open?'':' shut'),'data-fold':it.id,role:'button','aria-label':(open?'Fold ':'Unfold ')+n+' item'+(n>1?'s':'')+' under '+(String(it.text||'this topic').split('\n')[0])},
+    sv('title',null,open?'Fold this branch':'Show '+n+' hidden item'+(n>1?'s':'')),sv('circle',{cx:r2(cx),cy:r2(cy),r:r+4,class:'fold-pad'}),sv('circle',{cx:r2(cx),cy:r2(cy),r}),sv('path',{d,fill:'none','stroke-width':1.6,'stroke-linecap':'round','stroke-linejoin':'round'}),
+    !open?sv('text',{x:r2(mm?cx+r+3:cx+r+3),y:r2(cy+3.5),'font-size':9,class:'fold-n'},String(n)):null);
+}
 function soonSection(names){ return section('Coming soon',el('div',{class:'soon-list'},names.map(n=>el('div',{class:'soon-row'},el('span',{text:n}),el('span',{class:'soon',text:'Coming Soon'}))))); }
 function renderProps(){
   const root=$('#props'), sel=selItems(), K=[];
@@ -5162,7 +5282,7 @@ function shiftTree(c,dx,dy){ if(!dx&&!dy) return; const ids=subtreeIds(c); for(c
   for(const L of items()) if(isLine(L)&&L.waypoints&&ids.has(L.from.id)&&ids.has(L.to.id)) shiftWaypoints(L,dx,dy); }
 const FAM_GAP={mindmap:{level:70,sib:16},org:{level:60,sib:24}};
 function blockSize(c,seen){ seen=seen||new Set(); const mm=c.family==='mindmap', own=mm?c.h:c.w; if(seen.has(c.id)) return own; seen.add(c.id);
-  const ks=familyKids(c); if(!ks.length) return own; const g=FAM_GAP[c.family].sib;
+  const ks=familyKids(c); if(!ks.length||c.collapsed) return own; const g=FAM_GAP[c.family].sib;
   return Math.max(own,ks.reduce((a,k)=>a+blockSize(k,seen),0)+g*(ks.length-1)); }
 function layoutKids(p){
   const ks=familyKids(p); if(!ks.length) return; const G=FAM_GAP[p.family], mm=p.family==='mindmap';
@@ -5182,6 +5302,7 @@ function addFamilyChild(s,asSibling,opts){
   const parent=asSibling?familyParent(s):s;
   if(!parent){ toast(s.family==='mindmap'?'The central topic has no siblings. Press Tab to add a topic.':'The top box has no siblings. Press Tab to add a report.'); return null; }
   if(parent.locked){ toast('Locked. Unlock to edit.'); return null; }
+  if(parent.collapsed){ if(TW) tweenEnd(); delete parent.collapsed; }
   const fam=parent.family, level=(parent.level||0)+1, kids=familyKids(parent);
   let key;
   if(fam==='mindmap') key=level<=1?'mm_main':'mm_sub';
@@ -5407,7 +5528,7 @@ const MENUS={
   edit:[['Undo','undo','Ctrl+Z'],['Redo','redo','Ctrl+Shift+Z'],'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',['Select all','selectAll','Ctrl+A'],['Select all shapes','selectShapes'],['Select all lines','selectLines'],['Select same fill color','selectSameFill'],'-',['Edit text','editText','Enter'],['Add text to line','addLineText'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],'-',['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],'-',['Find and replace','find','Ctrl+F']],
   insert:[['Template pages...','templates'],['Picture...','insertImage'],['Text box','insertText'],['Sticky note','insertNote'],['Page','addPage'],'-',['Icons','soon:Icon sets',null,true],['Freehand drawing','soon:Freehand pen',null,true]],
   arrange:[['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',['Group','group','Ctrl+G'],['Ungroup','ungroup','Ctrl+Shift+G'],'-',['Align left','alignL'],['Align center','alignC'],['Align right','alignR'],['Align top','alignT'],['Align middle','alignM'],['Align bottom','alignB'],'-',['Distribute horizontally','distH'],['Distribute vertically','distV'],'-',['Rotate 90\u00b0 clockwise','rotate','Alt+R'],['Rotate 90\u00b0 counterclockwise','rotateCcw','Alt+Shift+R'],['Flip horizontal','flipH'],['Flip vertical','flipV'],'-',['Match width','matchW'],['Match height','matchH'],['Match size','matchSize'],'-',['Lock / unlock','toggleLock','Ctrl+Shift+L'],['Swap line endpoints','swapEnds']],
-  view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','toggleMinimap',null,false,()=>S.prefs.minimap],['Present','present','F5'],['Comments','comments','Ctrl+Alt+M',false,()=>CMT.open]],
+  view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','toggleMinimap',null,false,()=>S.prefs.minimap],'-',['Fold all branches','foldAll'],['Unfold all branches','unfoldAll'],['Present','present','F5'],['Comments','comments','Ctrl+Alt+M',false,()=>CMT.open]],
   help:[['Getting started and shortcuts','help','F1'],['About Linework','about']]
 };
 let openMenu=null;
@@ -5436,7 +5557,7 @@ function showCtx(x,y){
   const has=S.sel.size>0;
   const si=selItems(), anyShape=si.some(isShape), oneLine=si.length===1&&isLine(si[0]);
   const fam=si.length===1&&si[0].family;
-  const list=has?[['Edit text','editText','F2'],oneLine?['Add text to line','addLineText']:null,fam?['Add '+(si[0].family==='mindmap'?'topic':'report'),'addChild','Tab']:null,fam&&familyParent(si[0])?['Add sibling','addSibling','Enter']:null,fam?['Tidy layout','tidyFamily']:null,'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',
+  const list=has?[['Edit text','editText','F2'],oneLine?['Add text to line','addLineText']:null,fam?['Add '+(si[0].family==='mindmap'?'topic':'report'),'addChild','Tab']:null,fam&&familyParent(si[0])?['Add sibling','addSibling','Enter']:null,fam?['Tidy layout','tidyFamily']:null,fam&&hasKids(si[0])?[si[0].collapsed?'Unfold branch':'Fold branch','foldSel','Alt+.']:null,fam?['Fold all branches','foldAll']:null,fam?['Unfold all branches','unfoldAll']:null,'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',
       ['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',
       anyShape?['Rotate 90\u00b0','rotate']:null,anyShape?['Flip horizontal','flipH']:null,anyShape?['Flip vertical','flipV']:null,
       oneLine?['Swap endpoints','swapEnds']:null,oneLine&&si[0].waypoints?['Reset line path','resetPath']:null,'-',
@@ -5593,7 +5714,7 @@ function showTextModal(name,text){
   try{ ta.focus(); ta.select(); }catch(e){}
 }
 function showHelp(){
-  const sc=[['Drag from library','Add a shape where you drop it'],['Click or tap a shape tile','Add it in the middle of the view'],['Double-click / double-tap','Edit shape text, or add a text box on a line where you click'],['Click a line','Open the editing bar (right-click a shape for its bar)'],['Type with a shape selected','Add to its text (Ctrl+A in the editor selects all to replace it)'],['Double-click inside text','Place the cursor there to edit'],['Ctrl+Enter or Esc','Finish editing text'],['Shift+click','Add to or remove from selection'],['Drag on empty canvas','Pan the view (Select mode: box-select)'],['Shift+drag on empty canvas','Box-select'],['Shift while dragging','Turn off grid and alignment snapping'],['Tab / Enter on a topic or org box','Add a child / add a sibling'],['Space+drag, middle-drag, scroll','Pan the canvas'],['Ctrl+scroll, pinch','Zoom'],['Shift while resizing','Keep proportions'],['Arrow keys (Shift for 10)','Nudge selection'],['Ctrl+Z / Ctrl+Shift+Z','Undo / redo'],['Ctrl+C / X / V / D','Copy, cut, paste, duplicate'],['Ctrl+G / Ctrl+Shift+G','Group / ungroup'],['Ctrl+] / Ctrl+[','Bring forward / send backward (add Shift for front / back)'],['Ctrl+= / Ctrl+- / Ctrl+0','Zoom in, out, actual size'],['Shift+1','Zoom to fit'],['Ctrl+O','Open a diagram, Visio or Lucid file'],['Delete or Backspace','Delete selection'],['Ctrl+K','Attach a link'],['Ctrl+Alt+C / Ctrl+Alt+V','Copy style / paste style'],['Ctrl+Shift+L','Lock or unlock'],['Alt+R / Alt+Shift+R','Rotate selection 90\u00b0 clockwise / counterclockwise'],['Drag the round arrow above a shape','Rotate to any angle (snaps to 15\u00b0, Shift for free)'],['Ctrl+F','Find and replace'],['Ctrl+S / Ctrl+Shift+S','Save / Save as'],['Ctrl+Alt+M','Comments'],['F5','Present'],['R while dragging a library tile','Turn the shape 90\u00b0 before you drop it (Shift+R the other way)'],['F1 or ?','Open this help']];
+  const sc=[['Drag from library','Add a shape where you drop it'],['Click or tap a shape tile','Add it in the middle of the view'],['Double-click / double-tap','Edit shape text, or add a text box on a line where you click'],['Click a line','Open the editing bar (right-click a shape for its bar)'],['Type with a shape selected','Add to its text (Ctrl+A in the editor selects all to replace it)'],['Double-click inside text','Place the cursor there to edit'],['Ctrl+Enter or Esc','Finish editing text'],['Shift+click','Add to or remove from selection'],['Drag on empty canvas','Pan the view (Select mode: box-select)'],['Shift+drag on empty canvas','Box-select'],['Shift while dragging','Turn off grid and alignment snapping'],['Tab / Enter on a topic or org box','Add a child / add a sibling'],['Alt+. on a topic or org box','Fold or unfold its branch (animated)'],['Space+drag, middle-drag, scroll','Pan the canvas'],['Ctrl+scroll, pinch','Zoom'],['Shift while resizing','Keep proportions'],['Arrow keys (Shift for 10)','Nudge selection'],['Ctrl+Z / Ctrl+Shift+Z','Undo / redo'],['Ctrl+C / X / V / D','Copy, cut, paste, duplicate'],['Ctrl+G / Ctrl+Shift+G','Group / ungroup'],['Ctrl+] / Ctrl+[','Bring forward / send backward (add Shift for front / back)'],['Ctrl+= / Ctrl+- / Ctrl+0','Zoom in, out, actual size'],['Shift+1','Zoom to fit'],['Ctrl+O','Open a diagram, Visio or Lucid file'],['Delete or Backspace','Delete selection'],['Ctrl+K','Attach a link'],['Ctrl+Alt+C / Ctrl+Alt+V','Copy style / paste style'],['Ctrl+Shift+L','Lock or unlock'],['Alt+R / Alt+Shift+R','Rotate selection 90\u00b0 clockwise / counterclockwise'],['Drag the round arrow above a shape','Rotate to any angle (snaps to 15\u00b0, Shift for free)'],['Ctrl+F','Find and replace'],['Ctrl+S / Ctrl+Shift+S','Save / Save as'],['Ctrl+Alt+M','Comments'],['F5','Present'],['R while dragging a library tile','Turn the shape 90\u00b0 before you drop it (Shift+R the other way)'],['F1 or ?','Open this help']];
   const soon=['Sharing and real-time collaboration (live co-editing)','Icon sets and freehand pen','Line jumps where lines cross','Page tab colors and master pages','Templates gallery','Embedded links','Full IEC 60617 electrical library','Free-form bends on straight and curved lines','Live data sources (Google Sheets, Excel) and auto-refresh','Import of older binary Visio .vsd and draw.io files','Slides that frame part of a page in Present mode'];
   openModal('Getting started with Linework',
     el('h3',{text:'Add shapes'}),el('p',{text:'Drag any shape from the library on the left onto the canvas, or click or tap a tile to drop it in the middle of the view. Use the search box to filter shapes.'}),
@@ -5643,6 +5764,7 @@ function showHelp(){
     el('h3',{text:'Templates'}),el('p',{text:'File > New from template, Insert > Template pages, the Templates button on the toolbar, or Browse templates on an empty canvas opens the gallery. Pick a category or search, then Use to open the template as your diagram (Ctrl+Z brings back what you had) or Add as page to add its pages to the open diagram. The gallery covers the same kinds of diagrams as Lucidchart\'s (flowcharts and processes, brainstorming, teams and organizations, projects and strategy, research and design, technical systems) plus an Industrial controls set: motor starter and P&ID, EtherNet/IP ring network, safety circuit, remote I/O panel and tank level loop. The templates are drawn for Linework, not copied from Lucidchart. Industrial templates are sketches to start from; check them against the product manuals and your standards.'}),
     el('h3',{text:'Device pictures'}),el('p',{text:'Select a Rockwell device (switch, controller, adapter, drive, HMI) and use Device picture > Add picture in the right panel, or drop a picture file onto the device. The picture shows on every shape of that catalog number in the diagram, the shape grows to fit it, the port pins stay on the edges, and lines stay attached. The catalog name moves under the shape. Untick Show the picture to hide it on one shape. Pictures are saved in the diagram file and, with Remember for new diagrams on, in this browser so new diagrams pick them up. Linework does not include product photos; use a photo or drawing you have the right to use.'}),
     el('h3',{text:'On a phone'}),el('p',{text:'On a narrow screen the shape library and the properties panel open as sheets from the bottom (the first and last toolbar buttons); only one is open at a time, and the library closes after you add a shape. Less used toolbar buttons are in the menus. Tap a shape to select it: its connection dots show without hovering, and handles are larger. Drag a dot to connect. Press and hold a shape or the canvas for its menu. Two fingers pan and pinch to zoom. Dialogs fill the screen.'}),
+    el('h3',{text:'Folding branches (animated)'}),el('p',{text:'In a mind map or org chart, a topic or box with items under it shows a small round arrow button beside it (right side for mind maps, below for org charts). Click it to fold the branch: the items slide back into it and fade out, and the rest of the tree closes up. Click again to unfold: they slide out and fade in, and the view glides so the branch stays on screen. A folded button shows how many items are hidden. You can also use Alt+. on a selected topic, or the right-click menu (Fold branch, Fold all branches, Unfold all branches; also under View). Folded branches are saved with the diagram, hidden items are left out of exports, and the buttons work in Present mode too, where your folding is undone when you leave Present. Adding a topic to a folded branch unfolds it. If your system is set to reduce motion, branches change without the animation. The Collapsible mind map template shows a ready-made example.'}),
     el('h3',{text:'Mini map'}),el('p',{text:'View > Mini map shows a small overview in the bottom right corner of the canvas with every shape and line on the page and a blue box for what is on screen. Click or drag in the map to move the view there. The setting is remembered.'}),
     el('h3',{text:'Comments'}),el('p',{text:'View > Comments (Ctrl+Alt+M) opens the comments panel. Type your name once at the top. With one item selected, a new comment attaches to that item and its numbered pin follows the item; with nothing selected, the comment is pinned at the middle of the view. Press Enter to post (Shift+Enter for a new line). Reply, Resolve, Reopen and Delete work per thread, Show resolved brings resolved threads back, and clicking a pin or a thread number jumps to it. Comments are saved in the diagram file and undo like any other edit, but they are not live: other people see them when they open the file, and they are left out of SVG, PNG and PDF exports.'}),
     el('h3',{text:'Saving'}),el('p',{text:'Your diagram autosaves in this browser. The status at the top right tells you if browser storage is blocked. Use File > Save for a portable copy you can reopen anywhere, and File > Export SVG or PNG for images.'}),
@@ -5684,6 +5806,8 @@ const CMDS={
   loadSample2:()=>loadDocument(sampleDoc2(),'Sample loaded. Ctrl+Z brings back your previous diagram.'),
   openJson:()=>{ openFilePick(); },
   templates:()=>showTemplates(),
+  foldSel:()=>{ const s=selItems().find(i=>i.family&&hasKids(i)); if(s) setFold(s.id,'toggle'); else toast('Select a topic or box that has items under it.'); },
+  foldAll:()=>foldAll(true), unfoldAll:()=>foldAll(false),
   save:()=>{ saveFile(); }, saveAs:()=>{ saveFileAs(); }, toggleMinimap:()=>togglePref('minimap'), comments:()=>{ if(CMT.open) closeComments(); else openComments(); },
   addComment:()=>{ openComments(); setTimeout(()=>{ const t=cmtEl&&cmtEl.querySelector('textarea[data-cmt="new"]'); if(t) t.focus(); },0); },
   saveJson:()=>download(fileBase()+'.json',JSON.stringify(docForSave(),null,2),'application/json','Saved '+fileBase()+'.json'),
@@ -5767,6 +5891,7 @@ function wireKeys(){
     if(mod&&!e.shiftKey&&!e.altKey&&(k==='f'||k==='h')){ e.preventDefault(); openFind(); return; }
     if(mod&&e.altKey&&(e.code==='KeyC'||e.code==='KeyV')){ e.preventDefault(); runCmd(e.code==='KeyC'?'copyStyle':'pasteStyle'); return; }
     if(mod&&e.shiftKey&&(e.code==='KeyL')){ e.preventDefault(); runCmd('toggleLock'); return; }
+    if(e.altKey&&!mod&&(e.key==='.'||e.code==='Period')){ e.preventDefault(); runCmd('foldSel'); return; }
     if(mod&&e.altKey&&e.code==='KeyM'){ e.preventDefault(); runCmd('comments'); return; }
     if(mod&&!e.shiftKey&&k==='k'){ e.preventDefault(); runCmd('openLink'); return; }
     if(e.key===' '){ e.preventDefault(); if(!S.spaceDown){ S.spaceDown=true; stage.classList.add('panning'); } return; }
@@ -5816,6 +5941,7 @@ window.__app={
     geom, sampleDoc, saveLocal, loadLocal, expandGroups, alignSel, distributeSel, reorder, newDoc,
     insertImageData, importAssets, exportAssets, docForSave, buildPdf, pageSvgs, assets:ASSETS, geoBBox,
     findTarget, lineDefaults, raPorts, raPort, RA_DEV, RA_SRC, filterLibrary, duplicate,
+    setFold, foldAll, foldedIds, hasKids, familyKids, tweenEnd, getTween:()=>TW,
     TEMPLATES, tplDoc, showTemplates, useTemplate, setDevPic, clearDevPic, devPicOf, picLib, isPhone, isCoarse, longPressStart, longPressEnd, usedAssetIds, exportAssets, docForSave,
     saveFile, saveFileAs, openAnyFile, fileStatus, fileDirty, FILE, zipOpen, vsdxToDoc, lucidToDoc, isLucidJson, importZipBytes, miniContent, miniView, addComment, cmtCmd, openComments, closeComments, comments,
     setAngle, totalAngle, rotPt, itemBBox, shapeAt, parseCsv, importCsv, fieldsOf, resolveText, ruleHit, runAction, startPresent, stopPresent, presentGo, exportSVGNode,
