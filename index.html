@@ -28,7 +28,7 @@
   --text:#e6e9ef; --text-2:#aab2c0; --text-3:#9aa3b2;
   --accent:#5b8ff9; --accent-2:#22324f; --accent-text:#ffffff;
   --soon-bg:#3b2f17; --soon-text:#f3c66b;
-  --canvas:#f3f4f6; --pasteboard:#2b313b; --grid-minor:#e7e9ed; --grid-major:#d6dae1;
+  --canvas:#1b1f26; --pasteboard:#2b313b; --grid-minor:rgba(255,255,255,.045); --grid-major:rgba(255,255,255,.09);
   --shadow:0 6px 24px rgba(0,0,0,.45);
 }
 /* ========================================================================= */
@@ -402,6 +402,12 @@ button{cursor:pointer}
 .fold-btn{cursor:pointer} .fold-btn circle{fill:var(--panel,#fff);stroke:#7b8494;stroke-width:1.2} .fold-btn path{stroke:#475467} .fold-btn .fold-pad{fill:transparent;stroke:none}
 .fold-btn:hover circle:not(.fold-pad){stroke:var(--accent,#2f6fed)} .fold-btn.shut circle:not(.fold-pad){fill:#e8f1fe;stroke:#3a7bec} .fold-n{fill:#98a2b3;font-weight:700;font-family:sans-serif;pointer-events:none}
 .present .fold-btn circle:not(.fold-pad){fill:#ffffff}
+.pen-mode #svg{cursor:crosshair!important}
+.pen-bar{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.18);max-width:calc(100% - 16px);overflow-x:auto}
+.pen-l{font-weight:600;font-size:var(--fs-sm);color:var(--text-2)} .pen-sw{width:22px;height:22px;border-radius:50%;border:2px solid var(--panel);box-shadow:0 0 0 1px var(--border);cursor:pointer;flex:none} .pen-sw.on{box-shadow:0 0 0 2px var(--accent)}
+.pen-w{width:30px;height:26px;border:1px solid var(--border);border-radius:6px;background:var(--panel);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none} .pen-w span{display:block;width:16px;border-radius:4px;background:var(--text)} .pen-w.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.pen-bar .chk{white-space:nowrap;font-size:var(--fs-xs)}
+#penBtn[aria-pressed="true"]{background:var(--accent-2);color:var(--accent)}
 .hint-btn{pointer-events:auto;margin-top:10px}
 .modal.modal-wide{width:min(1080px,100%);height:min(86vh,900px)}
 .tpl-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 8px} .tpl-search{flex:0 1 260px;height:32px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel);color:var(--text)}
@@ -492,6 +498,7 @@ button{cursor:pointer}
     <button class="ph-hide btn ghost" data-cmd="back" title="Send to back (Ctrl+Shift+[)">Back</button>
     <button class="ph-hide btn ghost" data-cmd="group" title="Group (Ctrl+G)">Group</button>
     <span class="tb-sep"></span>
+    <button class="btn ghost" data-cmd="pen" data-icon="pen" id="penBtn" title="Freehand drawing (pen)"><span class="ph-hide">Draw</span></button>
     <button class="btn ghost" data-cmd="templates" data-icon="grid" title="Templates"><span class="ph-hide">Templates</span></button>
     <button class="ph-hide btn ghost" data-cmd="insertImage" data-icon="image" title="Insert picture (or drag a picture onto the canvas, or paste one)"><span class="ph-hide">Picture</span></button>
     <button class="btn ghost icon" data-cmd="delete" data-icon="trash" title="Delete (Del)" aria-label="Delete"></button>
@@ -541,7 +548,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.15.0';
+const APP_VERSION='1.16.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -645,6 +652,7 @@ const store={
 /* ============================== icons ============================== */
 const ICONS={
   undo:'M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3',
+  pen:'M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z',
   redo:'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3',
   zoomIn:'M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4M11 8v6M8 11h6',
   zoomOut:'M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4M8 11h6',
@@ -743,12 +751,14 @@ function geom(type,w,h,st){
     case 'arrow': { const hl=Math.min(w*.45,h*.9); d=poly([[0,h*.25],[w-hl,h*.25],[w-hl,0],[w,h/2],[w-hl,h],[w-hl,h*.75],[0,h*.75]]); tb={x:0,y:h*.25,w:w-hl*.4,h:h*.5}; break; }
     case 'cloud': { const sx=w/100, sy=h/62; d=CLOUD.map(c=>c[0]+c.slice(1).map((v,i)=>r2(i%2?v*sy:v*sx)).join(' ')).join('')+'Z'; tb={x:w*.18,y:h*.25,w:w*.66,h:h*.6}; break; }
     case 'callout': d=poly([[0,0],[w,0],[w,h*.75],[w*.4,h*.75],[w*.2,h],[w*.24,h*.75],[0,h*.75]]); tb={x:0,y:0,w,h:h*.75}; break;
+    case 'icon': return {d:roundRect(w,h,0),decor:[],glyphs:[],tb:{x:0,y:0,w,h},label:true,hit:false,ports:null};
+    case 'ink': return {d:roundRect(w,h,0),decor:[],glyphs:[],tb:{x:0,y:0,w,h},label:false,hit:false,ports:null};
     case 'mm_sub': return {d:`M0 ${r2(h)}H${r2(w)}`,decor:null,tb:{x:0,y:0,w,h:h-2},hit:true,ports:{W:[0,h],E:[w,h]}};
     case 'org_card': { const r=Math.min(8,h/4), av=h*0.32, ax=h*0.5, ay=h/2; d=roundRect(w,h,r2(r));
       decor=[{d:circ(ax,ay,av),f:'none'},{d:circ(ax,ay-av*0.3,av*0.3),f:'stroke'},{d:`M${r2(ax-av*0.6)} ${r2(ay+av*0.62)}Q${r2(ax)} ${r2(ay-av*0.02)} ${r2(ax+av*0.6)} ${r2(ay+av*0.62)}Z`,f:'stroke'}];
       tb={x:h*0.92,y:0,w:Math.max(10,w-h*0.97),h}; break; }
     case 'org_role': d=roundRect(w,h,4); decor=[{d:`M0 4Q0 0 4 0H${r2(w-4)}Q${r2(w)} 0 ${r2(w)} 4V7H0Z`,f:'stroke'}]; tb={x:0,y:7,w,h:h-7}; break;
-    default: { const lg=libGeom(type,w,h); if(lg) return lg; const ug=umlGeom(type,w,h); if(ug) return ug; const eg=elecGeom(type,w,h); if(eg) return withPins(eg,type,w,h); const g=symGeom(type,w,h); if(g) return withPins(g,type,w,h); d=roundRect(w,h,0); }
+    default: { const lg=libGeom(type,w,h); if(lg) return lg; const ug=umlGeom(type,w,h); if(ug) return ug; const ig=iecGeom(type,w,h); if(ig) return withPins(ig,type,w,h); const eg=elecGeom(type,w,h); if(eg) return withPins(eg,type,w,h); const g=symGeom(type,w,h); if(g) return withPins(g,type,w,h); d=roundRect(w,h,0); }
   }
   return {d,decor,tb};
 }
@@ -770,6 +780,13 @@ function symPins(type,w,h){
   const P=(id,x,y,side,lab)=>({id,x,y,side,lab:lab===undefined?id:lab}), cx=w/2;
   const rows3=(ys,a,b)=>ys.flatMap((y,i)=>[P(a[i],0,y,'W'),P(b[i],w,y,'E')]);
   switch(type){
+    case 'i_co': return [P('14',w/2-w*.28,0,'N'),P('12',w/2+w*.28,0,'N'),P('11',w/2,h,'S')];
+    case 'i_km3': case 'i_cb3': case 'i_q3': case 'i_f3': return [P('1',w/6,0,'N'),P('3',w/2,0,'N'),P('5',5*w/6,0,'N'),P('2',w/6,h,'S'),P('4',w/2,h,'S'),P('6',5*w/6,h,'S')];
+    case 'i_k': return [P('A1',cx,0,'N'),P('A2',cx,h,'S')];
+    case 'i_kt_on': case 'i_kt_off': return [P('A1',w*.64,0,'N'),P('A2',w*.64,h,'S')];
+    case 'i_ol_nc': return [P('95',cx,0,'N'),P('96',cx,h,'S')];
+    case 'i_h': return [P('X1',cx,0,'N'),P('X2',cx,h,'S')];
+    case 'i_m3': { const r=Math.min(w,h)*.32; return [P('U1',cx-r*.6,0,'N'),P('V1',cx,0,'N'),P('W1',cx+r*.6,0,'N')]; }
     case 'e_xfmr': return [P('H1',w*.2,0,'N'),P('H2',w*.8,0,'N'),P('X1',w*.2,h,'S'),P('X2',w*.8,h,'S')];
     case 'e_vfd': return rows3([h*.25,h*.5,h*.75],['L1','L2','L3'],['T1','T2','T3']);
     case 'e_plc': { const out=[]; for(let i=0;i<6;i++){ const ty=h*(.3+i*.11); out.push(P('I'+i,0,ty,'W',null),P('O'+i,w,ty,'E',null)); } return out; }
@@ -1973,7 +1990,7 @@ const UML_TYPES=['uml_class','uml_iface','uml_actor','uml_package','uml_componen
   'bp_start','bp_inter','bp_end','bp_start_msg','bp_start_timer','bp_end_term','bp_sub','bp_gw','bp_gw_x','bp_gw_plus','bp_gw_o','bp_gw_event','bp_data','bp_annot'];
 const UMLS={fill:'#ffffff',stroke:'#1f2430',fontSize:12}, UMLT=Object.assign({},UMLS,{valign:'top',fontSize:11});
 LIB.push(
-  {cat:'UML',closed:true,items:[
+  {cat:'UML',closed:true,pics:true,items:[
     {key:'uml_class',name:'Class',type:'uml_class',w:170,h:110,text:'ClassName\n--\n- attribute: Type\n--\n+ operation(): Type',style:Object.assign({},UMLS,{align:'left',valign:'top'}),std:B_UML},
     {key:'uml_iface',name:'Interface',type:'uml_iface',w:170,h:90,text:'«interface»\nName\n--\n+ operation(): Type',style:Object.assign({},UMLS,{align:'left',valign:'top'}),std:B_UML},
     {key:'uml_actor',name:'Actor',type:'uml_actor',w:36,h:64,text:'Actor',style:UMLT,std:B_UML},
@@ -2000,7 +2017,7 @@ LIB.push(
     {key:'uml_msg',name:'Message (sequence)',line:true,route:'straight',style:{stroke:'#1f2430',sw:1.5},endArrow:'arrow'},
     {key:'uml_reply',name:'Reply message',line:true,route:'straight',style:{stroke:'#1f2430',sw:1.5,dash:'dashed'},endArrow:'open'}
   ]},
-  {cat:'BPMN',closed:true,items:[
+  {cat:'BPMN',closed:true,pics:true,items:[
     {key:'bp_start',name:'Start event',type:'bp_start',w:36,h:36,style:UMLT,std:B_BPMN},
     {key:'bp_start_msg',name:'Message start event',type:'bp_start_msg',w:36,h:36,style:UMLT,std:B_BPMN},
     {key:'bp_start_timer',name:'Timer start event',type:'bp_start_timer',w:36,h:36,style:UMLT,std:B_BPMN},
@@ -2041,12 +2058,187 @@ function renderUmlText(g,it,st){
 }
 const isUmlBox=it=>(it.type==='uml_class'||it.type==='uml_iface')&&!it.rot;
 
+const ICON_SET={"factory":[["path",{"d":"M12 16h.01"}],["path",{"d":"M16 16h.01"}],["path",{"d":"M3 19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5a.5.5 0 0 0-.769-.422l-4.462 2.844A.5.5 0 0 1 15 10.5v-2a.5.5 0 0 0-.769-.422L9.77 10.922A.5.5 0 0 1 9 10.5V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"}],["path",{"d":"M8 16h.01"}]],"cog":[["path",{"d":"M11 10.27 7 3.34"}],["path",{"d":"m11 13.73-4 6.93"}],["path",{"d":"M12 22v-2"}],["path",{"d":"M12 2v2"}],["path",{"d":"M14 12h8"}],["path",{"d":"m17 20.66-1-1.73"}],["path",{"d":"m17 3.34-1 1.73"}],["path",{"d":"M2 12h2"}],["path",{"d":"m20.66 17-1.73-1"}],["path",{"d":"m20.66 7-1.73 1"}],["path",{"d":"m3.34 17 1.73-1"}],["path",{"d":"m3.34 7 1.73 1"}],["circle",{"cx":"12","cy":"12","r":"2"}],["circle",{"cx":"12","cy":"12","r":"8"}]],"settings":[["path",{"d":"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"}],["circle",{"cx":"12","cy":"12","r":"3"}]],"wrench":[["path",{"d":"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"}]],"hammer":[["path",{"d":"m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9"}],["path",{"d":"m18 15 4-4"}],["path",{"d":"m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"}]],"drill":[["path",{"d":"M10 18a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a3 3 0 0 1-3-3 1 1 0 0 1 1-1z"}],["path",{"d":"M13 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1l-.81 3.242a1 1 0 0 1-.97.758H8"}],["path",{"d":"M14 4h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3"}],["path",{"d":"M18 6h4"}],["path",{"d":"m5 10-2 8"}],["path",{"d":"m7 18 2-8"}]],"zap":[["path",{"d":"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z"}]],"zap-off":[["path",{"d":"M10.768 5.111 13.44 2.44a1.5 1.5 0 012.474 1.561l-1.633 4.625"}],["path",{"d":"m18.889 13.232.672-.672A1.5 1.5 0 0018.5 10h-2.844"}],["path",{"d":"m2 2 20 20"}],["path",{"d":"m7.94 7.94-3.5 3.499A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l5.5-5.5"}]],"plug":[["path",{"d":"M12 22v-5"}],["path",{"d":"M15 8V2"}],["path",{"d":"M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"}],["path",{"d":"M9 8V2"}]],"plug-zap":[["path",{"d":"M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"}],["path",{"d":"m2 22 3-3"}],["path",{"d":"M7.5 13.5 10 11"}],["path",{"d":"M10.5 16.5 13 14"}],["path",{"d":"m18 3-4 4h6l-4 4"}]],"power":[["path",{"d":"M12 2v10"}],["path",{"d":"M18.4 6.6a9 9 0 1 1-12.77.04"}]],"battery":[["path",{"d":"M 22 14 L 22 10"}],["rect",{"x":"2","y":"6","width":"16","height":"12","rx":"2"}]],"battery-charging":[["path",{"d":"m11 7-3 5h4l-3 5"}],["path",{"d":"M14.856 6H16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.935"}],["path",{"d":"M22 14v-4"}],["path",{"d":"M5.14 18H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2.936"}]],"cable":[["path",{"d":"M17 19a1 1 0 0 1-1-1v-2a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1z"}],["path",{"d":"M17 21v-2"}],["path",{"d":"M19 14V6.5a1 1 0 0 0-7 0v11a1 1 0 0 1-7 0V10"}],["path",{"d":"M21 21v-2"}],["path",{"d":"M3 5V3"}],["path",{"d":"M4 10a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2a2 2 0 0 1-2 2z"}],["path",{"d":"M7 5V3"}]],"cpu":[["path",{"d":"M12 20v2"}],["path",{"d":"M12 2v2"}],["path",{"d":"M17 20v2"}],["path",{"d":"M17 2v2"}],["path",{"d":"M2 12h2"}],["path",{"d":"M2 17h2"}],["path",{"d":"M2 7h2"}],["path",{"d":"M20 12h2"}],["path",{"d":"M20 17h2"}],["path",{"d":"M20 7h2"}],["path",{"d":"M7 20v2"}],["path",{"d":"M7 2v2"}],["rect",{"x":"4","y":"4","width":"16","height":"16","rx":"2"}],["rect",{"x":"8","y":"8","width":"8","height":"8","rx":"1"}]],"microchip":[["path",{"d":"M10 12h4"}],["path",{"d":"M10 17h4"}],["path",{"d":"M10 7h4"}],["path",{"d":"M18 12h2"}],["path",{"d":"M18 18h2"}],["path",{"d":"M18 6h2"}],["path",{"d":"M4 12h2"}],["path",{"d":"M4 18h2"}],["path",{"d":"M4 6h2"}],["rect",{"x":"6","y":"2","width":"12","height":"20","rx":"2"}]],"circuit-board":[["rect",{"width":"18","height":"18","x":"3","y":"3","rx":"2"}],["path",{"d":"M11 9h4a2 2 0 0 0 2-2V3"}],["circle",{"cx":"9","cy":"9","r":"2"}],["path",{"d":"M7 21v-4a2 2 0 0 1 2-2h4"}],["circle",{"cx":"15","cy":"15","r":"2"}]],"gauge":[["path",{"d":"m12 14 4-4"}],["path",{"d":"M3.34 19a10 10 0 1 1 17.32 0"}]],"thermometer":[["path",{"d":"M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"}]],"droplet":[["path",{"d":"M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"}]],"droplets":[["path",{"d":"M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"}],["path",{"d":"M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"}]],"flame":[["path",{"d":"M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"}]],"fan":[["path",{"d":"M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"}],["path",{"d":"M12 12v.01"}]],"wind":[["path",{"d":"M12.8 19.6A2 2 0 1 0 14 16H2"}],["path",{"d":"M17.5 8a2.5 2.5 0 1 1 2 4H2"}],["path",{"d":"M9.8 4.4A2 2 0 1 1 11 8H2"}]],"waves-horizontal":[["path",{"d":"M2 12q2.5 2 5 0t5 0 5 0 5 0"}],["path",{"d":"M2 19q2.5 2 5 0t5 0 5 0 5 0"}],["path",{"d":"M2 5q2.5 2 5 0t5 0 5 0 5 0"}]],"cylinder":[["ellipse",{"cx":"12","cy":"5","rx":"9","ry":"3"}],["path",{"d":"M3 5v14a9 3 0 0 0 18 0V5"}]],"container":[["path",{"d":"M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z"}],["path",{"d":"M10 21.9V14L2.1 9.1"}],["path",{"d":"m10 14 11.9-6.9"}],["path",{"d":"M14 19.8v-8.1"}],["path",{"d":"M18 17.5V9.4"}]],"warehouse":[["path",{"d":"M18 21V10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1v11"}],["path",{"d":"M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 1.132-1.803l7.95-3.974a2 2 0 0 1 1.837 0l7.948 3.974A2 2 0 0 1 22 8z"}],["path",{"d":"M6 13h12"}],["path",{"d":"M6 17h12"}]],"forklift":[["path",{"d":"M12 12H5a2 2 0 0 0-2 2v5"}],["path",{"d":"M15 19h7"}],["path",{"d":"M16 19V2"}],["path",{"d":"M6 12V7a2 2 0 0 1 2-2h2.172a2 2 0 0 1 1.414.586l3.828 3.828A2 2 0 0 1 16 10.828"}],["path",{"d":"M7 19h4"}],["circle",{"cx":"13","cy":"19","r":"2"}],["circle",{"cx":"5","cy":"19","r":"2"}]],"truck":[["path",{"d":"M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"}],["path",{"d":"M15 18H9"}],["path",{"d":"M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"}],["circle",{"cx":"17","cy":"18","r":"2"}],["circle",{"cx":"7","cy":"18","r":"2"}]],"package":[["path",{"d":"M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"}],["path",{"d":"M12 22V12"}],["polyline",{"points":"3.29 7 12 12 20.71 7"}],["path",{"d":"m7.5 4.27 9 5.15"}]],"boxes":[["path",{"d":"M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"}],["path",{"d":"m7 16.5-4.74-2.85"}],["path",{"d":"m7 16.5 5-3"}],["path",{"d":"M7 16.5v5.17"}],["path",{"d":"M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"}],["path",{"d":"m17 16.5-5-3"}],["path",{"d":"m17 16.5 4.74-2.85"}],["path",{"d":"M17 16.5v5.17"}],["path",{"d":"M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"}],["path",{"d":"M12 8 7.26 5.15"}],["path",{"d":"m12 8 4.74-2.85"}],["path",{"d":"M12 13.5V8"}]],"robot-arm":[["path",{"d":"M12 21 7.5 8.322"}],["path",{"d":"m14 7 1.75-3.767a.5.5 0 0 1 .662-.172L20 5.005"}],["path",{"d":"m20 8.998-3.588 1.944a.5.5 0 0 1-.662-.172L14 7H8"}],["path",{"d":"M3.486 21h10"}],["path",{"d":"M5 21V8.732"}],["circle",{"cx":"6","cy":"7","r":"2"}]],"bot":[["path",{"d":"M12 8V4H8"}],["rect",{"width":"16","height":"12","x":"4","y":"8","rx":"2"}],["path",{"d":"M2 14h2"}],["path",{"d":"M20 14h2"}],["path",{"d":"M15 13v2"}],["path",{"d":"M9 13v2"}]],"construction":[["rect",{"x":"2","y":"6","width":"20","height":"8","rx":"1"}],["path",{"d":"M17 14v7"}],["path",{"d":"M7 14v7"}],["path",{"d":"M17 3v3"}],["path",{"d":"M7 3v3"}],["path",{"d":"M10 14 2.3 6.3"}],["path",{"d":"m14 6 7.7 7.7"}],["path",{"d":"m8 6 8 8"}]],"hard-hat":[["path",{"d":"M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5"}],["path",{"d":"M14 6a6 6 0 0 1 6 6v3"}],["path",{"d":"M4 15v-3a6 6 0 0 1 6-6"}],["rect",{"x":"2","y":"15","width":"20","height":"4","rx":"1"}]],"traffic-cone":[["path",{"d":"M16.05 10.966a5 2.5 0 0 1-8.1 0"}],["path",{"d":"m16.923 14.049 4.48 2.04a1 1 0 0 1 .001 1.831l-8.574 3.9a2 2 0 0 1-1.66 0l-8.574-3.91a1 1 0 0 1 0-1.83l4.484-2.04"}],["path",{"d":"M16.949 14.14a5 2.5 0 1 1-9.9 0L10.063 3.5a2 2 0 0 1 3.874 0z"}],["path",{"d":"M9.194 6.57a5 2.5 0 0 0 5.61 0"}]],"radiation":[["path",{"d":"M12 12h.01"}],["path",{"d":"M14 15.4641a4 4 0 0 1-4 0L7.52786 19.74597 A 1 1 0 0 0 7.99303 21.16211 10 10 0 0 0 16.00697 21.16211 1 1 0 0 0 16.47214 19.74597z"}],["path",{"d":"M16 12a4 4 0 0 0-2-3.464l2.472-4.282a1 1 0 0 1 1.46-.305 10 10 0 0 1 4.006 6.94A1 1 0 0 1 21 12z"}],["path",{"d":"M8 12a4 4 0 0 1 2-3.464L7.528 4.254a1 1 0 0 0-1.46-.305 10 10 0 0 0-4.006 6.94A1 1 0 0 0 3 12z"}]],"biohazard":[["circle",{"cx":"12","cy":"11.9","r":"2"}],["path",{"d":"M6.7 3.4c-.9 2.5 0 5.2 2.2 6.7C6.5 9 3.7 9.6 2 11.6"}],["path",{"d":"m8.9 10.1 1.4.8"}],["path",{"d":"M17.3 3.4c.9 2.5 0 5.2-2.2 6.7 2.4-1.2 5.2-.6 6.9 1.5"}],["path",{"d":"m15.1 10.1-1.4.8"}],["path",{"d":"M16.7 20.8c-2.6-.4-4.6-2.6-4.7-5.3-.2 2.6-2.1 4.8-4.7 5.2"}],["path",{"d":"M12 13.9v1.6"}],["path",{"d":"M13.5 5.4c-1-.2-2-.2-3 0"}],["path",{"d":"M17 16.4c.7-.7 1.2-1.6 1.5-2.5"}],["path",{"d":"M5.5 13.9c.3.9.8 1.8 1.5 2.5"}]],"siren":[["path",{"d":"M7 18v-6a5 5 0 1 1 10 0v6"}],["path",{"d":"M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z"}],["path",{"d":"M21 12h1"}],["path",{"d":"M18.5 4.5 18 5"}],["path",{"d":"M2 12h1"}],["path",{"d":"M12 2v1"}],["path",{"d":"m4.929 4.929.707.707"}],["path",{"d":"M12 12v6"}]],"triangle-exclamation-point":[["path",{"d":"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"}],["path",{"d":"M12 9v4"}],["path",{"d":"M12 17h.01"}]],"octagon-exclamation-point":[["path",{"d":"M12 16h.01"}],["path",{"d":"M12 8v4"}],["path",{"d":"M15.312 2a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586l-4.688-4.688A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2z"}]],"shield":[["path",{"d":"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"}]],"shield-check":[["path",{"d":"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"}],["path",{"d":"m9 12 2 2 4-4"}]],"lock":[["rect",{"width":"18","height":"11","x":"3","y":"11","rx":"2","ry":"2"}],["path",{"d":"M7 11V7a5 5 0 0 1 10 0v4"}]],"lock-open":[["rect",{"width":"18","height":"11","x":"3","y":"11","rx":"2","ry":"2"}],["path",{"d":"M7 11V7a5 5 0 0 1 9.9-1"}]],"key":[["path",{"d":"m2 21 9.6-9.6"}],["path",{"d":"m7.5 15.5 2.3 2.3a1 1 0 0 1 0 1.4l-2.1 2.1a1 1 0 0 1-1.4 0L4 19"}],["circle",{"cx":"15.5","cy":"7.5","r":"5.5"}]],"toggle-left":[["circle",{"cx":"9","cy":"12","r":"3"}],["rect",{"width":"20","height":"14","x":"2","y":"5","rx":"7"}]],"toggle-right":[["circle",{"cx":"15","cy":"12","r":"3"}],["rect",{"width":"20","height":"14","x":"2","y":"5","rx":"7"}]],"timer":[["line",{"x1":"10","x2":"14","y1":"2","y2":"2"}],["line",{"x1":"12","x2":"15","y1":"14","y2":"11"}],["circle",{"cx":"12","cy":"14","r":"8"}]],"clock":[["circle",{"cx":"12","cy":"12","r":"10"}],["path",{"d":"M12 6v6l4 2"}]],"activity":[["path",{"d":"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"}]],"rotate-cw":[["path",{"d":"M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"}],["path",{"d":"M21 3v5h-5"}]],"refresh-cw":[["path",{"d":"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"}],["path",{"d":"M21 3v5h-5"}],["path",{"d":"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"}],["path",{"d":"M8 16H3v5"}]],"recycle":[["path",{"d":"M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5"}],["path",{"d":"M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12"}],["path",{"d":"m14 16-3 3 3 3"}],["path",{"d":"M8.293 13.596 7.196 9.5 3.1 10.598"}],["path",{"d":"m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843"}],["path",{"d":"m13.378 9.633 4.096 1.098 1.097-4.096"}]],"scale":[["path",{"d":"M12 3v18"}],["path",{"d":"m19 8 3 8a5 5 0 0 1-6 0zV7"}],["path",{"d":"M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"}],["path",{"d":"m5 8 3 8a5 5 0 0 1-6 0zV7"}],["path",{"d":"M7 21h10"}]],"ruler":[["path",{"d":"M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"}],["path",{"d":"m14.5 12.5 2-2"}],["path",{"d":"m11.5 9.5 2-2"}],["path",{"d":"m8.5 6.5 2-2"}],["path",{"d":"m17.5 15.5 2-2"}]],"magnet":[["path",{"d":"m12 15 4 4"}],["path",{"d":"M2.352 10.648a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l6.029-6.029a1 1 0 1 1 3 3l-6.029 6.029a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l6.365-6.367A1 1 0 0 0 8.716 4.282z"}],["path",{"d":"m5 8 4 4"}]],"lightbulb":[["path",{"d":"M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"}],["path",{"d":"M9 18h6"}],["path",{"d":"M10 22h4"}]],"sun":[["circle",{"cx":"12","cy":"12","r":"4"}],["path",{"d":"M12 2v2"}],["path",{"d":"M12 20v2"}],["path",{"d":"m4.93 4.93 1.41 1.41"}],["path",{"d":"m17.66 17.66 1.41 1.41"}],["path",{"d":"M2 12h2"}],["path",{"d":"M20 12h2"}],["path",{"d":"m6.34 17.66-1.41 1.41"}],["path",{"d":"m19.07 4.93-1.41 1.41"}]],"snowflake":[["path",{"d":"m10 20-1.25-2.5L6 18"}],["path",{"d":"M10 4 8.75 6.5 6 6"}],["path",{"d":"m14 20 1.25-2.5L18 18"}],["path",{"d":"m14 4 1.25 2.5L18 6"}],["path",{"d":"m17 21-3-6h-4"}],["path",{"d":"m17 3-3 6 1.5 3"}],["path",{"d":"M2 12h6.5L10 9"}],["path",{"d":"m20 10-1.5 2 1.5 2"}],["path",{"d":"M22 12h-6.5L14 15"}],["path",{"d":"m4 10 1.5 2L4 14"}],["path",{"d":"m7 21 3-6-1.5-3"}],["path",{"d":"m7 3 3 6h4"}]],"fuel":[["path",{"d":"M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 4 0v-6.998a2 2 0 0 0-.59-1.42L18 5"}],["path",{"d":"M14 21V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v16"}],["path",{"d":"M2 21h13"}],["path",{"d":"M3 9h11"}]],"heater":[["path",{"d":"M11 8c2-3-2-3 0-6"}],["path",{"d":"M15.5 8c2-3-2-3 0-6"}],["path",{"d":"M6 10h.01"}],["path",{"d":"M6 14h.01"}],["path",{"d":"M10 16v-4"}],["path",{"d":"M14 16v-4"}],["path",{"d":"M18 16v-4"}],["path",{"d":"M20 6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3"}],["path",{"d":"M5 20v2"}],["path",{"d":"M19 20v2"}]],"air-vent":[["path",{"d":"M18 17.5a2.5 2.5 0 1 1-4 2.03V12"}],["path",{"d":"M6 12H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"}],["path",{"d":"M6 8h12"}],["path",{"d":"M6.6 15.572A2 2 0 1 0 10 17v-5"}]],"pipette":[["path",{"d":"m12 9-8.414 8.414A2 2 0 0 0 3 18.828v1.344a2 2 0 0 1-.586 1.414A2 2 0 0 1 3.828 21h1.344a2 2 0 0 0 1.414-.586L15 12"}],["path",{"d":"m18 9 .4.4a1 1 0 1 1-3 3l-3.8-3.8a1 1 0 1 1 3-3l.4.4 3.4-3.4a1 1 0 1 1 3 3z"}],["path",{"d":"m2 22 .414-.414"}]],"server":[["rect",{"width":"20","height":"8","x":"2","y":"2","rx":"2","ry":"2"}],["rect",{"width":"20","height":"8","x":"2","y":"14","rx":"2","ry":"2"}],["line",{"x1":"6","x2":"6.01","y1":"6","y2":"6"}],["line",{"x1":"6","x2":"6.01","y1":"18","y2":"18"}]],"database":[["ellipse",{"cx":"12","cy":"5","rx":"9","ry":"3"}],["path",{"d":"M3 5V19A9 3 0 0 0 21 19V5"}],["path",{"d":"M3 12A9 3 0 0 0 21 12"}]],"hard-drive":[["path",{"d":"M10 16h.01"}],["path",{"d":"M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"}],["path",{"d":"M21.946 12.013H2.054"}],["path",{"d":"M6 16h.01"}]],"monitor":[["rect",{"width":"20","height":"14","x":"2","y":"3","rx":"2"}],["line",{"x1":"8","x2":"16","y1":"21","y2":"21"}],["line",{"x1":"12","x2":"12","y1":"17","y2":"21"}]],"laptop":[["path",{"d":"M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"}],["path",{"d":"M20.054 15.987H3.946"}]],"smartphone":[["rect",{"width":"14","height":"20","x":"5","y":"2","rx":"2","ry":"2"}],["path",{"d":"M12 18h.01"}]],"tablet":[["rect",{"width":"16","height":"20","x":"4","y":"2","rx":"2","ry":"2"}],["line",{"x1":"12","x2":"12.01","y1":"18","y2":"18"}]],"router":[["rect",{"width":"20","height":"8","x":"2","y":"14","rx":"2"}],["path",{"d":"M6.01 18H6"}],["path",{"d":"M10.01 18H10"}],["path",{"d":"M15 10v4"}],["path",{"d":"M17.84 7.17a4 4 0 0 0-5.66 0"}],["path",{"d":"M20.66 4.34a8 8 0 0 0-11.31 0"}]],"wifi":[["path",{"d":"M12 20h.01"}],["path",{"d":"M2 8.82a15 15 0 0 1 20 0"}],["path",{"d":"M5 12.859a10 10 0 0 1 14 0"}],["path",{"d":"M8.5 16.429a5 5 0 0 1 7 0"}]],"network":[["rect",{"x":"16","y":"16","width":"6","height":"6","rx":"1"}],["rect",{"x":"2","y":"16","width":"6","height":"6","rx":"1"}],["rect",{"x":"9","y":"2","width":"6","height":"6","rx":"1"}],["path",{"d":"M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"}],["path",{"d":"M12 12V8"}]],"ethernet-port":[["path",{"d":"M10 8v1"}],["path",{"d":"M14 8v1"}],["path",{"d":"M18 8v1"}],["path",{"d":"M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z"}],["path",{"d":"M6 8v1"}]],"cloud":[["path",{"d":"M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"}]],"cloud-upload":[["path",{"d":"M12 13v8"}],["path",{"d":"M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"}],["path",{"d":"m8 17 4-4 4 4"}]],"globe":[["circle",{"cx":"12","cy":"12","r":"10"}],["path",{"d":"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"}],["path",{"d":"M2 12h20"}]],"satellite-dish":[["path",{"d":"M18 12a6 6 0 00-6-6"}],["path",{"d":"M2.824 10.459a8 8 0 0010.717 10.717c.558-.276.623-1.012.183-1.452l-9.448-9.448c-.44-.44-1.176-.375-1.452.183"}],["path",{"d":"M22 12A10 10 0 0012 2"}],["path",{"d":"m9 15 4-4"}]],"radio-tower":[["path",{"d":"M4.9 16.1C1 12.2 1 5.8 4.9 1.9"}],["path",{"d":"M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"}],["circle",{"cx":"12","cy":"9","r":"2"}],["path",{"d":"M16.2 4.8c2 2 2.26 5.11.8 7.47"}],["path",{"d":"M19.1 1.9a9.96 9.96 0 0 1 0 14.1"}],["path",{"d":"M9.5 18h5"}],["path",{"d":"m8 22 4-11 4 11"}]],"antenna":[["path",{"d":"M2 12 7 2"}],["path",{"d":"m7 12 5-10"}],["path",{"d":"m12 12 5-10"}],["path",{"d":"m17 12 5-10"}],["path",{"d":"M4.5 7h15"}],["path",{"d":"M12 16v6"}]],"bluetooth":[["path",{"d":"m7 7 10 10-5 5V2l5 5L7 17"}]],"usb":[["circle",{"cx":"10","cy":"7","r":"1"}],["circle",{"cx":"4","cy":"20","r":"1"}],["path",{"d":"M4.7 19.3 19 5"}],["path",{"d":"m21 3-3 1 2 2Z"}],["path",{"d":"M9.26 7.68 5 12l2 5"}],["path",{"d":"m10 14 5 2 3.5-3.5"}],["path",{"d":"m18 12 1-1 1 1-1 1Z"}]],"printer":[["path",{"d":"M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"}],["path",{"d":"M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"}],["rect",{"x":"6","y":"14","width":"12","height":"8","rx":"1"}]],"camera":[["path",{"d":"M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"}],["circle",{"cx":"12","cy":"13","r":"3"}]],"cctv":[["path",{"d":"M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-1.708.134l-2.124-2.97"}],["path",{"d":"M17.106 9.053a1 1 0 0 1 .447 1.341l-3.106 6.211a1 1 0 0 1-1.342.447L3.61 12.3a2.92 2.92 0 0 1-1.3-3.91L3.69 5.6a2.92 2.92 0 0 1 3.92-1.3z"}],["path",{"d":"M2 19h3.76a2 2 0 0 0 1.8-1.1L9 15"}],["path",{"d":"M2 21v-4"}],["path",{"d":"M7 9h.01"}]],"webcam":[["circle",{"cx":"12","cy":"10","r":"8"}],["circle",{"cx":"12","cy":"10","r":"3"}],["path",{"d":"M7 22h10"}],["path",{"d":"M12 22v-4"}]],"mouse":[["rect",{"x":"5","y":"2","width":"14","height":"20","rx":"7"}],["path",{"d":"M12 6v4"}]],"keyboard":[["path",{"d":"M10 8h.01"}],["path",{"d":"M12 12h.01"}],["path",{"d":"M14 8h.01"}],["path",{"d":"M16 12h.01"}],["path",{"d":"M18 8h.01"}],["path",{"d":"M6 8h.01"}],["path",{"d":"M7 16h10"}],["path",{"d":"M8 12h.01"}],["rect",{"width":"20","height":"16","x":"2","y":"4","rx":"2"}]],"code":[["path",{"d":"m16 18 6-6-6-6"}],["path",{"d":"m8 6-6 6 6 6"}]],"terminal":[["path",{"d":"M12 19h8"}],["path",{"d":"m4 17 6-6-6-6"}]],"bug":[["path",{"d":"M12 20v-9"}],["path",{"d":"M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z"}],["path",{"d":"M14.12 3.88 16 2"}],["path",{"d":"M21 21a4 4 0 0 0-3.81-4"}],["path",{"d":"M21 5a4 4 0 0 1-3.55 3.97"}],["path",{"d":"M22 13h-4"}],["path",{"d":"M3 21a4 4 0 0 1 3.81-4"}],["path",{"d":"M3 5a4 4 0 0 0 3.55 3.97"}],["path",{"d":"M6 13H2"}],["path",{"d":"m8 2 1.88 1.88"}],["path",{"d":"M9 7.13V6a3 3 0 1 1 6 0v1.13"}]],"file":[["path",{"d":"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"}],["path",{"d":"M14 2v5a1 1 0 0 0 1 1h5"}]],"file-text":[["path",{"d":"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"}],["path",{"d":"M14 2v5a1 1 0 0 0 1 1h5"}],["path",{"d":"M10 9H8"}],["path",{"d":"M16 13H8"}],["path",{"d":"M16 17H8"}]],"folder":[["path",{"d":"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"}]],"mail":[["path",{"d":"m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"}],["rect",{"x":"2","y":"4","width":"20","height":"16","rx":"2"}]],"message-square":[["path",{"d":"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"}]],"phone":[["path",{"d":"M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"}]],"link":[["path",{"d":"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"}],["path",{"d":"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"}]],"share-2":[["circle",{"cx":"18","cy":"5","r":"3"}],["circle",{"cx":"6","cy":"12","r":"3"}],["circle",{"cx":"18","cy":"19","r":"3"}],["line",{"x1":"8.59","x2":"15.42","y1":"13.51","y2":"17.49"}],["line",{"x1":"15.41","x2":"8.59","y1":"6.51","y2":"10.49"}]],"scan-barcode":[["path",{"d":"M3 7V5a2 2 0 0 1 2-2h2"}],["path",{"d":"M17 3h2a2 2 0 0 1 2 2v2"}],["path",{"d":"M21 17v2a2 2 0 0 1-2 2h-2"}],["path",{"d":"M7 21H5a2 2 0 0 1-2-2v-2"}],["path",{"d":"M8 7v10"}],["path",{"d":"M12 7v10"}],["path",{"d":"M17 7v10"}]],"qr-code":[["rect",{"width":"5","height":"5","x":"3","y":"3","rx":"1"}],["rect",{"width":"5","height":"5","x":"16","y":"3","rx":"1"}],["rect",{"width":"5","height":"5","x":"3","y":"16","rx":"1"}],["path",{"d":"M21 16h-3a2 2 0 0 0-2 2v3"}],["path",{"d":"M21 21v.01"}],["path",{"d":"M12 7v3a2 2 0 0 1-2 2H7"}],["path",{"d":"M3 12h.01"}],["path",{"d":"M12 3h.01"}],["path",{"d":"M12 16v.01"}],["path",{"d":"M16 12h1"}],["path",{"d":"M21 12v.01"}],["path",{"d":"M12 21v-1"}]],"user":[["path",{"d":"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"}],["circle",{"cx":"12","cy":"7","r":"4"}]],"users":[["path",{"d":"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"}],["path",{"d":"M16 3.128a4 4 0 0 1 0 7.744"}],["path",{"d":"M22 21v-2a4 4 0 0 0-3-3.87"}],["circle",{"cx":"9","cy":"7","r":"4"}]],"user-check":[["path",{"d":"m16 11 2 2 4-4"}],["path",{"d":"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"}],["circle",{"cx":"9","cy":"7","r":"4"}]],"user-cog":[["path",{"d":"M10 15H6a4 4 0 0 0-4 4v2"}],["path",{"d":"m14.305 16.53.923-.382"}],["path",{"d":"m15.228 13.852-.923-.383"}],["path",{"d":"m16.852 12.228-.383-.923"}],["path",{"d":"m16.852 17.772-.383.924"}],["path",{"d":"m19.148 12.228.383-.923"}],["path",{"d":"m19.53 18.696-.382-.924"}],["path",{"d":"m20.772 13.852.924-.383"}],["path",{"d":"m20.772 16.148.924.383"}],["circle",{"cx":"18","cy":"15","r":"3"}],["circle",{"cx":"9","cy":"7","r":"4"}]],"contact":[["path",{"d":"M16 2v2"}],["path",{"d":"M7 21v-2a2 2 0 012-2h6a2 2 0 012 2v2"}],["path",{"d":"M8 2v2"}],["circle",{"cx":"12","cy":"10","r":"3"}],["rect",{"x":"3","y":"3","width":"18","height":"18","rx":"2"}]],"building":[["path",{"d":"M12 10h.01"}],["path",{"d":"M12 14h.01"}],["path",{"d":"M12 6h.01"}],["path",{"d":"M16 10h.01"}],["path",{"d":"M16 14h.01"}],["path",{"d":"M16 6h.01"}],["path",{"d":"M8 10h.01"}],["path",{"d":"M8 14h.01"}],["path",{"d":"M8 6h.01"}],["path",{"d":"M9 22v-3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"}],["rect",{"x":"4","y":"2","width":"16","height":"20","rx":"2"}]],"building-complex":[["path",{"d":"M10 12h4"}],["path",{"d":"M10 8h4"}],["path",{"d":"M14 21v-3a2 2 0 0 0-4 0v3"}],["path",{"d":"M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"}],["path",{"d":"M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"}]],"house":[["path",{"d":"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"}],["path",{"d":"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"}]],"store":[["path",{"d":"M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"}],["path",{"d":"M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"}],["path",{"d":"M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"}]],"school":[["path",{"d":"M14 21v-3a2 2 0 0 0-4 0v3"}],["path",{"d":"M18 4.933V21"}],["path",{"d":"m4 6 7.106-3.79a2 2 0 0 1 1.788 0L20 6"}],["path",{"d":"m6 11-3.52 2.147a1 1 0 0 0-.48.854V19a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a1 1 0 0 0-.48-.853L18 11"}],["path",{"d":"M6 4.933V21"}],["circle",{"cx":"12","cy":"9","r":"2"}]],"hospital":[["path",{"d":"M12 7v4"}],["path",{"d":"M14 21v-3a2 2 0 0 0-4 0v3"}],["path",{"d":"M14 9h-4"}],["path",{"d":"M18 11h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h2"}],["path",{"d":"M18 21V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16"}]],"landmark":[["path",{"d":"M10 18v-7"}],["path",{"d":"M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z"}],["path",{"d":"M14 18v-7"}],["path",{"d":"M18 18v-7"}],["path",{"d":"M3 22h18"}],["path",{"d":"M6 18v-7"}]],"arrow-right":[["path",{"d":"M5 12h14"}],["path",{"d":"m12 5 7 7-7 7"}]],"arrow-left":[["path",{"d":"m12 19-7-7 7-7"}],["path",{"d":"M19 12H5"}]],"arrow-up":[["path",{"d":"m5 12 7-7 7 7"}],["path",{"d":"M12 19V5"}]],"arrow-down":[["path",{"d":"M12 5v14"}],["path",{"d":"m19 12-7 7-7-7"}]],"arrow-left-right":[["path",{"d":"M8 3 4 7l4 4"}],["path",{"d":"M4 7h16"}],["path",{"d":"m16 21 4-4-4-4"}],["path",{"d":"M20 17H4"}]],"move":[["path",{"d":"M12 2v20"}],["path",{"d":"m15 19-3 3-3-3"}],["path",{"d":"m19 9 3 3-3 3"}],["path",{"d":"M2 12h20"}],["path",{"d":"m5 9-3 3 3 3"}],["path",{"d":"m9 5 3-3 3 3"}]],"chevrons-right":[["path",{"d":"m6 17 5-5-5-5"}],["path",{"d":"m13 17 5-5-5-5"}]],"corner-down-right":[["path",{"d":"m15 10 5 5-5 5"}],["path",{"d":"M4 4v7a4 4 0 0 0 4 4h12"}]],"circle":[["circle",{"cx":"12","cy":"12","r":"10"}]],"square":[["rect",{"width":"18","height":"18","x":"3","y":"3","rx":"2"}]],"triangle":[["path",{"d":"M13.73 4a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"}]],"star":[["path",{"d":"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"}]],"heart":[["path",{"d":"M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"}]],"check":[["path",{"d":"M20 6 9 17l-5-5"}]],"x":[["path",{"d":"M18 6 6 18"}],["path",{"d":"m6 6 12 12"}]],"plus":[["path",{"d":"M5 12h14"}],["path",{"d":"M12 5v14"}]],"minus":[["path",{"d":"M5 12h14"}]],"circle-check":[["circle",{"cx":"12","cy":"12","r":"10"}],["path",{"d":"m16 9-5.5 5.5L8 12"}]],"circle-x":[["circle",{"cx":"12","cy":"12","r":"10"}],["path",{"d":"m15 9-6 6"}],["path",{"d":"m9 9 6 6"}]],"circle-exclamation-point":[["circle",{"cx":"12","cy":"12","r":"10"}],["line",{"x1":"12","x2":"12","y1":"8","y2":"12"}],["line",{"x1":"12","x2":"12.01","y1":"16","y2":"16"}]],"circle-question-mark":[["circle",{"cx":"12","cy":"12","r":"10"}],["path",{"d":"M9 9.5a3 2.5 0 016 0c0 2-2 2-3 3.5"}],["path",{"d":"M12 17h.01"}]],"info":[["circle",{"cx":"12","cy":"12","r":"10"}],["path",{"d":"M12 16v-4"}],["path",{"d":"M12 8h.01"}]],"flag":[["path",{"d":"M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"}]],"bookmark":[["path",{"d":"M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z"}]],"tag":[["path",{"d":"M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"}],["circle",{"cx":"7.5","cy":"7.5","r":".5"}]],"map-pin":[["path",{"d":"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"}],["circle",{"cx":"12","cy":"10","r":"3"}]],"navigation":[["polygon",{"points":"3 11 22 2 13 21 11 13 3 11"}]],"compass":[["circle",{"cx":"12","cy":"12","r":"10"}],["path",{"d":"m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"}]],"briefcase":[["path",{"d":"M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"}],["rect",{"width":"20","height":"14","x":"2","y":"6","rx":"2"}]],"calendar":[["path",{"d":"M8 2v3"}],["path",{"d":"M16 2v3"}],["rect",{"x":"3","y":"3","width":"18","height":"18","rx":"2"}],["path",{"d":"M3 9h18"}]],"chart-column":[["path",{"d":"M3 3v16a2 2 0 0 0 2 2h16"}],["path",{"d":"M18 17V9"}],["path",{"d":"M13 17V5"}],["path",{"d":"M8 17v-3"}]],"chart-line":[["path",{"d":"M3 3v16a2 2 0 0 0 2 2h16"}],["path",{"d":"m19 9-5 5-4-4-3 3"}]],"chart-pie":[["path",{"d":"M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"}],["path",{"d":"M21.21 15.89A10 10 0 1 1 8 2.83"}]],"trending-up":[["path",{"d":"M16 7h6v6"}],["path",{"d":"m22 7-8.5 8.5-5-5L2 17"}]],"trending-down":[["path",{"d":"M16 17h6v-6"}],["path",{"d":"m22 17-8.5-8.5-5 5L2 7"}]],"dollar-sign":[["path",{"d":"M12 3v18"}],["path",{"d":"M17 5H9.5a1 1 0 000 7h5a1 1 0 010 7H6"}]],"credit-card":[["rect",{"width":"20","height":"14","x":"2","y":"5","rx":"2"}],["line",{"x1":"2","x2":"22","y1":"10","y2":"10"}],["path",{"d":"M6 14h2"}]],"shopping-cart":[["path",{"d":"m2.05 2.05 1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18"}],["path",{"d":"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25"}],["circle",{"cx":"18","cy":"20","r":"2"}],["circle",{"cx":"8","cy":"20","r":"2"}]],"receipt":[["path",{"d":"M12 17V7"}],["path",{"d":"M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8"}],["path",{"d":"M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"}]],"clipboard-list":[["rect",{"width":"8","height":"4","x":"8","y":"2","rx":"1","ry":"1"}],["path",{"d":"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"}],["path",{"d":"M12 11h4"}],["path",{"d":"M12 16h4"}],["path",{"d":"M8 11h.01"}],["path",{"d":"M8 16h.01"}]],"clipboard-check":[["rect",{"width":"8","height":"4","x":"8","y":"2","rx":"1","ry":"1"}],["path",{"d":"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"}],["path",{"d":"m9 14 2 2 4-4"}]],"list-checks":[["path",{"d":"M13 5h8"}],["path",{"d":"M13 12h8"}],["path",{"d":"M13 19h8"}],["path",{"d":"m3 17 2 2 4-4"}],["path",{"d":"m3 7 2 2 4-4"}]],"target":[["circle",{"cx":"12","cy":"12","r":"10"}],["circle",{"cx":"12","cy":"12","r":"6"}],["circle",{"cx":"12","cy":"12","r":"2"}]],"rocket":[["path",{"d":"M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"}],["path",{"d":"M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09"}],["path",{"d":"M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z"}],["path",{"d":"M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05"}]],"trophy":[["path",{"d":"M10 14.66V17a1 1 0 0 1-1 1 2 2 0 0 0-2 2v2"}],["path",{"d":"M14 14.66V17a1 1 0 0 0 1 1 2 2 0 0 1 2 2v2"}],["path",{"d":"M17.916 10H19.5A2.5 2.5 0 0 0 22 7.5V5a1 1 0 0 0-1-1h-3"}],["path",{"d":"M4 22h16"}],["path",{"d":"M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"}],["path",{"d":"M6.084 10H4.5A2.5 2.5 0 0 1 2 7.5V5a1 1 0 0 1 1-1h3"}]],"book-open":[["path",{"d":"M12 5v16"}],["path",{"d":"M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"}]],"graduation-cap":[["path",{"d":"M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"}],["path",{"d":"M22 10v6"}],["path",{"d":"M6 12.5V16a6 3 0 0 0 12 0v-3.5"}]],"presentation":[["path",{"d":"M2 3h20"}],["path",{"d":"M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"}],["path",{"d":"m7 21 5-5 5 5"}]],"megaphone":[["path",{"d":"M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"}],["path",{"d":"M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14"}],["path",{"d":"M8 6v8"}]],"handshake":[["path",{"d":"m11 17 2 2a1 1 0 1 0 3-3"}],["path",{"d":"m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"}],["path",{"d":"m21 3 1 11h-2"}],["path",{"d":"M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"}],["path",{"d":"M3 4h8"}]],"award":[["path",{"d":"m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"}],["circle",{"cx":"12","cy":"8","r":"6"}]]};
+const ICON_CATS=["Industrial and power", "Computers and network", "People and places", "Arrows and marks", "Business"];
+const ICON_CAT={"factory":"Industrial and power","cog":"Industrial and power","settings":"Industrial and power","wrench":"Industrial and power","hammer":"Industrial and power","drill":"Industrial and power","zap":"Industrial and power","zap-off":"Industrial and power","plug":"Industrial and power","plug-zap":"Industrial and power","power":"Industrial and power","battery":"Industrial and power","battery-charging":"Industrial and power","cable":"Industrial and power","cpu":"Industrial and power","microchip":"Industrial and power","circuit-board":"Industrial and power","gauge":"Industrial and power","thermometer":"Industrial and power","droplet":"Industrial and power","droplets":"Industrial and power","flame":"Industrial and power","fan":"Industrial and power","wind":"Industrial and power","waves-horizontal":"Industrial and power","cylinder":"Industrial and power","container":"Industrial and power","warehouse":"Industrial and power","forklift":"Industrial and power","truck":"Industrial and power","package":"Industrial and power","boxes":"Industrial and power","robot-arm":"Industrial and power","bot":"Industrial and power","construction":"Industrial and power","hard-hat":"Industrial and power","traffic-cone":"Industrial and power","radiation":"Industrial and power","biohazard":"Industrial and power","siren":"Industrial and power","triangle-exclamation-point":"Industrial and power","octagon-exclamation-point":"Industrial and power","shield":"Industrial and power","shield-check":"Industrial and power","lock":"Industrial and power","lock-open":"Industrial and power","key":"Industrial and power","toggle-left":"Industrial and power","toggle-right":"Industrial and power","timer":"Industrial and power","clock":"Industrial and power","activity":"Industrial and power","rotate-cw":"Industrial and power","refresh-cw":"Industrial and power","recycle":"Industrial and power","scale":"Industrial and power","ruler":"Industrial and power","magnet":"Industrial and power","lightbulb":"Industrial and power","sun":"Industrial and power","snowflake":"Industrial and power","fuel":"Industrial and power","heater":"Industrial and power","air-vent":"Industrial and power","pipette":"Industrial and power","server":"Computers and network","database":"Computers and network","hard-drive":"Computers and network","monitor":"Computers and network","laptop":"Computers and network","smartphone":"Computers and network","tablet":"Computers and network","router":"Computers and network","wifi":"Computers and network","network":"Computers and network","ethernet-port":"Computers and network","cloud":"Computers and network","cloud-upload":"Computers and network","globe":"Computers and network","satellite-dish":"Computers and network","radio-tower":"Computers and network","antenna":"Computers and network","bluetooth":"Computers and network","usb":"Computers and network","printer":"Computers and network","camera":"Computers and network","cctv":"Computers and network","webcam":"Computers and network","mouse":"Computers and network","keyboard":"Computers and network","code":"Computers and network","terminal":"Computers and network","bug":"Computers and network","file":"Computers and network","file-text":"Computers and network","folder":"Computers and network","mail":"Computers and network","message-square":"Computers and network","phone":"Computers and network","link":"Computers and network","share-2":"Computers and network","scan-barcode":"Computers and network","qr-code":"Computers and network","user":"People and places","users":"People and places","user-check":"People and places","user-cog":"People and places","contact":"People and places","building":"People and places","building-complex":"People and places","house":"People and places","store":"People and places","school":"People and places","hospital":"People and places","landmark":"People and places","arrow-right":"Arrows and marks","arrow-left":"Arrows and marks","arrow-up":"Arrows and marks","arrow-down":"Arrows and marks","arrow-left-right":"Arrows and marks","move":"Arrows and marks","chevrons-right":"Arrows and marks","corner-down-right":"Arrows and marks","circle":"Arrows and marks","square":"Arrows and marks","triangle":"Arrows and marks","star":"Arrows and marks","heart":"Arrows and marks","check":"Arrows and marks","x":"Arrows and marks","plus":"Arrows and marks","minus":"Arrows and marks","circle-check":"Arrows and marks","circle-x":"Arrows and marks","circle-exclamation-point":"Arrows and marks","circle-question-mark":"Arrows and marks","info":"Arrows and marks","flag":"Arrows and marks","bookmark":"Arrows and marks","tag":"Arrows and marks","map-pin":"Arrows and marks","navigation":"Arrows and marks","compass":"Arrows and marks","briefcase":"Business","calendar":"Business","chart-column":"Business","chart-line":"Business","chart-pie":"Business","trending-up":"Business","trending-down":"Business","dollar-sign":"Business","credit-card":"Business","shopping-cart":"Business","receipt":"Business","clipboard-list":"Business","clipboard-check":"Business","list-checks":"Business","target":"Business","rocket":"Business","trophy":"Business","book-open":"Business","graduation-cap":"Business","presentation":"Business","megaphone":"Business","handshake":"Business","award":"Business"};
+/* ============================== icons ==============================
+   Icon artwork: Lucide (lucide.dev), ISC License, Copyright (c) Lucide Icons and Contributors; some icons
+   derived from Feather, MIT License, Copyright (c) 2013-present Cole Bemis. Full notices in Help > About. */
+const ICON_LICENSE='Icons: Lucide (https://lucide.dev), ISC License, Copyright (c) 2026 Lucide Icons and Contributors. Some Lucide icons are derived from Feather (https://feathericons.com), MIT License, Copyright (c) 2013-present Cole Bemis. Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies. THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.';
+function iconNodes(name,color,sw){
+  const nodes=ICON_SET[name]||ICON_SET['circle-question-mark']||[];
+  return nodes.map(([t,a])=>sv(t,Object.assign({},a,{fill:'none',stroke:color,'stroke-width':sw,'stroke-linecap':'round','stroke-linejoin':'round'})));
+}
+// The icon fills the shape's box, centred and kept square.
+function drawIcon(parent,it,gw,gh,st){
+  const s=Math.max(0.1,Math.min(gw,gh)/24), col=st.stroke==='none'?(st.fontColor||'#1f2430'):st.stroke;
+  const g=sv('g',{transform:`translate(${r2((gw-24*s)/2)} ${r2((gh-24*s)/2)}) scale(${r2(s)})`,class:'icon-art'});
+  if(st.fill&&st.fill!=='none') parent.appendChild(sv('rect',{x:0,y:0,width:r2(gw),height:r2(gh),rx:r2(Math.min(gw,gh)*.18),fill:st.fill,stroke:'none'}));
+  for(const n of iconNodes(it.icon,col,r2(2*(st.sw||1.5)/1.5))) g.appendChild(n);
+  parent.appendChild(g);
+}
+const iconName=n=>n.replace(/-/g,' ').replace(/^./,c=>c.toUpperCase());
+(function addIcons(){
+  const st={fill:'none',stroke:'#1f2430',sw:1.5,fontSize:11,valign:'top'};
+  for(const c of ICON_CATS) LIB.push({cat:'Icons: '+c.toLowerCase(),closed:true,pics:true,items:Object.keys(ICON_SET).filter(n=>ICON_CAT[n]===c).map(n=>({key:'ic_'+n,name:iconName(n),type:'icon',w:48,h:48,text:'',style:st,props:{icon:n},iconSrc:'Lucide'}))});
+})();
+/* ============================== freehand drawing ==============================
+   Pen mode draws strokes on the canvas. Each stroke becomes an 'ink' shape whose points are stored
+   relative to its box (0 to 1), so it moves, resizes, rotates, groups and exports like any shape. */
+const PEN_COLORS=['#1f2430','#2f6fed','#c2362b','#1f8a4c','#d97706','#7c3aed'], PEN_WIDTHS=[1.5,3,6];
+let penBar=null;
+function penOn(){ return !!S.pen; }
+function setPen(on){
+  S.pen=!!on; stage.classList.toggle('pen-mode',S.pen);
+  if(S.pen){ if(S.editing) finishEdit(); S.sel.clear(); hideFtb&&hideFtb(); buildPenBar(); }
+  else if(penBar){ penBar.remove(); penBar=null; }
+  invalidate({overlay:true,chrome:true,props:true});
+}
+function buildPenBar(){
+  if(penBar) penBar.remove(); const P=S.prefs;
+  penBar=el('div',{class:'pen-bar',role:'toolbar','aria-label':'Pen options'},
+    el('span',{class:'pen-l',text:'Pen'}),
+    ...PEN_COLORS.map(c=>el('button',{type:'button',class:'pen-sw'+(P.penColor===c?' on':''),'data-pen':'c:'+c,'aria-label':'Pen color '+c,style:{background:c}})),
+    el('span',{class:'tb-sep'}),
+    ...PEN_WIDTHS.map(w=>el('button',{type:'button',class:'pen-w'+(P.penWidth===w?' on':''),'data-pen':'w:'+w,'aria-label':'Pen width '+w},el('span',{style:{height:Math.max(2,w)+'px'}}))),
+    el('span',{class:'tb-sep'}),
+    el('label',{class:'chk'},el('input',{type:'checkbox','data-pen':'hl',checked:!!P.penHl}),'Highlighter'),
+    el('label',{class:'chk'},el('input',{type:'checkbox','data-pen':'sm',checked:P.penSmooth!==false}),'Smooth'),
+    el('button',{type:'button',class:'btn primary sm-t','data-pen':'done',text:'Done (Esc)'}));
+  penBar.addEventListener('pointerdown',e=>e.stopPropagation());
+  penBar.addEventListener('click',e=>{ const b=e.target.closest('button[data-pen]'); if(!b) return; const k=b.getAttribute('data-pen');
+    if(k==='done'){ setPen(false); return; } if(k.startsWith('c:')) S.prefs.penColor=k.slice(2); if(k.startsWith('w:')) S.prefs.penWidth=+k.slice(2); savePrefs(); buildPenBar(); });
+  penBar.addEventListener('change',e=>{ const k=e.target.getAttribute('data-pen'); if(k==='hl') S.prefs.penHl=e.target.checked; if(k==='sm') S.prefs.penSmooth=e.target.checked; savePrefs(); });
+  stage.appendChild(penBar);
+}
+// Ramer-Douglas-Peucker simplification.
+function simplifyPts(P,eps){
+  if(P.length<3) return P.slice(); const keep=new Uint8Array(P.length); keep[0]=keep[P.length-1]=1; const st=[[0,P.length-1]];
+  while(st.length){ const [i,j]=st.pop(); const a=P[i], b=P[j], dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy)||1; let md=-1, mk=-1;
+    for(let k=i+1;k<j;k++){ const d=Math.abs(dy*P[k].x-dx*P[k].y+b.x*a.y-b.y*a.x)/L; if(d>md){ md=d; mk=k; } }
+    if(md>eps){ keep[mk]=1; st.push([i,mk],[mk,j]); } }
+  return P.filter((_,k)=>keep[k]);
+}
+// Smooth path through points: quadratic curves between midpoints.
+function inkPath(P,smooth){
+  if(!P.length) return ''; if(P.length===1) return `M${r2(P[0].x)} ${r2(P[0].y)}l0.01 0`;
+  if(!smooth||P.length<3) return 'M'+P.map(p=>r2(p.x)+' '+r2(p.y)).join('L');
+  let d=`M${r2(P[0].x)} ${r2(P[0].y)}`;
+  for(let i=1;i<P.length-1;i++){ const m={x:(P[i].x+P[i+1].x)/2,y:(P[i].y+P[i+1].y)/2}; d+=`Q${r2(P[i].x)} ${r2(P[i].y)} ${r2(m.x)} ${r2(m.y)}`; }
+  const L=P[P.length-1]; return d+`L${r2(L.x)} ${r2(L.y)}`;
+}
+function drawInk(parent,it,gw,gh,st){
+  const P=(it.pts||[]).map(q=>({x:q[0]*gw,y:q[1]*gh}));
+  parent.appendChild(sv('path',{d:inkPath(P,it.smooth!==false),fill:'none',stroke:st.stroke==='none'?'#1f2430':st.stroke,'stroke-width':st.sw,'stroke-linecap':'round','stroke-linejoin':'round',class:'ink-path'}));
+}
+function finishInk(op){
+  const z=V.z, raw=op.pts; if(raw.length<2){ if(raw.length===1) raw.push({x:raw[0].x+0.5,y:raw[0].y}); else return null; }
+  const P=simplifyPts(raw,0.6/z), pad=0.5;
+  let x0=Math.min(...P.map(p=>p.x)), y0=Math.min(...P.map(p=>p.y)), x1=Math.max(...P.map(p=>p.x)), y1=Math.max(...P.map(p=>p.y));
+  const w=Math.max(4,x1-x0+pad*2), h=Math.max(4,y1-y0+pad*2); x0-=(w-(x1-x0))/2; y0-=(h-(y1-y0))/2;
+  const hl=!!S.prefs.penHl, sw=hl?Math.max(10,S.prefs.penWidth*4):S.prefs.penWidth;
+  const s={id:uid(),kind:'shape',type:'ink',x:r2(x0),y:r2(y0),w:r2(w),h:r2(h),text:'',layer:activeLayerId(),
+    style:Object.assign({},DEF_SHAPE_STYLE,{fill:'none',stroke:hl?(S.prefs.penColor==='#1f2430'?'#facc15':S.prefs.penColor):S.prefs.penColor,sw,opacity:hl?0.4:1,fontSize:12,valign:'top'}),
+    pts:P.slice(0,3000).map(p=>[Math.round((p.x-x0)/w*10000)/10000,Math.round((p.y-y0)/h*10000)/10000])};
+  if(S.prefs.penSmooth===false) s.smooth=false;
+  items().push(s); commit(); invalidate(); return s;
+}
+function sanInk(it){ if(it.type!=='ink') return {}; const P=(Array.isArray(it.pts)?it.pts:[]).slice(0,3000).filter(q=>Array.isArray(q)&&Number.isFinite(+q[0])&&Number.isFinite(+q[1])).map(q=>[clamp(+q[0],0,1),clamp(+q[1],0,1)]);
+  const o={pts:P.length?P:[[0,0],[1,1]]}; if(it.smooth===false) o.smooth=false; return o; }
+/* ============================== dark mode canvas ==============================
+   In dark mode the canvas and grid go dark. Dark strokes and text that sit directly on the canvas
+   (lines, symbols and shapes with no fill) are shown light so they stay readable. This is display only:
+   saved colors, exports and Present are unchanged. A page with its own background color keeps it. */
+function darkCanvas(){ return S.prefs.theme==='dark'&&!page().bg; }
+function lum(c){ const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c||''); return m?(0.299*parseInt(m[1],16)+0.587*parseInt(m[2],16)+0.114*parseInt(m[3],16)):255; }
+function lightInk(c,text){ return c&&c!=='none'&&lum(c)<90?(text?'#e5e7eb':'#c9ced6'):c; }
+function darkInkShape(st){ if(st.fill&&st.fill!=='none'&&!(st.fill==='transparent')) return st; return Object.assign({},st,{stroke:lightInk(st.stroke),fontColor:lightInk(st.fontColor,true)}); }
+function darkInkLine(st){ return Object.assign({},st,{stroke:lightInk(st.stroke),fontColor:st.fontColor}); }
+/* ============================== IEC 60617 style electrical symbols ==============================
+   Drawn vertically (current flows top to bottom, as in IEC schematics), leads at the top and bottom
+   centre, device tag to the right. Drawn after the IEC 60617 conventions as commonly published; the
+   drawings were NOT compared against the official IEC 60617 graphics. */
+function iecGeom(type,w,h){
+  const cx=w/2, a=h*.3, b=h*.7, D=(d,f,dash)=>({d,f:f||'none',dash:!!dash});
+  const sym=(d,o)=>Object.assign({d,decor:[],glyphs:[],tb:{x:0,y:0,w,h},label:true,labelSide:true,hit:true,ports:{N:[cx,0],S:[cx,h],W:[0,h/2],E:[w,h/2]}},o||{});
+  const R=(x,y,ww,hh)=>`M${r2(x)} ${r2(y)}H${r2(x+ww)}V${r2(y+hh)}H${r2(x)}Z`;
+  const leads=(x)=>PL([x,0],[x,a])+PL([x,b],[x,h]);
+  const no=(x,k)=>{ k=k||w; return leads(x)+PL([x,b],[x-k*.42,a+h*.04]); };            // make contact
+  const nc=(x,k)=>{ k=k||w; return leads(x)+PL([x,a],[x+k*.3,a])+PL([x,b],[x+k*.38,a-h*.05]); }; // break contact
+  const bladeMid=(x,k,isNc)=>{ k=k||w; return isNc?{x:x+k*.19,y:(b+a-h*.05)/2}:{x:x-k*.21,y:(b+a+h*.04)/2}; };
+  const op=(p,x0)=>PL([p.x,p.y],[x0,p.y]);                                               // mechanical link (dashed)
+  const arc=(x,y,r,up)=>`M${r2(x-r)} ${r2(y)}A${r2(r)} ${r2(r)} 0 0 ${up?1:0} ${r2(x+r)} ${r2(y)}`;
+  const X=(x,y,r)=>PL([x-r,y-r],[x+r,y+r])+PL([x-r,y+r],[x+r,y-r]);
+  const therm=(x,y0,y1,s)=>PL([x,y0],[x,(y0+y1)/2-s],[x+s,(y0+y1)/2-s],[x+s,(y0+y1)/2+s],[x,(y0+y1)/2+s],[x,y1]);
+  switch(type){
+    case 'i_no': return sym(no(cx));
+    case 'i_nc': return sym(nc(cx));
+    case 'i_co': { const xl=cx-w*.28, xr=cx+w*.28;
+      return sym(PL([xl,0],[xl,a])+PL([xr,0],[xr,a])+PL([xr,a],[xr-w*.18,a])+PL([cx,h],[cx,b])+PL([cx,b],[xr+w*.06,a-h*.05]),{ports:{N:[xl,0],S:[cx,h],W:[xl,0],E:[xr,0]}}); }
+    case 'i_km': return sym(no(cx)+arc(cx,a,w*.12,false));
+    case 'i_cb': return sym(no(cx)+X(cx,a,w*.1));
+    case 'i_q': return sym(no(cx)+PL([cx-w*.16,a],[cx+w*.16,a]));
+    case 'i_qs': return sym(no(cx)+PL([cx-w*.16,a-h*.03],[cx+w*.16,a-h*.03])+arc(cx,a,w*.1,false));
+    case 'i_km3': case 'i_cb3': case 'i_q3': { const xs=[w/6,w/2,5*w/6], k=w/3; let d='', dec='';
+      for(const x of xs){ d+=no(x,k); if(type==='i_km3') d+=arc(x,a,k*.12,false); if(type==='i_cb3') d+=X(x,a,k*.1); if(type==='i_q3') d+=PL([x-k*.16,a],[x+k*.16,a]); }
+      const m0=bladeMid(xs[0],k), m2=bladeMid(xs[2],k);
+      return sym(d,{decor:[D(PL([m0.x,m0.y],[m2.x,m2.y]),'none',true)],ports:{N:[xs[1],0],S:[xs[1],h],W:[0,h/2],E:[w,h/2]}}); }
+    case 'i_fu': return sym(PL([cx,0],[cx,h])+R(cx-w*.18,h*.25,w*.36,h*.5));
+    case 'i_f3': { const xs=[w/6,w/2,5*w/6]; let d=R(w*.04,h*.28,w*.92,h*.44); for(const x of xs) d+=PL([x,0],[x,h*.28])+therm(x,h*.28,h*.72,w*.05)+PL([x,h*.72],[x,h]); return sym(d,{ports:{N:[w/2,0],S:[w/2,h],W:[0,h/2],E:[w,h/2]}}); }
+    case 'i_ol_nc': { const p=bladeMid(cx,null,true); return sym(nc(cx),{decor:[D(op(p,w*.12),'none',true),D(R(-w*.18,p.y-h*.08,w*.3,h*.16)+therm(-w*.03,p.y-h*.08,p.y+h*.08,w*.05))]}); }
+    case 'i_k': return sym(PL([cx,0],[cx,h*.32])+R(w*.1,h*.32,w*.8,h*.36)+PL([cx,h*.68],[cx,h]));
+    case 'i_kt_on': case 'i_kt_off': { const x0=w*.34, ww=w*.6, sq=h*.36;
+      return sym(PL([x0+ww/2,0],[x0+ww/2,h*.32])+R(x0,h*.32,ww,h*.36)+PL([x0+ww/2,h*.68],[x0+ww/2,h]),{decor:[type==='i_kt_on'?D(R(x0-sq,h*.32,sq,sq)+X(x0-sq/2,h/2,sq*.42)):D(R(x0-sq,h*.32,sq,sq),'stroke')],ports:{N:[x0+ww/2,0],S:[x0+ww/2,h],W:[0,h/2],E:[w,h/2]}}); }
+    case 'i_no_ton': case 'i_no_toff': { const p=bladeMid(cx), x1=p.x-w*.28, r=w*.14;
+      return sym(no(cx),{decor:[D(PL([p.x,p.y],[x1,p.y])+(type==='i_no_ton'?`M${r2(x1)} ${r2(p.y-r)}A${r2(r)} ${r2(r)} 0 0 0 ${r2(x1)} ${r2(p.y+r)}`:`M${r2(x1-r*.9)} ${r2(p.y-r)}A${r2(r)} ${r2(r)} 0 0 1 ${r2(x1-r*.9)} ${r2(p.y+r)}`))]}); }
+    case 'i_sb_no': case 'i_sb_nc': case 'i_sa': case 'i_sq_no': case 'i_sq_nc': case 'i_bq': {
+      const isNc=type==='i_sb_nc'||type==='i_sq_nc', p=bladeMid(cx,null,isNc), x0=w*.06, dec=[];
+      if(type==='i_sq_no'||type==='i_sq_nc') dec.push(D(`M${r2(p.x)} ${r2(p.y)}L${r2(p.x-w*.2)} ${r2(p.y-h*.06)}L${r2(p.x-w*.2)} ${r2(p.y+h*.06)}Z`,'stroke'));
+      else { dec.push(D(op(p,x0+w*.06),'none',true));
+        if(type==='i_sa') dec.push(D(PL([x0+w*.06,p.y],[x0+w*.06,p.y-h*.06],[x0-w*.02,p.y-h*.06])+PL([x0+w*.06,p.y],[x0+w*.06,p.y+h*.06],[x0+w*.14,p.y+h*.06])));
+        else if(type==='i_bq') dec.push(D(poly([[x0-w*.14,p.y],[x0,p.y-h*.08],[x0+w*.14,p.y],[x0,p.y+h*.08]])));
+        else dec.push(D(PL([x0+w*.06,p.y-h*.07],[x0,p.y-h*.07],[x0,p.y+h*.07],[x0+w*.06,p.y+h*.07]))); }
+      return sym(isNc?nc(cx):no(cx),{decor:dec}); }
+    case 'i_h': { const r=Math.min(w,h)*.3; return sym(PL([cx,0],[cx,h/2-r])+circ(cx,h/2,r)+PL([cx,h/2+r],[cx,h]),{decor:[D(X(cx,h/2,r*.7))]}); }
+    case 'i_ha': return sym(PL([cx,0],[cx,h*.42])+PL([cx,h*.62],[cx,h])+`M${r2(cx-w*.3)} ${r2(h*.42)}H${r2(cx+w*.3)}A${r2(w*.3)} ${r2(h*.2)} 0 0 1 ${r2(cx-w*.3)} ${r2(h*.42)}Z`+PL([cx-w*.3,h*.62],[cx+w*.3,h*.62]));
+    case 'i_m3': { const r=Math.min(w,h)*.32, cy=h*.6; return sym(circ(cx,cy,r)+PL([cx-r*.6,0],[cx-r*.6,cy-r*.8])+PL([cx,0],[cx,cy-r])+PL([cx+r*.6,0],[cx+r*.6,cy-r*.8]),{glyphs:[{t:'M',x:cx,y:cy-r*.22,s:r*.75,b:true},{t:'3~',x:cx,y:cy+r*.45,s:r*.45}],ports:{N:[cx,0],S:[cx,cy+r],W:[cx-r,cy],E:[cx+r,cy]}}); }
+    case 'i_t': { const r=Math.min(w*.4,h*.2); return sym(PL([cx,0],[cx,h/2-r*1.6])+circ(cx,h/2-r*.6,r)+circ(cx,h/2+r*.6,r)+PL([cx,h/2+r*1.6],[cx,h])); }
+    case 'i_r': return sym(PL([cx,0],[cx,h*.25])+R(cx-w*.15,h*.25,w*.3,h*.5)+PL([cx,h*.75],[cx,h]));
+    case 'i_c': return sym(PL([cx,0],[cx,h*.45])+PL([cx-w*.35,h*.45],[cx+w*.35,h*.45])+PL([cx-w*.35,h*.55],[cx+w*.35,h*.55])+PL([cx,h*.55],[cx,h]));
+    case 'i_v': return sym(PL([cx,0],[cx,h])+poly([[cx-w*.25,h*.38],[cx+w*.25,h*.38],[cx,h*.6]])+PL([cx-w*.25,h*.6],[cx+w*.25,h*.6]));
+    case 'i_g': return sym(PL([cx,0],[cx,h*.45])+PL([cx-w*.35,h*.45],[cx+w*.35,h*.45])+PL([cx-w*.18,h*.55],[cx+w*.18,h*.55])+PL([cx,h*.55],[cx,h]),{glyphs:[{t:'+',x:cx+w*.38,y:h*.36,s:h*.16}]});
+    case 'i_pe': return sym(PL([cx,0],[cx,h*.5])+PL([cx-w*.35,h*.5],[cx+w*.35,h*.5])+PL([cx-w*.22,h*.6],[cx+w*.22,h*.6])+PL([cx-w*.09,h*.7],[cx+w*.09,h*.7]),{ports:{N:[cx,0],S:[cx,h*.7],W:[0,h/2],E:[w,h/2]}});
+    case 'i_pe2': { const r=Math.min(w,h)*.42; return sym(PL([cx,0],[cx,h*.5-r])+circ(cx,h*.5,r)+PL([cx,h*.5-r],[cx,h*.48])+PL([cx-r*.6,h*.48],[cx+r*.6,h*.48])+PL([cx-r*.38,h*.56],[cx+r*.38,h*.56])+PL([cx-r*.16,h*.64],[cx+r*.16,h*.64]),{ports:{N:[cx,0],S:[cx,h*.5+r],W:[cx-r,h/2],E:[cx+r,h/2]}}); }
+    case 'i_x': { const r=Math.min(w,h)*.18; return sym(PL([cx,0],[cx,h/2-r])+circ(cx,h/2,r)+PL([cx,h/2+r],[cx,h])); }
+    case 'i_xs': return sym(PL([cx,0],[cx,h*.38])+`M${r2(cx-w*.3)} ${r2(h*.3)}A${r2(w*.3)} ${r2(h*.14)} 0 0 0 ${r2(cx+w*.3)} ${r2(h*.3)}`+PL([cx,h*.52],[cx,h]),{decor:[D(R(cx-w*.08,h*.4,w*.16,h*.14),'stroke')]});
+  }
+  return null;
+}
+const IEC_TYPES=['i_no','i_nc','i_co','i_km','i_cb','i_q','i_qs','i_km3','i_cb3','i_q3','i_fu','i_f3','i_ol_nc','i_k','i_kt_on','i_kt_off','i_no_ton','i_no_toff','i_sb_no','i_sb_nc','i_sa','i_sq_no','i_sq_nc','i_bq','i_h','i_ha','i_m3','i_t','i_r','i_c','i_v','i_g','i_pe','i_pe2','i_x','i_xs'];
+const B_IEC2='Drawn after IEC 60617 conventions as commonly published (vertical, current flowing top to bottom). Not compared against the official IEC 60617 graphic; symbol number not checked.';
+(function addIec(){
+  const S1=Object.assign({},EL), A=(key,name,w,h,o)=>Object.assign({key,name,type:key,w,h,style:S1,basis:B_IEC2},o||{});
+  const at=LIB.findIndex(c=>c.cat==='Electrical safety devices');
+  LIB.splice(at<0?LIB.length:at+1,0,{cat:'Electrical, IEC 60617 style',items:[
+    A('i_no','Make contact (NO)',30,60),A('i_nc','Break contact (NC)',30,60),A('i_co','Changeover contact',40,60),
+    A('i_km','Contactor main contact',30,60),A('i_cb','Circuit breaker',30,60),A('i_q','Disconnector (isolator)',30,60),A('i_qs','Switch-disconnector',30,60),
+    A('i_km3','Contactor, 3-pole',80,60),A('i_cb3','Circuit breaker, 3-pole',80,60),A('i_q3','Disconnector, 3-pole',80,60),
+    A('i_fu','Fuse',30,60),A('i_f3','Thermal overload relay, 3-pole',80,60),A('i_ol_nc','Overload trip contact (95-96)',40,60),
+    A('i_k','Relay or contactor coil',40,60),A('i_kt_on','Coil, delayed operation (on-delay)',56,60),A('i_kt_off','Coil, delayed release (off-delay)',56,60),
+    A('i_no_ton','Make contact, delayed on closing',40,60),A('i_no_toff','Make contact, delayed on opening',40,60),
+    A('i_sb_no','Pushbutton, make (NO)',40,60),A('i_sb_nc','Pushbutton, break (NC)',40,60),A('i_sa','Selector switch, turn operated',40,60),
+    A('i_sq_no','Position switch, make',40,60),A('i_sq_nc','Position switch, break',40,60),A('i_bq','Proximity switch, make',40,60),
+    A('i_h','Signal lamp',30,60),A('i_ha','Horn / buzzer',36,60),A('i_m3','Motor, 3-phase',60,70,{style:ELW}),A('i_t','Transformer',40,80),
+    A('i_r','Resistor',30,60),A('i_c','Capacitor',30,60),A('i_v','Diode',30,60),A('i_g','Battery / DC source',30,60),
+    A('i_pe','Earth',30,50),A('i_pe2','Protective earth (PE)',30,40),A('i_x','Terminal',20,40),A('i_xs','Plug and socket',30,60)]});
+})();
+
 const STD_INFO={}; LIB.forEach(c=>c.items.forEach(i=>{ if(i.std&&!i.line) STD_INFO[i.key]={basis:i.std,cat:c.cat}; }));
 const SYMBOL_INFO={}; LIB.forEach(c=>c.items.forEach(i=>{ if(i.basis&&!i.line) SYMBOL_INFO[i.type]={basis:i.basis,verified:!!i.verified,cat:c.cat}; }));
 const INST_TYPES=new Set(['p_inst','p_inst_cr','p_inst_aux','p_inst_bp','p_shared','p_shared_cr','p_plc_cr','p_comp_cr']);
 GEOM_TYPES.push(...Object.keys(SYMBOL_INFO),'n_router','n_switch','n_firewall','n_server','n_pc','n_laptop','n_ap','n_printer','n_phone','n_camera','n_rack','n_plc','n_hmi','n_indswitch','n_io','n_drive','n_media');
-GEOM_TYPES.push(...Object.keys(RA_DEV),...LIB_GEOM_TYPES,...UML_TYPES);
-const SOON_LIBS=['Electrical, IEC 60617 style','Icon sets'];
+GEOM_TYPES.push(...Object.keys(RA_DEV),...LIB_GEOM_TYPES,...UML_TYPES,...IEC_TYPES,'icon','ink');
+const SOON_LIBS=[];
 const LIB_MAP={}; LIB.forEach(c=>c.items.forEach(i=>{LIB_MAP[i.key]=i;}));
 const PIN_TYPES=new Set(); LIB.forEach(c=>c.items.forEach(i=>{ if(!i.line&&!i.tpl&&symPins(i.type,i.w,i.h)) PIN_TYPES.add(i.type); }));
 const QUICK=['process','rounded','decision','terminator','data','ellipse','database','document'];
@@ -2071,7 +2263,7 @@ let V={tx:80,ty:60,z:1};
 
 function defaultPrefs(){
   const narrow=(window.innerWidth||1200)<820;
-  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,minimap:false,picRemember:true,userName:'',recent:[],endings:END_DEFAULT.slice(),dragMode:'pan'};
+  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,minimap:false,picRemember:true,penColor:'#1f2430',penWidth:3,penHl:false,penSmooth:true,userName:'',recent:[],endings:END_DEFAULT.slice(),dragMode:'pan'};
 }
 function loadPrefs(){
   const p=defaultPrefs(); const raw=store.get(KEY_PREFS);
@@ -2084,6 +2276,7 @@ function loadPrefs(){
   if(!['auto','icons','labeled','names'].includes(p.libView)) p.libView='auto';
   if(![0,90,180,270].includes(p.placeRot)) p.placeRot=0;
   p.userName=String(p.userName||'').slice(0,60);
+  if(!PEN_COLORS.includes(p.penColor)) p.penColor='#1f2430'; if(!PEN_WIDTHS.includes(p.penWidth)) p.penWidth=3;
   if(!Array.isArray(p.opened)) p.opened=[]; p.opened=p.opened.filter(c=>typeof c==='string').slice(0,40);
   return p;
 }
@@ -2133,8 +2326,8 @@ function renderSheet(){
   stage.classList.toggle('has-sheet',!!sz);
   stage.style.background=!sz&&bg?bg:'';
   { const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(bg||''), dark=m&&(0.299*parseInt(m[1],16)+0.587*parseInt(m[2],16)+0.114*parseInt(m[3],16))<110;
-    if(dark){ stage.style.setProperty('--grid-minor','rgba(255,255,255,.045)'); stage.style.setProperty('--grid-major','rgba(255,255,255,.09)'); } else { stage.style.removeProperty('--grid-minor'); stage.style.removeProperty('--grid-major'); } }
-  g.replaceChildren(...(sz?[sv('rect',{x:0,y:0,width:sz.w,height:sz.h,class:'sheet',fill:bg||'#ffffff'})]:[]));
+    if(dark){ stage.style.setProperty('--grid-minor','rgba(255,255,255,.045)'); stage.style.setProperty('--grid-major','rgba(255,255,255,.09)'); } else if(bg){ stage.style.setProperty('--grid-minor','rgba(0,0,0,.05)'); stage.style.setProperty('--grid-major','rgba(0,0,0,.1)'); } else { stage.style.removeProperty('--grid-minor'); stage.style.removeProperty('--grid-major'); } }
+  g.replaceChildren(...(sz?[sv('rect',{x:0,y:0,width:sz.w,height:sz.h,class:'sheet',fill:bg||(S.prefs.theme==='dark'?'#22272f':'#ffffff')})]:[]));
 }
 function layerCmd(action,id){
   const pg=page(), ls=ensureLayers(pg), L=ls.find(l=>l.id===id), i=ls.indexOf(L);
@@ -2277,6 +2470,7 @@ function sanitizeItem(it){
     text:str(it.text).slice(0,10000),style:sanStyle(it.style,DEF_SHAPE_STYLE),layer:typeof it.layer==='string'?it.layer.slice(0,64):undefined,groupId:gid,
     rot:[90,180,270].includes(it.rot)?it.rot:undefined,flip:it.flip===true?true:undefined,ang:(Number.isFinite(+it.ang)&&Math.abs(normAng(+it.ang))>0.05&&Math.abs(Math.abs(normAng(+it.ang))-90)>0.05&&Math.abs(Math.abs(normAng(+it.ang))-180)>0.05)?r2(normAng(+it.ang)):undefined,...sanAttrs(it),
     img:(it.type==='image'&&typeof it.img==='string')?it.img.slice(0,64):undefined,
+    icon:it.type==='icon'?(typeof it.icon==='string'&&ICON_SET[it.icon]?it.icon:'circle-question-mark'):undefined,...sanInk(it),
     family:['mindmap','org'].includes(it.family)?it.family:undefined,
     level:['mindmap','org'].includes(it.family)&&Number.isFinite(+it.level)?clamp(Math.round(+it.level),0,20):undefined};
 }
@@ -2741,7 +2935,7 @@ const TEXT_PAD=6;
 function textBox(it){
   const X=xf(it), G=geom(it.type,X.gw,X.gh,it.style);
   if(G.label||devPicOf(it)){ const lh=it.style.fontSize*1.25;
-    if(X.rot===90||X.rot===270) return {x:it.w+5,y:0,w:110,h:it.h,below:true,side:true};
+    if((X.rot===90||X.rot===270)!==!!G.labelSide) return {x:it.w+5,y:0,w:110,h:it.h,below:true,side:true};
     return {x:-40,y:it.h+3,w:it.w+80,h:lh*3,below:true}; }
   if(X.rot&&!it.style.textLevel){ const x=X.flip?X.gw-G.tb.x-G.tb.w:G.tb.x;
     return {x:x+TEXT_PAD,y:G.tb.y+TEXT_PAD,w:Math.max(1,G.tb.w-TEXT_PAD*2),h:Math.max(1,G.tb.h-TEXT_PAD*2),turn:true}; }
@@ -2757,7 +2951,7 @@ function glyphsTurn(it,G){ return !!it.rot&&!it.style.textLevel&&!G.label; }
 function untp(X,x,y){ switch(X.rot){ case 90: return {x:y,y:X.gh-x}; case 180: return {x:X.gw-x,y:X.gh-y}; case 270: return {x:X.gw-y,y:x}; default: return {x,y}; } }
 function textStyle(it,tb){ return tb&&tb.side?Object.assign({},it.style,{align:'left',valign:'middle'}):it.style; }
 function renderShape(it,o){
-  o=o||{}; const st=ruleStyle(it,it.style);
+  o=o||{}; let st=ruleStyle(it,it.style); if(!o.export&&darkCanvas()) st=darkInkShape(st);
   const T=`translate(${r2(it.x)} ${r2(it.y)})`+(it.ang?` rotate(${r2(it.ang)} ${r2(it.w/2)} ${r2(it.h/2)})`:'');
   const g=sv('g',o.export?{transform:T}:{'data-id':it.id,class:'item shape',transform:T});
   if(st.opacity<1) g.setAttribute('opacity',st.opacity);
@@ -2770,7 +2964,9 @@ function renderShape(it,o){
     else { inner.appendChild(sv('rect',{x:0,y:0,width:r2(X.gw),height:r2(X.gh),fill:'#f2f3f5',stroke:'#c4c9d1','stroke-dasharray':'4 3'}));
       inner.appendChild(sv('text',{x:r2(X.gw/2),y:r2(X.gh/2+4),'text-anchor':'middle','font-size':12,'font-family':FONTS.sans,fill:'#6b7280'},'Picture not available')); }
   }
-  inner.appendChild(sv('path',{d:G.d,class:o.export?null:'body',fill:st.fill,stroke:st.stroke,'stroke-width':st.sw,'stroke-dasharray':dashArr(st.dash,st.sw),'stroke-linecap':st.dash==='dotted'?'round':null,'stroke-linejoin':'round'}));
+  const bare=it.type==='icon'||it.type==='ink';
+  inner.appendChild(sv('path',{d:G.d,class:o.export?null:'body',fill:bare?(o.export?'none':'transparent'):st.fill,stroke:bare?'none':st.stroke,'stroke-width':st.sw,'stroke-dasharray':dashArr(st.dash,st.sw),'stroke-linecap':st.dash==='dotted'?'round':null,'stroke-linejoin':'round'}));
+  if(it.type==='icon') drawIcon(inner,it,X.gw,X.gh,st); else if(it.type==='ink') drawInk(inner,it,X.gw,X.gh,st);
   { const pic=devPicOf(it); if(pic){ const bx=devPicBox(it,X,G); inner.appendChild(sv('image',{href:o.export?pic.data:pic.url,x:r2(bx.x),y:r2(bx.y),width:r2(bx.w),height:r2(bx.h),preserveAspectRatio:'xMidYMid meet',class:'devpic'})); } }
   if(st.stroke!=='none') for(const dd of decorList(G)) inner.appendChild(sv('path',{d:dd.d,fill:dd.f==='stroke'?st.stroke:dd.f==='fill'?(st.fill==='none'?'#ffffff':st.fill):'none','fill-opacity':dd.op!=null?dd.op:null,stroke:dd.ns?'none':st.stroke,'stroke-width':st.sw,'stroke-dasharray':dd.dash?dashArr('dashed',st.sw):null,'stroke-linejoin':'round'}));
   if(X.m) g.appendChild(inner);
@@ -2778,13 +2974,13 @@ function renderShape(it,o){
   for(const gl of (G.glyphs||[])){ const q=turnG?{x:X.flip?X.gw-gl.x:gl.x,y:gl.y}:tp(X,gl.x,gl.y); (gg||g).appendChild(sv('text',{x:r2(q.x),y:r2(q.y+gl.s*0.35),'text-anchor':gl.a?(X.flip?(gl.a==='start'?'end':'start'):gl.a):'middle','font-size':r2(gl.s),'font-family':FONTS.sans,'font-weight':gl.b?'bold':null,fill:st.stroke==='none'?st.fontColor:st.stroke},gl.t)); }
   if(gg) g.appendChild(gg);
   if(G.hit&&!o.export) g.appendChild(sv('rect',{x:0,y:0,width:r2(it.w),height:r2(it.h),fill:'transparent',class:'body'}));
-  if(!(S.editing===it.id&&!o.export)){ if(it.type==='er_entity'&&!it.rot) renderEntityText(g,it); else if(isUmlBox(it)) renderUmlText(g,it,st); else { const tb=textBox(it); let tg=g; if(tb.turn){ tg=sv('g',{transform:'matrix('+turnXf(it).m.join(' ')+')'}); g.appendChild(tg); } renderTextBlock(tg,resolveText(it),tb,textStyle(it,tb)); } }
+  if(!(S.editing===it.id&&!o.export)){ if(it.type==='er_entity'&&!it.rot) renderEntityText(g,it); else if(isUmlBox(it)) renderUmlText(g,it,st); else { const tb=textBox(it); let tg=g; if(tb.turn){ tg=sv('g',{transform:'matrix('+turnXf(it).m.join(' ')+')'}); g.appendChild(tg); } renderTextBlock(tg,resolveText(it),tb,textStyle(st===it.style?it:Object.assign({},it,{style:st}),tb)); } }
   if(!o.export) renderBadges(g,it,null,false);
   if((!o.export||o.present)&&it.family){ const fb=foldButton(it,o.present); if(fb){ if(FOLD_LAYER){ const fg=sv('g',{transform:T}); fg.appendChild(fb); FOLD_LAYER.push([fg,it]); } else g.appendChild(fb); } }
   return decorateItem(g,it,o);
 }
 function renderLine(it,o){
-  o=o||{}; const st=it.style, R=routeLine(it), pts=R.pts, n=pts.length;
+  o=o||{}; const st=(!o.export&&darkCanvas())?darkInkLine(it.style):it.style, R=routeLine(it), pts=R.pts, n=pts.length;
   const g=sv('g',o.export?{}:{'data-id':it.id,class:'item line'});
   if(st.opacity<1) g.setAttribute('opacity',st.opacity);
   let endFrom,startFrom;
@@ -2910,7 +3106,7 @@ function renderOverlay(){
     }
     for(const k in ends) out.push(sv('circle',{cx:r2(ends[k].x),cy:r2(ends[k].y),r:r2(5.5*uiK()/z),class:'ov-end '+(L[k].id?'attached':'free'),'data-handle':k,'data-lid':L.id,'stroke-width':r2(1.5/z)}));
   }
-  const hovId=S.hover||(isCoarse()&&sel.length===1&&isShape(sel[0])&&!sel[0].locked?sel[0].id:null);
+  const hovId=S.pen?null:S.hover||(isCoarse()&&sel.length===1&&isShape(sel[0])&&!sel[0].locked?sel[0].id:null);
   if(!busy&&!S.editing&&hovId){
     const s=byId(hovId);
     if(isShape(s)&&hasPins(s)){
@@ -2941,6 +3137,7 @@ function renderOverlay(){
   }
   if(op&&op.type==='marquee'){ const a=op.start,b=op.cur; out.push(sv('rect',{x:r2(Math.min(a.x,b.x)),y:r2(Math.min(a.y,b.y)),width:r2(Math.abs(a.x-b.x)),height:r2(Math.abs(a.y-b.y)),class:'ov-marquee','stroke-width':r2(1/z)})); }
   for(const gd of S.guides) out.push(sv('line',{x1:r2(gd.x1),y1:r2(gd.y1),x2:r2(gd.x2),y2:r2(gd.y2),class:'ov-guide','stroke-width':r2(1/z)}));
+  if(op&&op.type==='ink'){ const hl=!!S.prefs.penHl; out.push(sv('path',{d:inkPath(op.pts,false),fill:'none',stroke:hl?(S.prefs.penColor==='#1f2430'?'#facc15':S.prefs.penColor):S.prefs.penColor,'stroke-opacity':hl?0.4:1,'stroke-width':hl?Math.max(10,S.prefs.penWidth*4):S.prefs.penWidth,'stroke-linecap':'round','stroke-linejoin':'round',class:'ov-ink'})); }
   cmtPins(out,z);
   overlayG.replaceChildren(...out);
 }
@@ -3434,6 +3631,7 @@ function onPointerDown(e){
   try{ svg.setPointerCapture(e.pointerId); }catch(_){}
   const w=toWorld(e);
   if(e.button===1||S.spaceDown){ e.preventDefault(); beginPan(e); return; }
+  if(S.pen&&e.button===0){ longPressEnd(); S.op={type:'ink',pts:[w]}; S.lastTap=null; invalidate({overlay:true}); return; }
   const t=e.target&&e.target.closest?e.target:null;
   if(t&&t.closest('[data-badge-link]')) return;
   const react=t&&t.closest('[data-react]');
@@ -3514,6 +3712,7 @@ function onPointerMove(e){
       for(const it of pickList()){ const b=itemBBox(it); if(b.x>=x1&&b.y>=y1&&b.x+b.w<=x2&&b.y+b.h<=y2) ns.add(it.id); }
       S.sel=expandGroups(ns); invalidate({overlay:true}); break;
     }
+    case 'ink': { const q=op.pts[op.pts.length-1]; if(Math.hypot(w.x-q.x,w.y-q.y)>=1/V.z&&op.pts.length<6000){ op.pts.push(w); invalidate({overlay:true}); } break; }
     case 'move': {
       if(!op.moved&&Math.hypot(e.clientX-op.sx,e.clientY-op.sy)<3) return;
       op.moved=true; S.hover=null; op.noSnap=e.shiftKey||e.altKey;
@@ -3572,6 +3771,7 @@ function onPointerUp(e){
       if(!op.moved) showFtb();
       invalidate({overlay:true,props:true}); break;
     case 'resize': if(op.moved) commit(); invalidate({overlay:true,props:true}); break;
+    case 'ink': finishInk(op); invalidate({overlay:true}); break;
     case 'rotate': if(op.moved){ commit(); invalidate(); } else rotateSel(op.shift); break;
     case 'marquee': invalidate({overlay:true,props:true,chrome:true}); break;
     case 'pan': if(!op.moved&&op.clear&&e.type==='pointerup'){ if(S.sel.size) setSel([]); hideFtb(); } invalidate({overlay:true}); break;
@@ -3632,6 +3832,7 @@ function quickPick(key){
 function tilePreview(def){
   if(def.line&&def.startArrow) return linePairPreview(def,44,30);
   if(def.line) return signalPreview(def.signal,def.style,44,30);
+  if(def.type==='icon'){ const s0=sv('svg',{viewBox:'-2 -2 28 28',preserveAspectRatio:'xMidYMid meet'}); for(const n of iconNodes(def.props.icon,'currentColor',1.8)) s0.appendChild(n); return s0; }
   const w=def.w, h=def.h, vb=Math.max(w,h)*1.16, min=Math.max(vb,34);
   const st=Object.assign({},DEF_SHAPE_STYLE,def.style||{});
   const s=sv('svg',{viewBox:`${r2((w-min)/2)} ${r2((h-min)/2)} ${r2(min)} ${r2(min)}`,preserveAspectRatio:'xMidYMid meet'});
@@ -3651,7 +3852,7 @@ function buildLibrary(){
   const list=$('#libList'), kids=[];
   for(const c of LIB){
     const closed=c.closed?!S.prefs.opened.includes(c.cat):S.prefs.collapsed.includes(c.cat);
-    const mode=S.prefs.libView==='auto'?(c.closed?'names':'icons'):S.prefs.libView, pic=mode!=='names', lazy=pic&&closed&&c.closed;
+    const mode=S.prefs.libView==='auto'?(c.closed&&!c.pics?'names':'icons'):S.prefs.libView, pic=mode!=='names', lazy=pic&&closed&&c.closed;
     kids.push(el('div',{class:'lib-cat'+(closed?' collapsed':''),'data-catwrap':c.cat},
       el('button',{class:'lib-cat-h','data-cat':c.cat,'aria-expanded':String(!closed)},icon('chevron',12),c.cat),
       el('div',{class:'lib-grid mode-'+mode},c.items.map(i=>el('button',{class:'lib-tile'+(i.dev?' dev':''),'data-lib':i.key,'data-lazy':lazy?'1':null,'data-name':(i.name+' '+c.cat).toLowerCase(),title:i.name+(i.basis?'\n'+(i.verified?'':'[Unverified] ')+i.basis:'')+(i.std?'\n[Unverified] '+i.std:'')+(i.dev?'\n'+RA_DEV[i.key].ports.length+' ports'+(RA_DEV[i.key].v?'':' [Unverified]'):''),'aria-label':'Add '+i.name},pic&&!lazy?tilePreview(i):null,i.dev?el('span',{class:'lib-cap',text:i.cap}):null,
@@ -4640,7 +4841,7 @@ function uiK(){ return isCoarse()?1.7:1; }
 function phoneSheets(which){ if(!isPhone()) return; if(which==='left'&&S.prefs.left) S.prefs.right=false; if(which==='right'&&S.prefs.right) S.prefs.left=false; }
 let lpTimer=null, lpAt=null;
 function longPressStart(e){
-  if(e.pointerType!=='touch'||touches.size>1) return; clearTimeout(lpTimer); lpAt={x:e.clientX,y:e.clientY,t:e.target};
+  if(e.pointerType!=='touch'||touches.size>1||S.pen) return; clearTimeout(lpTimer); lpAt={x:e.clientX,y:e.clientY,t:e.target};
   lpTimer=setTimeout(()=>{ if(!lpAt||touches.size>1) return; const at=lpAt; lpAt=null; S.op=null;
     const it=at.t&&at.t.closest&&at.t.closest('[data-id]'); if(it){ const id=it.getAttribute('data-id'); if(!S.sel.has(id)) setSel(expandGroups([id])); }
     try{ if(navigator.vibrate) navigator.vibrate(15); }catch(x){} showCtx(at.x,at.y); },550);
@@ -5533,7 +5734,7 @@ async function exportPdf(all){
 const MENUS={
   file:[['New diagram','newDoc'],['New from template...','templates'],['Duplicate page','duplicatePage'],['Open...','openJson','Ctrl+O'],['Save','save','Ctrl+S'],['Save as...','saveAs','Ctrl+Shift+S'],['Import Visio or Lucid file...','openJson'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import CSV data...','importData'],['Version history...','versions']],
   edit:[['Undo','undo','Ctrl+Z'],['Redo','redo','Ctrl+Shift+Z'],'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',['Select all','selectAll','Ctrl+A'],['Select all shapes','selectShapes'],['Select all lines','selectLines'],['Select same fill color','selectSameFill'],'-',['Edit text','editText','Enter'],['Add text to line','addLineText'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],'-',['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],'-',['Find and replace','find','Ctrl+F']],
-  insert:[['Template pages...','templates'],['Picture...','insertImage'],['Text box','insertText'],['Sticky note','insertNote'],['Page','addPage'],'-',['Icons','soon:Icon sets',null,true],['Freehand drawing','soon:Freehand pen',null,true]],
+  insert:[['Template pages...','templates'],['Picture...','insertImage'],['Text box','insertText'],['Sticky note','insertNote'],['Page','addPage'],'-',['Icons...','showIcons'],['Freehand drawing (pen)','pen']],
   arrange:[['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',['Group','group','Ctrl+G'],['Ungroup','ungroup','Ctrl+Shift+G'],'-',['Align left','alignL'],['Align center','alignC'],['Align right','alignR'],['Align top','alignT'],['Align middle','alignM'],['Align bottom','alignB'],'-',['Distribute horizontally','distH'],['Distribute vertically','distV'],'-',['Rotate 90\u00b0 clockwise','rotate','Alt+R'],['Rotate 90\u00b0 counterclockwise','rotateCcw','Alt+Shift+R'],['Flip horizontal','flipH'],['Flip vertical','flipV'],'-',['Match width','matchW'],['Match height','matchH'],['Match size','matchSize'],'-',['Lock / unlock','toggleLock','Ctrl+Shift+L'],['Swap line endpoints','swapEnds']],
   view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','toggleMinimap',null,false,()=>S.prefs.minimap],'-',['Fold all branches','foldAll'],['Unfold all branches','unfoldAll'],['Present','present','F5'],['Comments','comments','Ctrl+Alt+M',false,()=>CMT.open]],
   help:[['Getting started and shortcuts','help','F1'],['About Linework','about']]
@@ -5722,7 +5923,7 @@ function showTextModal(name,text){
 }
 function showHelp(){
   const sc=[['Drag from library','Add a shape where you drop it'],['Click or tap a shape tile','Add it in the middle of the view'],['Double-click / double-tap','Edit shape text, or add a text box on a line where you click'],['Click a line','Open the editing bar (right-click a shape for its bar)'],['Type with a shape selected','Add to its text (Ctrl+A in the editor selects all to replace it)'],['Double-click inside text','Place the cursor there to edit'],['Ctrl+Enter or Esc','Finish editing text'],['Shift+click','Add to or remove from selection'],['Drag on empty canvas','Pan the view (Select mode: box-select)'],['Shift+drag on empty canvas','Box-select'],['Shift while dragging','Turn off grid and alignment snapping'],['Tab / Enter on a topic or org box','Add a child / add a sibling'],['Alt+. on a topic or org box','Fold or unfold its branch (animated)'],['Space+drag, middle-drag, scroll','Pan the canvas'],['Ctrl+scroll, pinch','Zoom'],['Shift while resizing','Keep proportions'],['Arrow keys (Shift for 10)','Nudge selection'],['Ctrl+Z / Ctrl+Shift+Z','Undo / redo'],['Ctrl+C / X / V / D','Copy, cut, paste, duplicate'],['Ctrl+G / Ctrl+Shift+G','Group / ungroup'],['Ctrl+] / Ctrl+[','Bring forward / send backward (add Shift for front / back)'],['Ctrl+= / Ctrl+- / Ctrl+0','Zoom in, out, actual size'],['Shift+1','Zoom to fit'],['Ctrl+O','Open a diagram, Visio or Lucid file'],['Delete or Backspace','Delete selection'],['Ctrl+K','Attach a link'],['Ctrl+Alt+C / Ctrl+Alt+V','Copy style / paste style'],['Ctrl+Shift+L','Lock or unlock'],['Alt+R / Alt+Shift+R','Rotate selection 90\u00b0 clockwise / counterclockwise'],['Drag the round arrow above a shape','Rotate to any angle (snaps to 15\u00b0, Shift for free)'],['Ctrl+F','Find and replace'],['Ctrl+S / Ctrl+Shift+S','Save / Save as'],['Ctrl+Alt+M','Comments'],['F5','Present'],['R while dragging a library tile','Turn the shape 90\u00b0 before you drop it (Shift+R the other way)'],['F1 or ?','Open this help']];
-  const soon=['Sharing and real-time collaboration (live co-editing)','Icon sets and freehand pen','Line jumps where lines cross','Page tab colors and master pages','Templates gallery','Embedded links','Full IEC 60617 electrical library','Free-form bends on straight and curved lines','Live data sources (Google Sheets, Excel) and auto-refresh','Import of older binary Visio .vsd and draw.io files','Slides that frame part of a page in Present mode'];
+  const soon=['Sharing and real-time collaboration (live co-editing)','Line jumps where lines cross','Page tab colors and master pages','Embedded links','Free-form bends on straight and curved lines','Live data sources (Google Sheets, Excel) and auto-refresh','Import of older binary Visio .vsd and draw.io files','Slides that frame part of a page in Present mode','Eraser for freehand strokes'];
   openModal('Getting started with Linework',
     el('h3',{text:'Add shapes'}),el('p',{text:'Drag any shape from the library on the left onto the canvas, or click or tap a tile to drop it in the middle of the view. Use the search box to filter shapes.'}),
     el('h3',{text:'Connect shapes'}),el('p',{text:'Hover a shape to show four blue dots. Drag a dot onto another shape. Drop it on one of the green side dots to pin the line to that side, or anywhere on the shape body for a floating connection that picks the best side as shapes move. Release on empty canvas to choose a new shape to create at the end of the line.'}),
@@ -5772,6 +5973,10 @@ function showHelp(){
     el('h3',{text:'Device pictures'}),el('p',{text:'Select a Rockwell device (switch, controller, adapter, drive, HMI) and use Device picture > Add picture in the right panel, or drop a picture file onto the device. The picture shows on every shape of that catalog number in the diagram, the shape grows to fit it, the port pins stay on the edges, and lines stay attached. The catalog name moves under the shape. Untick Show the picture to hide it on one shape. Pictures are saved in the diagram file and, with Remember for new diagrams on, in this browser so new diagrams pick them up. Linework does not include product photos; use a photo or drawing you have the right to use.'}),
     el('h3',{text:'On a phone'}),el('p',{text:'On a narrow screen the shape library and the properties panel open as sheets from the bottom (the first and last toolbar buttons); only one is open at a time, and the library closes after you add a shape. Less used toolbar buttons are in the menus. Tap a shape to select it: its connection dots show without hovering, and handles are larger. Drag a dot to connect. Press and hold a shape or the canvas for its menu. Two fingers pan and pinch to zoom. Dialogs fill the screen.'}),
     el('h3',{text:'Folding branches (animated)'}),el('p',{text:'In a mind map or org chart, a topic or box with items under it shows a small round arrow button beside it (right side for mind maps, below for org charts). Click it to fold the branch: the items slide back into it and fade out, and the rest of the tree closes up. Click again to unfold: they slide out and fade in, and the view glides so the branch stays on screen. A folded button shows how many items are hidden. You can also use Alt+. on a selected topic, or the right-click menu (Fold branch, Fold all branches, Unfold all branches; also under View). Folded branches are saved with the diagram, hidden items are left out of exports, and the buttons work in Present mode too, where your folding is undone when you leave Present. Adding a topic to a folded branch unfolds it. If your system is set to reduce motion, branches change without the animation. The Collapsible mind map template shows a ready-made example.'}),
+    el('h3',{text:'Icons'}),el('p',{text:'Insert > Icons, or search the library for icons:, shows five icon libraries (industrial and power, computers and network, people and places, arrows and marks, business) with 166 line icons. They act like any shape: resize, rotate, connect lines, and type a label under them. Border color sets the icon color, border width its line weight, and a fill color adds a rounded background tile. Icons are from the open-source Lucide set (ISC license; see Help > About).'}),
+    el('h3',{text:'Freehand drawing'}),el('p',{text:'Click Draw on the toolbar (or Insert > Freehand drawing) to turn the pen on. Drag on the canvas to draw; each stroke becomes its own shape you can select, move, resize, rotate, recolor (Border color and width), group or delete later. The pen bar at the top sets the color and width, Highlighter draws wide see-through strokes, and Smooth rounds out the line. Two fingers still pan and zoom on a touch screen. Click Done or press Esc to turn the pen off.'}),
+    el('h3',{text:'Electrical, IEC 60617 style'}),el('p',{text:'This library draws IEC style symbols vertically, with the leads at the top and bottom and the device tag to the right: make, break and changeover contacts, contactor, breaker, disconnector and switch-disconnector (single and 3-pole), fuse, thermal overload and its 95-96 trip contact, coils (plain, on-delay and off-delay), delayed contacts, pushbuttons, selector, position and proximity switches, lamp, horn, 3-phase motor, transformer, resistor, capacitor, diode, battery, earth and protective earth, terminal, and plug and socket. Multi-terminal symbols have pins named the usual IEC way (1-2, 3-4, 5-6 on main poles, A1-A2 on coils, 95-96 on the overload contact, U1 V1 W1 on the motor). All of them are marked Unverified: they follow the common published conventions but were not compared against the official IEC 60617 graphics.'}),
+    el('h3',{text:'Dark mode'}),el('p',{text:'Dark mode (the moon button, or View > Dark mode) turns the canvas, the grid and the page sheet dark. Lines, symbols and unfilled shapes drawn in dark colors are shown light so you can read them; this is only how they look on screen. Saved colors, exports and Present mode stay as drawn, on white. A page with its own background color keeps that color in either mode.'}),
     el('h3',{text:'Mini map'}),el('p',{text:'View > Mini map shows a small overview in the bottom right corner of the canvas with every shape and line on the page and a blue box for what is on screen. Click or drag in the map to move the view there. The setting is remembered.'}),
     el('h3',{text:'Comments'}),el('p',{text:'View > Comments (Ctrl+Alt+M) opens the comments panel. Type your name once at the top. With one item selected, a new comment attaches to that item and its numbered pin follows the item; with nothing selected, the comment is pinned at the middle of the view. Press Enter to post (Shift+Enter for a new line). Reply, Resolve, Reopen and Delete work per thread, Show resolved brings resolved threads back, and clicking a pin or a thread number jumps to it. Comments are saved in the diagram file and undo like any other edit, but they are not live: other people see them when they open the file, and they are left out of SVG, PNG and PDF exports.'}),
     el('h3',{text:'Saving'}),el('p',{text:'Your diagram autosaves in this browser. The status at the top right tells you if browser storage is blocked. Use File > Save for a portable copy you can reopen anywhere, and File > Export SVG or PNG for images.'}),
@@ -5779,7 +5984,7 @@ function showHelp(){
     el('h3',{text:'Keyboard and mouse'}),el('table',null,el('tbody',null,sc.map(r=>el('tr',null,el('td',{text:r[0]}),el('td',{text:r[1]}))))),
     el('h3',{text:'Coming soon'}),el('ul',null,soon.map(s=>el('li',{text:s}))));
 }
-function showAbout(){ openModal('About Linework',el('p',{text:'Linework Diagrams '+APP_VERSION+'. A single-file diagram editor. Documents are stored only in this browser unless you save a JSON file. File schema version '+SCHEMA+'.'})); }
+function showAbout(){ openModal('About Linework',el('p',{text:'Linework Diagrams '+APP_VERSION+'. A single-file diagram editor. Documents are stored only in this browser unless you save a JSON file. File schema version '+SCHEMA+'.'}),el('h3',{text:'Third-party notices'}),el('p',{class:'small',text:ICON_LICENSE})); }
 
 /* ============================== commands ============================== */
 const CMDS={
@@ -5812,7 +6017,8 @@ const CMDS={
   loadSample:()=>loadDocument(sampleDoc(),'Sample loaded. Ctrl+Z brings back your previous diagram.'),
   loadSample2:()=>loadDocument(sampleDoc2(),'Sample loaded. Ctrl+Z brings back your previous diagram.'),
   openJson:()=>{ openFilePick(); },
-  templates:()=>showTemplates(),
+  templates:()=>showTemplates(), pen:()=>setPen(!S.pen),
+  showIcons:()=>{ if(!S.prefs.left){ S.prefs.left=true; phoneSheets('left'); savePrefs(); } const q=$('#libSearch'); q.value='icons:'; q.dispatchEvent(new Event('input',{bubbles:true})); invalidate({chrome:true}); },
   foldSel:()=>{ const s=selItems().find(i=>i.family&&hasKids(i)); if(s) setFold(s.id,'toggle'); else toast('Select a topic or box that has items under it.'); },
   foldAll:()=>foldAll(true), unfoldAll:()=>foldAll(false),
   save:()=>{ saveFile(); }, saveAs:()=>{ saveFileAs(); }, toggleMinimap:()=>togglePref('minimap'), comments:()=>{ if(CMT.open) closeComments(); else openComments(); },
@@ -5836,6 +6042,7 @@ function runCmd(name){
 /* ============================== chrome ============================== */
 function applyTheme(){ document.documentElement.setAttribute('data-theme',S.prefs.theme==='dark'?'dark':'light'); }
 function updateChrome(){
+  { const pb=$('#penBtn'); if(pb) pb.setAttribute('aria-pressed',String(!!S.pen)); }
   const H=S.history;
   document.querySelectorAll('[data-cmd="undo"]').forEach(b=>{ if(b.classList.contains('btn')) b.disabled=H.idx<=0; });
   document.querySelectorAll('[data-cmd="redo"]').forEach(b=>{ if(b.classList.contains('btn')) b.disabled=H.idx>=H.stack.length-1; });
@@ -5889,6 +6096,7 @@ function wireKeys(){
     const t=e.target, tag=t&&t.tagName;
     const typing=tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||(t&&t.isContentEditable);
     if(e.key==='Escape'){ if(modalEl){ closeModal(); return; }
+      if(S.pen&&!typing){ e.preventDefault(); setPen(false); return; }
       if(ctxEl||openMenu){ hideCtx(); closeMenus(); return; }
       if(ftb.open&&!typing){ if(ftb.kind){ ftb.kind=null; buildFtbBar(); renderFtbPop(); invalidate({ftb:true}); } else hideFtb(); return; } closeMenus(); hideCtx(); closeQuick(); if(!typing&&S.sel.size) setSel([]); return; }
     if(typing||modalEl) return;
@@ -5948,6 +6156,7 @@ window.__app={
     geom, sampleDoc, saveLocal, loadLocal, expandGroups, alignSel, distributeSel, reorder, newDoc,
     insertImageData, importAssets, exportAssets, docForSave, buildPdf, pageSvgs, assets:ASSETS, geoBBox,
     findTarget, lineDefaults, raPorts, raPort, RA_DEV, RA_SRC, filterLibrary, duplicate,
+    setPen, finishInk, simplifyPts, ICON_SET, IEC_TYPES, darkCanvas, iecGeom,
     setFold, foldAll, foldedIds, hasKids, familyKids, tweenEnd, getTween:()=>TW,
     TEMPLATES, tplDoc, showTemplates, useTemplate, setDevPic, clearDevPic, devPicOf, picLib, isPhone, isCoarse, longPressStart, longPressEnd, usedAssetIds, exportAssets, docForSave,
     saveFile, saveFileAs, openAnyFile, fileStatus, fileDirty, FILE, zipOpen, vsdxToDoc, lucidToDoc, isLucidJson, importZipBytes, miniContent, miniView, addComment, cmtCmd, openComments, closeComments, comments,
