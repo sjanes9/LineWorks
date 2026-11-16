@@ -398,6 +398,41 @@ button{cursor:pointer}
 #toast{position:fixed;left:50%;bottom:52px;transform:translate(-50%,20px);z-index:var(--z-toast);background:#1f2430;color:#fff;padding:8px 14px;border-radius:var(--r-md);font-size:var(--fs-sm);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;max-width:90vw}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 
+.devpic-prev{display:block;max-width:100%;max-height:140px;margin:0 auto 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:#fff}
+.hint-btn{pointer-events:auto;margin-top:10px}
+.modal.modal-wide{width:min(1080px,100%);height:min(86vh,900px)}
+.tpl-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 8px} .tpl-search{flex:0 1 260px;height:32px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel);color:var(--text)}
+.tpl-top .muted{flex:1 1 280px}
+.tpl-cats{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px} .tpl-cat{border:1px solid var(--border);background:var(--panel);color:var(--text-2);border-radius:999px;padding:4px 12px;font-size:var(--fs-sm);cursor:pointer}
+.tpl-cat.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.tpl-card{border:1px solid var(--border);border-radius:var(--r-md,8px);overflow:hidden;display:flex;flex-direction:column;background:var(--panel)}
+.tpl-prev{display:block;width:100%;height:150px;padding:6px;border:0;border-bottom:1px solid var(--border);background:#fff;cursor:pointer} .tpl-prev:hover{background:#f5f8ff}
+.tpl-svg{width:100%;height:100%;display:block} .tpl-noprev{height:100%;display:flex;align-items:center;justify-content:center;color:#98a2b3}
+.tpl-meta{display:flex;flex-direction:column;gap:4px;padding:8px 10px 10px} .tpl-meta b{font-size:var(--fs-md)} .tpl-meta .find-row{margin-top:4px}
+@media (max-width:700px){
+  :root{--menu-h:44px;--toolbar-h:44px}
+  #app{grid-template-columns:0 minmax(0,1fr) 0!important}
+  #left,#right{position:fixed;left:0;right:0;bottom:var(--pagebar-h);top:auto;height:min(58dvh,560px);z-index:40;border:0;border-top:1px solid var(--border);border-radius:14px 14px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.22)}
+  #left::before,#right::before{content:"";display:block;width:40px;height:4px;border-radius:2px;background:var(--border);margin:6px auto 2px;flex:none}
+  .lib-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+  .ph-hide,#toolbar .tb-sep{display:none!important}
+  .brand,.doc-meta .doc-title{font-size:var(--fs-sm)}
+  .doc-title{max-width:100%}
+  #toolbar{gap:2px;padding:0 4px} #toolbar .btn{min-width:40px;height:38px}
+  .modal-bg{padding:0} .modal,.modal.modal-wide{width:100%;height:100%;max-height:100%;border-radius:0}
+  .tpl-grid{grid-template-columns:1fr 1fr;gap:8px} .tpl-prev{height:110px} .tpl-meta .muted{display:none}
+  .menu{max-width:calc(100vw - 8px);max-height:calc(100dvh - 60px);overflow-y:auto}
+  .menu .mi,.menu button{min-height:40px}
+  .minimap{width:130px;height:92px;right:8px;bottom:8px}
+  .cmt-panel,.find-bar{left:6px;right:6px;width:auto;max-width:none} .cmt-panel{top:6px;bottom:6px}
+  .cmt-open .minimap{display:none}
+  .ftb-bar{max-width:calc(100vw - 16px);overflow-x:auto;scrollbar-width:none}
+  .present-n{min-width:0}
+  .row{min-height:40px} #props input,#props select{min-height:34px;font-size:16px}
+  .lib-search input,.lib-search select{font-size:16px}
+}
+@media (pointer:coarse){ .lib-tile{min-height:44px} .btn.icon.sm{width:32px;height:32px} }
 @media (max-width:900px){ :root{--left-w:196px;--right-w:240px} .lib-grid{grid-template-columns:repeat(3,1fr)} .brand-name{display:none} }
 @media (max-width:640px){ .save-status{display:none} .menus .mb{padding:1px 5px} }
 </style>
@@ -422,42 +457,43 @@ button{cursor:pointer}
     </div>
     <div class="mb-right">
       <span id="saveStatus" class="save-status" aria-live="polite"></span>
-      <button class="btn ghost icon" data-cmd="toggleTheme" data-icon="moon" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
+      <button class="ph-hide btn ghost icon" data-cmd="toggleTheme" data-icon="moon" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
       <button class="btn ghost icon" data-cmd="help" data-icon="help" title="Help and shortcuts" aria-label="Help"></button>
-      <button class="btn primary" data-cmd="soon:Sharing and real-time collaboration" data-icon="share">Share <span class="soon">Coming Soon</span></button>
+      <button class="ph-hide btn primary" data-cmd="soon:Sharing and real-time collaboration" data-icon="share">Share <span class="soon">Coming Soon</span></button>
     </div>
   </header>
 
   <div id="toolbar" role="toolbar" aria-label="Editing tools">
     <button class="btn ghost icon" data-cmd="toggleLeft" data-icon="panelL" title="Toggle shape library" aria-label="Toggle shape library"></button>
     <span class="tb-sep"></span>
-    <button class="btn ghost icon" data-cmd="modePan" data-icon="hand" title="Drag empty canvas to pan (Shift+drag draws a selection box)" aria-label="Pan mode"></button>
-    <button class="btn ghost icon" data-cmd="modeSelect" data-icon="pointer" title="Drag empty canvas to draw a selection box (Space+drag pans)" aria-label="Select mode"></button>
+    <button class="ph-hide btn ghost icon" data-cmd="modePan" data-icon="hand" title="Drag empty canvas to pan (Shift+drag draws a selection box)" aria-label="Pan mode"></button>
+    <button class="ph-hide btn ghost icon" data-cmd="modeSelect" data-icon="pointer" title="Drag empty canvas to draw a selection box (Space+drag pans)" aria-label="Select mode"></button>
     <span class="tb-sep"></span>
     <button class="btn ghost icon" data-cmd="undo" data-icon="undo" title="Undo (Ctrl+Z)" aria-label="Undo"></button>
     <button class="btn ghost icon" data-cmd="redo" data-icon="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"></button>
     <span class="tb-sep"></span>
-    <button class="btn ghost icon" data-cmd="zoomOut" data-icon="zoomOut" title="Zoom out (Ctrl+-)" aria-label="Zoom out"></button>
+    <button class="ph-hide btn ghost icon" data-cmd="zoomOut" data-icon="zoomOut" title="Zoom out (Ctrl+-)" aria-label="Zoom out"></button>
     <button class="btn ghost zoom-btn" data-cmd="zoom100" id="zoomBtn" title="Reset to 100% (Ctrl+0)">100%</button>
-    <button class="btn ghost icon" data-cmd="zoomIn" data-icon="zoomIn" title="Zoom in (Ctrl+=)" aria-label="Zoom in"></button>
+    <button class="ph-hide btn ghost icon" data-cmd="zoomIn" data-icon="zoomIn" title="Zoom in (Ctrl+=)" aria-label="Zoom in"></button>
     <button class="btn ghost icon" data-cmd="zoomFit" data-icon="fit" title="Zoom to fit (Shift+1)" aria-label="Zoom to fit"></button>
     <span class="tb-sep"></span>
-    <span class="tb-label">Lines</span>
-    <button class="btn ghost icon" data-cmd="routeStraight" data-icon="routeStraight" title="Straight lines" aria-label="Straight lines"></button>
-    <button class="btn ghost icon" data-cmd="routeOrthogonal" data-icon="routeOrtho" title="Elbow (orthogonal) lines" aria-label="Elbow lines"></button>
-    <button class="btn ghost icon" data-cmd="routeCurved" data-icon="routeCurve" title="Curved lines" aria-label="Curved lines"></button>
+    <span class="tb-label ph-hide">Lines</span>
+    <button class="ph-hide btn ghost icon" data-cmd="routeStraight" data-icon="routeStraight" title="Straight lines" aria-label="Straight lines"></button>
+    <button class="ph-hide btn ghost icon" data-cmd="routeOrthogonal" data-icon="routeOrtho" title="Elbow (orthogonal) lines" aria-label="Elbow lines"></button>
+    <button class="ph-hide btn ghost icon" data-cmd="routeCurved" data-icon="routeCurve" title="Curved lines" aria-label="Curved lines"></button>
     <span class="tb-sep"></span>
-    <button class="btn ghost icon" data-cmd="toggleGrid" data-icon="grid" title="Show grid" aria-label="Show grid"></button>
-    <button class="btn ghost icon" data-cmd="toggleSnap" data-icon="magnet" title="Snap to grid" aria-label="Snap to grid"></button>
+    <button class="ph-hide btn ghost icon" data-cmd="toggleGrid" data-icon="grid" title="Show grid" aria-label="Show grid"></button>
+    <button class="ph-hide btn ghost icon" data-cmd="toggleSnap" data-icon="magnet" title="Snap to grid" aria-label="Snap to grid"></button>
     <span class="tb-sep"></span>
-    <button class="btn ghost" data-cmd="front" title="Bring to front (Ctrl+Shift+])">Front</button>
-    <button class="btn ghost" data-cmd="back" title="Send to back (Ctrl+Shift+[)">Back</button>
-    <button class="btn ghost" data-cmd="group" title="Group (Ctrl+G)">Group</button>
+    <button class="ph-hide btn ghost" data-cmd="front" title="Bring to front (Ctrl+Shift+])">Front</button>
+    <button class="ph-hide btn ghost" data-cmd="back" title="Send to back (Ctrl+Shift+[)">Back</button>
+    <button class="ph-hide btn ghost" data-cmd="group" title="Group (Ctrl+G)">Group</button>
     <span class="tb-sep"></span>
-    <button class="btn ghost" data-cmd="insertImage" data-icon="image" title="Insert picture (or drag a picture onto the canvas, or paste one)">Picture</button>
+    <button class="btn ghost" data-cmd="templates" data-icon="grid" title="Templates"><span class="ph-hide">Templates</span></button>
+    <button class="ph-hide btn ghost" data-cmd="insertImage" data-icon="image" title="Insert picture (or drag a picture onto the canvas, or paste one)"><span class="ph-hide">Picture</span></button>
     <button class="btn ghost icon" data-cmd="delete" data-icon="trash" title="Delete (Del)" aria-label="Delete"></button>
     <span class="tb-spacer"></span>
-    <button class="btn ghost" data-cmd="present" data-icon="present" title="Present (F5)">Present</button>
+    <button class="btn ghost" data-cmd="present" data-icon="present" title="Present (F5)"><span class="ph-hide">Present</span></button>
     <button class="btn ghost icon" data-cmd="toggleRight" data-icon="panelR" title="Toggle properties panel" aria-label="Toggle properties panel"></button>
   </div>
 
@@ -480,7 +516,7 @@ button{cursor:pointer}
       <rect id="gridMajorRect" width="100%" height="100%" fill="url(#gridMajor)"/>
       <g id="viewport"><g id="content"></g><g id="overlay"></g></g>
     </svg>
-    <div id="emptyHint" class="empty-hint"><div><b>Start your diagram</b><br>Drag a shape from the library on the left, or tap one to drop it here.<br>Hover a shape and drag a blue dot to connect it.<br>Want an example? Use <b>File &gt; Load sample diagram</b>.</div></div>
+    <div id="emptyHint" class="empty-hint"><div><b>Start your diagram</b><br>Drag a shape from the library on the left, or tap one to drop it here.<br>Hover a shape and drag a blue dot to connect it.<br>Want a head start?<br><button class="btn primary hint-btn" data-cmd="templates" type="button">Browse templates</button></div></div>
   </main>
 
   <aside id="right" aria-label="Properties"><div id="props"></div></aside>
@@ -502,7 +538,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.13.0';
+const APP_VERSION='1.14.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -2032,7 +2068,7 @@ let V={tx:80,ty:60,z:1};
 
 function defaultPrefs(){
   const narrow=(window.innerWidth||1200)<820;
-  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,minimap:false,userName:'',recent:[],endings:END_DEFAULT.slice(),dragMode:'pan'};
+  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,minimap:false,picRemember:true,userName:'',recent:[],endings:END_DEFAULT.slice(),dragMode:'pan'};
 }
 function loadPrefs(){
   const p=defaultPrefs(); const raw=store.get(KEY_PREFS);
@@ -2214,6 +2250,7 @@ function sanAttrs(it){
   if(Array.isArray(it.reactions)){ const r=[...new Set(it.reactions.filter(x=>typeof x==='string'&&x.length>0&&x.length<=16))].slice(0,12); if(r.length) o.reactions=r; }
   if(it.link){ const u=normUrl(it.link); if(u) o.link=u; }
   if(it.locked===true) o.locked=true;
+  if(it.noPic===true) o.noPic=true;
   Object.assign(o,sanExtras(it));
   return o;
 }
@@ -2261,7 +2298,7 @@ function migrate(raw){
     return Object.assign({id:pid,name:str(p.name).slice(0,80)||('Page '+(i+1)),items:its},sanPageExtras(p,its),sanComments(p));
   });
   const active=pages.some(p=>p.id===d.activePage)?d.activePage:pages[0].id;
-  return Object.assign({schema:SCHEMA,app:'linework',title:str(d.title).slice(0,200)||'Untitled diagram',pages,activePage:active},sanDocExtras(d));
+  return Object.assign({schema:SCHEMA,app:'linework',title:str(d.title).slice(0,200)||'Untitled diagram',pages,activePage:active},sanDocExtras(d),sanDevPics(d));
 }
 
 /* ============================== history & persistence ============================== */
@@ -2697,7 +2734,7 @@ function renderTextBlock(parent,text,box,st){
 const TEXT_PAD=6;
 function textBox(it){
   const X=xf(it), G=geom(it.type,X.gw,X.gh,it.style);
-  if(G.label){ const lh=it.style.fontSize*1.25;
+  if(G.label||devPicOf(it)){ const lh=it.style.fontSize*1.25;
     if(X.rot===90||X.rot===270) return {x:it.w+5,y:0,w:110,h:it.h,below:true,side:true};
     return {x:-40,y:it.h+3,w:it.w+80,h:lh*3,below:true}; }
   if(X.rot&&!it.style.textLevel){ const x=X.flip?X.gw-G.tb.x-G.tb.w:G.tb.x;
@@ -2728,6 +2765,7 @@ function renderShape(it,o){
       inner.appendChild(sv('text',{x:r2(X.gw/2),y:r2(X.gh/2+4),'text-anchor':'middle','font-size':12,'font-family':FONTS.sans,fill:'#6b7280'},'Picture not available')); }
   }
   inner.appendChild(sv('path',{d:G.d,class:o.export?null:'body',fill:st.fill,stroke:st.stroke,'stroke-width':st.sw,'stroke-dasharray':dashArr(st.dash,st.sw),'stroke-linecap':st.dash==='dotted'?'round':null,'stroke-linejoin':'round'}));
+  { const pic=devPicOf(it); if(pic){ const bx=devPicBox(it,X,G); inner.appendChild(sv('image',{href:o.export?pic.data:pic.url,x:r2(bx.x),y:r2(bx.y),width:r2(bx.w),height:r2(bx.h),preserveAspectRatio:'xMidYMid meet',class:'devpic'})); } }
   if(st.stroke!=='none') for(const dd of decorList(G)) inner.appendChild(sv('path',{d:dd.d,fill:dd.f==='stroke'?st.stroke:dd.f==='fill'?(st.fill==='none'?'#ffffff':st.fill):'none','fill-opacity':dd.op!=null?dd.op:null,stroke:dd.ns?'none':st.stroke,'stroke-width':st.sw,'stroke-dasharray':dd.dash?dashArr('dashed',st.sw):null,'stroke-linejoin':'round'}));
   if(X.m) g.appendChild(inner);
   const turnG=glyphsTurn(it,G), Xr=it.rot?turnXf(it):null, gg=turnG&&(G.glyphs||[]).length?sv('g',{transform:'matrix('+Xr.m.join(' ')+')'}):null;
@@ -2828,19 +2866,19 @@ function renderOverlay(){
   if(sel.length>1){
     const b=geoBBox(sel);
     out.push(sv('rect',{x:r2(b.x),y:r2(b.y),width:r2(b.w),height:r2(b.h),class:'ov-group','stroke-width':r2(1/z),'stroke-dasharray':`${r2(4/z)} ${r2(3/z)}`}));
-    if(!sel.some(i=>i.locked)&&!S.editing&&!(op&&op.type==='move'&&op.moved)){ const hs=8/z;
+    if(!sel.some(i=>i.locked)&&!S.editing&&!(op&&op.type==='move'&&op.moved)){ const hs=8*uiK()/z;
       for(const k in HX) out.push(sv('rect',{x:r2(b.x+b.w*HX[k][0]-hs/2),y:r2(b.y+b.h*HX[k][1]-hs/2),width:r2(hs),height:r2(hs),rx:r2(1.5/z),class:'ov-handle','data-handle':k,'data-group':'1','stroke-width':r2(1.2/z)})); }
   }
   const busy=op&&op.type!=='pan';
   for(const it of sel) if(it.locked){ const b=itemBBox(it), k=1/z, x=b.x+b.w+4*k, y=b.y-18*k;
     out.push(sv('g',{class:'ov-lock',transform:`translate(${r2(x)} ${r2(y)}) scale(${r2(k*0.6667)})`},sv('rect',{x:-2,y:-2,width:28,height:28,rx:6}),sv('path',{d:ICONS.lock,fill:'none','stroke-width':2,transform:'translate(0 0)'}))); }
   if(sel.length===1&&isShape(sel[0])&&!sel[0].locked&&!S.editing&&!(op&&op.type==='move'&&op.moved)){
-    const s=sel[0], hs=8/z, hx={nw:[0,0],n:[.5,0],ne:[1,0],e:[1,.5],se:[1,1],s:[.5,1],sw:[0,1],w:[0,.5]};
+    const s=sel[0], hs=8*uiK()/z, hx={nw:[0,0],n:[.5,0],ne:[1,0],e:[1,.5],se:[1,1],s:[.5,1],sw:[0,1],w:[0,.5]};
     for(const k in hx) out.push(sv('rect',{x:r2(s.x+s.w*hx[k][0]-hs/2),y:r2(s.y+s.h*hx[k][1]-hs/2),width:r2(hs),height:r2(hs),rx:r2(1.5/z),class:'ov-handle','data-handle':k,'stroke-width':r2(1.2/z),transform:angXf(s)}));
   }
   // Rotate button above the selection: click turns each shape 90 degrees, Shift-click turns it back.
   if(sel.some(i=>isShape(i)&&!i.locked)&&!S.editing&&!(op&&op.type!=='pan'&&op.type!=='rotate')){
-    const b=sel.length===1?sel[0]:geoBBox(sel), cx=b.x+b.w/2, cy=b.y-24/z, r=10/z, k=r2(0.62/z);
+    const U=uiK(), b=sel.length===1?sel[0]:geoBBox(sel), cx=b.x+b.w/2, cy=b.y-(isCoarse()?66:24)/z, r=10*U/z, k=r2(0.62*U/z);
     out.push(sv('g',{class:'ov-rot','data-rotate':'1',transform:sel.length===1?angXf(sel[0]):null},sv('title',null,sel.length===1?'Drag to rotate to any angle (snaps to 15\u00b0, hold Shift for free). Click to rotate 90\u00b0 (Alt+R).':'Rotate 90\u00b0 (Alt+R). Shift-click to rotate the other way.'),
       sv('line',{x1:r2(cx),y1:r2(cy+r),x2:r2(cx),y2:r2(b.y),class:'ov-rot-stem','stroke-width':r2(1/z)}),
       sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(r),'stroke-width':r2(1.2/z)}),
@@ -2861,23 +2899,24 @@ function renderOverlay(){
         out.push(sv('rect',{x:r2(mx-lw/2),y:r2(my-lh/2),width:r2(lw),height:r2(lh),rx:r2(2/z),class:'ov-seg '+(hz?'hz':'vt'),'data-seg':String(i),'data-lid':L.id,'stroke-width':r2(1.2/z)}));
       }
     }
-    for(const k in ends) out.push(sv('circle',{cx:r2(ends[k].x),cy:r2(ends[k].y),r:r2(5.5/z),class:'ov-end '+(L[k].id?'attached':'free'),'data-handle':k,'data-lid':L.id,'stroke-width':r2(1.5/z)}));
+    for(const k in ends) out.push(sv('circle',{cx:r2(ends[k].x),cy:r2(ends[k].y),r:r2(5.5*uiK()/z),class:'ov-end '+(L[k].id?'attached':'free'),'data-handle':k,'data-lid':L.id,'stroke-width':r2(1.5/z)}));
   }
-  if(!busy&&!S.editing&&S.hover){
-    const s=byId(S.hover);
+  const hovId=S.hover||(isCoarse()&&sel.length===1&&isShape(sel[0])&&!sel[0].locked?sel[0].id:null);
+  if(!busy&&!S.editing&&hovId){
+    const s=byId(hovId);
     if(isShape(s)&&hasPins(s)){
       for(const q of raPorts(s)){ const d=SIDES[q.side], cx=q.x+d.x*7/z, cy=q.y+d.y*7/z;
         out.push(sv('g',{class:'ov-port dev','data-port':q.side,'data-devport':q.id,'data-sid':s.id},
           sv('title',null,q.id+': '+q.d),
-          sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(8/z),class:'pad'}),
+          sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(8*uiK()/z),class:'pad'}),
           sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(3.6/z),class:'vis','stroke-width':r2(1.3/z)}))); }
     } else if(isShape(s)){
-      const off=16/z;
+      const off=16*uiK()/z;
       for(const side of SIDE_KEYS){
         const s0=s.ang?Object.assign({},s,{ang:0}):s, p=portPoint(s0,side), d=SIDES[side], extra=side==='E'?s.x+s.w-p.x:side==='W'?p.x-s.x:side==='N'?p.y-s.y:s.y+s.h-p.y;
         const pc=rotPt(s,{x:p.x+d.x*(off+extra),y:p.y+d.y*(off+extra)}), cx=pc.x, cy=pc.y;
         out.push(sv('g',{class:'ov-port','data-port':side,'data-sid':s.id},
-          sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(11/z),class:'pad'}),
+          sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(11*uiK()/z),class:'pad'}),
           sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(5/z),class:'vis','stroke-width':r2(1.5/z)})));
       }
     }
@@ -2959,13 +2998,14 @@ function addShape(key,x,y,props){
   if(S.prefs.snap){ nx=Math.round(nx/GRID)*GRID; ny=Math.round(ny/GRID)*GRID; }
   s.x=nx; s.y=ny;
   if(props) Object.assign(s,props);
-  fitEntity(s);
+  fitEntity(s); adoptLibPic(s);
   // Containers go behind everything so they never hide shapes already placed on them.
   if(isContainer(s)) items().unshift(s); else items().push(s);
   setSel([s.id]); commit(); invalidate();
   return s;
 }
 function addFromLib(key,x,y,rot){
+  if(isPhone()&&S.prefs.left){ S.prefs.left=false; invalidate({chrome:true}); }
   if(x==null){ const c=viewCenterWorld(), k=(S.addCount++%8)*20; x=c.x+k; y=c.y+k; }
   if(LIB_MAP[key]&&LIB_MAP[key].tpl) return buildSwimlanes(LIB_MAP[key],x,y)[0];
   if(LIB_MAP[key]&&LIB_MAP[key].io) return promptIo(key,x,y,rot);
@@ -3102,7 +3142,7 @@ function setRoute(r){
   if(lines.length) commit();
   invalidate(); toast(lines.length?'Line style changed':'New lines will be '+(r==='orthogonal'?'elbow':r));
 }
-function togglePref(k){ S.prefs[k]=!S.prefs[k]; savePrefs(); if(k==='theme') applyTheme(); invalidate(); }
+function togglePref(k){ S.prefs[k]=!S.prefs[k]; phoneSheets(k); savePrefs(); if(k==='theme') applyTheme(); invalidate(); }
 
 /* ============================== pages ============================== */
 function switchPage(id){
@@ -3378,7 +3418,7 @@ function onPointerDown(e){
   hideCtx(); closeMenus(); if(S.quick) closeQuick();
   const ae=document.activeElement;
   if(ae&&ae!==document.body&&!(ae.classList&&ae.classList.contains('text-editor'))&&typeof ae.blur==='function') ae.blur();
-  if(e.pointerType==='touch'){ touches.set(e.pointerId,{x:e.clientX,y:e.clientY}); if(touches.size===2){ beginPinch(); return; } if(touches.size>2) return; }
+  if(e.pointerType==='touch'){ touches.set(e.pointerId,{x:e.clientX,y:e.clientY}); if(touches.size===2){ longPressEnd(); beginPinch(); return; } if(touches.size>2) return; longPressStart(e); }
   if(S.editing) finishEdit();
   if(e.button===2) return;
   try{ svg.setPointerCapture(e.pointerId); }catch(_){}
@@ -3443,7 +3483,7 @@ function onPointerDown(e){
   S.op={type:'marquee',start:w,cur:w,base};
 }
 function onPointerMove(e){
-  if(touches.has(e.pointerId)) touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(touches.has(e.pointerId)){ touches.set(e.pointerId,{x:e.clientX,y:e.clientY}); longPressMove(e); }
   const op=S.op;
   if(op&&op.type==='pinch'){ updatePinch(); return; }
   const w=toWorld(e);
@@ -3500,7 +3540,7 @@ function onPointerMove(e){
   }
 }
 function onPointerUp(e){
-  touches.delete(e.pointerId);
+  touches.delete(e.pointerId); longPressEnd();
   const op=S.op; if(!op) return;
   if(op.type==='pinch'){ if(touches.size<2) S.op=null; return; }
   S.op=null; S.guides=[]; stage.classList.remove('dragging');
@@ -4333,6 +4373,251 @@ function cmtPins(out,z){
       sv('path',{d:`M${r2(-r)} ${r2(r)}V${r2(-r*0.2)}A${r2(r*0.8)} ${r2(r*0.8)} 0 0 1 ${r2(-r*0.2)} ${r2(-r)}H${r2(r*0.2)}A${r2(r*0.8)} ${r2(r*0.8)} 0 0 1 ${r2(r)} ${r2(-r*0.2)}V${r2(r*0.2)}A${r2(r*0.8)} ${r2(r*0.8)} 0 0 1 ${r2(r*0.2)} ${r2(r)}Z`,'stroke-width':r2(1.2/z)}),
       sv('text',{x:0,y:r2(r*0.36),'text-anchor':'middle','font-size':r2(11/z)},String(i+1)))); });
 }
+/* ============================== device pictures ==============================
+   A picture you supply for a catalog number shows on every shape of that catalog number, with the
+   port pins still on its edges. Pictures are kept in the diagram (S.doc.devPics: type -> asset id) and,
+   when Remember is on, in this browser for new diagrams (KEY_PICLIB). Linework ships no product photos. */
+const KEY_PICLIB='linework.devpics', PIC_H=150;
+function picLib(){ try{ const o=JSON.parse(store.get(KEY_PICLIB)||'{}'); return o&&typeof o==='object'?o:{}; }catch(e){ return {}; } }
+function savePicLib(o){ store.set(KEY_PICLIB,JSON.stringify(o)); }
+function sanDevPics(d){ if(!d.devPics||typeof d.devPics!=='object') return {}; const o={}; let n=0;
+  for(const k in d.devPics){ if(n>=500) break; if(RA_DEV[k]&&typeof d.devPics[k]==='string'&&d.devPics[k]){ o[k]=d.devPics[k].slice(0,64); n++; } }
+  return n?{devPics:o}:{}; }
+function devPicOf(it){ if(!it||it.noPic||!RA_DEV[it.type]||!S.doc||!S.doc.devPics) return null; const id=S.doc.devPics[it.type]; const a=id&&ASSETS.get(id); return a||null; }
+// The picture fills the area between the model header and the port row.
+function devPicBox(it,X,G){ const t=G.tb; return {x:t.x+2,y:t.y+2,w:Math.max(4,t.w-4),h:Math.max(4,t.h-4)}; }
+function adoptLibPic(s){
+  if(!RA_DEV[s.type]) return; const lib=picLib(), id=lib[s.type];
+  if(id&&!(S.doc.devPics&&S.doc.devPics[s.type])&&ASSETS.get(id)) (S.doc.devPics||(S.doc.devPics={}))[s.type]=id;
+  if(S.doc.devPics&&S.doc.devPics[s.type]&&ASSETS.get(S.doc.devPics[s.type])&&s.h<PIC_H&&!(s.rot%180)){ s.y=r2(s.y-(PIC_H-s.h)/2); s.h=PIC_H; }
+}
+async function setDevPic(type,file,remember){
+  if(!RA_DEV[type]) return false;
+  if(!IMG_TYPES.includes(file.type)){ toast('That file is not a supported picture (PNG, JPEG, GIF, WebP, SVG or BMP).'); return false; }
+  if(file.size>8*1024*1024){ toast('That picture is over 8 MB. Please make it smaller first.'); return false; }
+  let data; try{ data=await readAsDataURL(file); }catch(e){ toast('Could not read that picture.'); return false; }
+  const sz=await imageSize(data), rec={id:uid(),type:file.type,w:sz.w,h:sz.h,data}; registerAsset(rec); await idbPut(rec);
+  (S.doc.devPics||(S.doc.devPics={}))[type]=rec.id;
+  if(remember!==false){ const lib=picLib(); lib[type]=rec.id; savePicLib(lib); }
+  let n=0; for(const pg of S.doc.pages) for(const it of pg.items) if(it.type===type){ n++; if(it.h<PIC_H&&!(it.rot%180)){ it.y=r2(it.y-(PIC_H-it.h)/2); it.h=PIC_H; } else if(it.w<PIC_H&&it.rot%180){ it.x=r2(it.x-(PIC_H-it.w)/2); it.w=PIC_H; } }
+  commit(); invalidate(); toast('Picture set for '+RA_DEV[type].cat+(n>1?' ('+n+' shapes)':'')+'.'); return true;
+}
+function clearDevPic(type,forget){
+  if(S.doc.devPics){ delete S.doc.devPics[type]; if(!Object.keys(S.doc.devPics).length) delete S.doc.devPics; }
+  if(forget){ const lib=picLib(); delete lib[type]; savePicLib(lib); }
+  commit(); invalidate(); toast('Picture removed from '+RA_DEV[type].cat+'.');
+}
+function pickDevPic(type){ const f=el('input',{type:'file',accept:IMG_TYPES.join(',')}); f.addEventListener('change',()=>{ const x=f.files&&f.files[0]; if(x) setDevPic(type,x,S.prefs.picRemember!==false); }); f.click(); }
+function devPicSection(fs){
+  const a=devPicOf(Object.assign({},fs,{noPic:false})), inLib=!!picLib()[fs.type];
+  return section('Device picture',
+    a?el('img',{src:a.url,alt:'Picture used for '+RA_DEV[fs.type].cat,class:'devpic-prev'}):el('p',{class:'muted small',text:'No picture yet for '+RA_DEV[fs.type].cat+'.'}),
+    el('div',{class:'find-row',style:{flexWrap:'wrap'}},el('button',{type:'button',class:'btn','data-cmd':'devpic:set:'+fs.type,text:a?'Replace picture...':'Add picture...'}),
+      a?el('button',{type:'button',class:'btn','data-cmd':'devpic:del:'+fs.type,text:'Remove'}):null),
+    a?row('This shape',chk('noPic',!fs.noPic,'Show the picture')):null,
+    el('label',{class:'chk',style:{marginTop:'4px'}},el('input',{type:'checkbox','data-prop':'picRemember',checked:S.prefs.picRemember!==false}),'Remember for new diagrams in this browser'+(inLib?' (saved)':'')),
+    el('p',{class:'muted small',style:{marginTop:'6px'},text:'The picture shows on every '+RA_DEV[fs.type].cat+' in this diagram, with the port pins still on the edges, and is saved in the diagram file. You can also drop a picture file onto the device. Use a photo or drawing you have the right to use, for example one you took or one from the manufacturer for internal documentation.'}));
+}
+/* ============================== templates ============================== */
+const TPL_CATS=['Flowcharts and processes','Brainstorming','Teams and organizations','Projects and strategy','Research and design','Technical systems','Industrial controls'];
+function tplBuilder(title){
+  const d=newDoc(); d.title=title; let P=d.pages[0], first=true;
+  const b={doc:d,
+    page(name){ if(first){ P.name=name; first=false; } else { P=newPage(name); d.pages.push(P); } return b; },
+    s(key,x,y,text,o){ o=o||{}; const sh=makeShape(key,x,y); if(text!=null) sh.text=text; if(o.w) sh.w=o.w; if(o.h) sh.h=o.h; if(o.style) Object.assign(sh.style,o.style); for(const k of ['type','family','level','rot','tags','note','data']) if(o[k]!=null) sh[k]=o[k]; if(sh.type==='er_entity') fitEntity(sh); P.items.push(sh); return sh; },
+    t(x,y,text,size,w){ return b.s('text',x,y,text,{w:w||Math.max(160,String(text).length*(size||20)*0.6),h:(size||20)*1.6,style:{fontSize:size||20,bold:true,align:'left'}}); },
+    l(a,as,c,cs,o){ o=o||{}; const end=(sh,sd)=>sh&&sh.id?(String(sd).startsWith('p:')?{id:sh.id,side:'auto',port:String(sd).slice(2)}:{id:sh.id,side:sd||'auto'}):sh;
+      const L=Object.assign({id:uid(),kind:'line',from:end(a,as),to:end(c,cs),route:o.route||'orthogonal',startArrow:o.start||'none',endArrow:o.end||'arrow',labels:o.label?[{id:uid(),text:o.label,t:o.t!=null?o.t:0.5,dx:0,dy:0}]:[],style:Object.assign({},DEF_LINE_STYLE,o.style||{})},o.signal?{signal:o.signal}:{});
+      P.items.push(L); return L; },
+    io(fam,kind,n,x,y,side,text){ const sz=ioSize(n,side||'l'); const sh=makeShape('io_'+fam,x,y); sh.type=ioType(fam,kind,n,side||'l'); sh.w=sz.w; sh.h=sz.h; sh.text=text||''; P.items.push(sh); return sh; }};
+  return b;
+}
+const TC={blue:{fill:'#e8f1fe',stroke:'#3a7bec'},green:{fill:'#e3f1e6',stroke:'#3b8a52'},amber:{fill:'#fff3d6',stroke:'#c89422'},red:{fill:'#fde7e7',stroke:'#c0392b'},violet:{fill:'#efeafd',stroke:'#6f5ae6'},gray:{fill:'#f2f4f7',stroke:'#7b8494'},teal:{fill:'#e0f5f3',stroke:'#0f8a7e'}};
+const TEMPLATES=[
+  {id:'flow_basic',cat:'Flowcharts and processes',name:'Basic flowchart',desc:'Start, steps, a decision and an end.',build(){ return sampleDoc(); }},
+  {id:'flow_swim',cat:'Flowcharts and processes',name:'Cross-functional process (swimlanes)',desc:'A process across three departments, one lane each.',build(){
+    const b=tplBuilder('Cross-functional process').page('Process'); const lanes=['Customer','Sales','Operations'];
+    lanes.forEach((n,i)=>b.s('lane_h',40,80+i*160,n,{w:1000,h:160,style:{fill:'#ffffff',stroke:'#7b8494',fontSize:13,bold:true}}));
+    b.t(40,24,'Order to delivery',22,400);
+    const st=b.s('terminator',190,140,'Places order',{style:TC.green}), q=b.s('process',380,295,'Prepare quote'), ok=b.s('decision',580,280,'Approved?',{style:TC.amber}), sch=b.s('process',580,455,'Schedule build'),
+      bld=b.s('process',790,455,'Build and test'), del=b.s('terminator',790,140,'Receives order',{style:TC.red}), rev=b.s('process',380,140,'Reviews quote');
+    b.l(st,'E',rev,'W'); b.l(rev,'S',q,'N',{label:'Request'}); b.l(q,'E',ok,'W'); b.l(ok,'S',sch,'N',{label:'Yes'}); b.l(ok,'N',rev,'E',{label:'No'}); b.l(sch,'E',bld,'W'); b.l(bld,'N',del,'S',{label:'Ship'});
+    return b.doc; }},
+  {id:'flow_bpmn',cat:'Flowcharts and processes',name:'BPMN process',desc:'Events, tasks and gateways in a pool.',build(){
+    const b=tplBuilder('Purchase request (BPMN)').page('Process'); b.s('bp_pool',40,60,'Purchasing',{w:1060,h:260});
+    const s=b.s('bp_start',170,170,''), t1=b.s('bp_task',240,148,'Submit request'), g=b.s('bp_gw_x',420,158,''), t2=b.s('bp_task',520,80,'Approve'), t3=b.s('bp_task',520,220,'Reject and notify'),
+      g2=b.s('bp_gw_x',710,158,''), t4=b.s('bp_task',800,148,'Place order'), e=b.s('bp_end',980,170,'');
+    b.l(s,'E',t1,'W'); b.l(t1,'E',g,'W'); b.l(g,'N',t2,'W',{label:'Under limit'}); b.l(g,'S',t3,'W',{label:'Over limit'}); b.l(t2,'E',g2,'N'); b.l(t3,'E',g2,'S'); b.l(g2,'E',t4,'W'); b.l(t4,'E',e,'W');
+    b.s('bp_annot',800,240,'Orders over the limit need a second approver',{w:200,h:50}); return b.doc; }},
+  {id:'flow_tree',cat:'Flowcharts and processes',name:'Decision tree',desc:'Yes and no branches to outcomes.',build(){
+    const b=tplBuilder('Decision tree').page('Decision tree'); b.t(40,24,'Should we repair or replace?',22,420);
+    const q1=b.s('decision',300,80,'Under warranty?',{w:150,h:100,style:TC.amber}), q2=b.s('decision',120,250,'Cost under 40% of new?',{w:170,h:110,style:TC.amber}), r1=b.s('process',470,270,'Send for warranty repair',{style:TC.green});
+    const r2=b.s('process',20,430,'Repair',{style:TC.green}), r3=b.s('process',230,430,'Replace',{style:TC.red});
+    b.l(q1,'W',q2,'N',{label:'No'}); b.l(q1,'E',r1,'N',{label:'Yes'}); b.l(q2,'S',r2,'N',{label:'Yes'}); b.l(q2,'E',r3,'N',{label:'No'}); return b.doc; }},
+  {id:'mind',cat:'Brainstorming',name:'Mind map',desc:'A central idea with branches; press Tab on a topic to add more.',build(){
+    const b=tplBuilder('Mind map').page('Mind map'); const root=b.s('mm_central',60,300,'Main idea'); const topics=[['Goals',['Goal one','Goal two']],['Tasks',['Task one','Task two','Task three']],['People',['Owner','Helpers']],['Risks',['Risk one']]];
+    let y=60; topics.forEach(([t,subs])=>{ const m=b.s('mm_main',310,y+((subs.length-1)*44)/2,t); b.l(root,'E',m,'W',{route:'curved',end:'none',style:{stroke:'#3a7bec',sw:2}});
+      subs.forEach((st,j)=>{ const c=b.s('mm_sub',530,y+j*44+9,st); b.l(m,'E',c,'W',{route:'curved',end:'none',style:{stroke:'#3a7bec',sw:2}}); }); y+=subs.length*44+40; });
+    return b.doc; }},
+  {id:'concept',cat:'Brainstorming',name:'Concept map',desc:'Ideas linked by labeled relationships.',build(){
+    const b=tplBuilder('Concept map').page('Concept map'); const n=(x,y,t,c)=>b.s('ellipse',x,y,t,{w:150,h:70,style:c||TC.blue});
+    const a=n(330,40,'Automation',TC.violet), p=n(80,200,'PLC'), h=n(330,220,'HMI'), d=n(580,200,'Drives'), s=n(80,380,'Sensors'), o=n(330,400,'Operators',TC.green), m=n(580,380,'Motors');
+    b.l(a,'S',p,'N',{label:'uses',route:'straight'}); b.l(a,'S',h,'N',{label:'shows on',route:'straight'}); b.l(a,'S',d,'N',{label:'controls',route:'straight'}); b.l(s,'N',p,'S',{label:'feed',route:'straight'});
+    b.l(h,'S',o,'N',{label:'used by',route:'straight'}); b.l(d,'S',m,'N',{label:'run',route:'straight'}); b.l(p,'E',h,'W',{label:'talks to',route:'straight',end:'none'}); return b.doc; }},
+  {id:'org',cat:'Teams and organizations',name:'Org chart',desc:'Leader, managers and team members; press Tab on a box to add a report.',build(){
+    const b=tplBuilder('Org chart').page('Org chart'); const top=b.s('org_exec',470,40,'Director\nName');
+    const leads=[['Controls Manager\nName',['Controls Engineer\nName','Controls Engineer\nName']],['Electrical Manager\nName',['Designer\nName','Designer\nName']],['Project Manager\nName',['Coordinator\nName']]];
+    leads.forEach(([t,rs],i)=>{ const m=b.s('org_card',100+i*370,180,t); m.family='org'; m.level=1; b.l(top,'S',m,'N',{end:'none',style:{stroke:'#6b7280'}});
+      rs.forEach((r,j)=>{ const c=b.s('org_card',140+i*370,300+j*100,r); c.family='org'; c.level=2; b.l(m,'S',c,'W',{end:'none',style:{stroke:'#6b7280'}}); }); });
+    return b.doc; }},
+  {id:'team',cat:'Teams and organizations',name:'Team structure',desc:'Departments as containers with their roles.',build(){
+    const b=tplBuilder('Team structure').page('Teams'); b.t(40,20,'Project team',22,300);
+    [['Engineering',TC.blue,['Lead engineer','Controls engineer','Electrical designer']],['Field',TC.green,['Site lead','Electricians','Commissioning']],['Customer',TC.amber,['Plant manager','Maintenance','Operations']]].forEach(([n,c,rs],i)=>{
+      b.s('container',40+i*330,80,n,{w:300,h:330,style:{stroke:c.stroke,bold:true}}); rs.forEach((r,j)=>b.s('rounded',70+i*330,140+j*85,r,{w:240,h:60,style:c})); });
+    return b.doc; }},
+  {id:'kanban',cat:'Projects and strategy',name:'Kanban board',desc:'To do, doing and done columns with cards.',build(){
+    const b=tplBuilder('Kanban board').page('Board'); const cols=[['To do',['Write I/O list','Order panel parts','Draft network drawing']],['Doing',['Panel layout','PLC program']],['Done',['Kickoff meeting','Site walk']]];
+    cols.forEach(([n,cards],i)=>{ b.s('container',40+i*300,40,n,{w:280,h:520,style:{stroke:'#7b8494',bold:true}}); cards.forEach((c,j)=>b.s('note',60+i*300,100+j*140,c,{w:240,h:120})); }); return b.doc; }},
+  {id:'timeline',cat:'Projects and strategy',name:'Project timeline',desc:'Phases and milestones along a time line.',build(){
+    const b=tplBuilder('Project timeline').page('Timeline'); b.t(40,20,'Project timeline',22,300);
+    const axis=b.l({x:60,y:260},null,{x:1180,y:260},null,{route:'straight',end:'arrow',style:{sw:3,stroke:'#475467'}});
+    const ph=[['Design',TC.blue,60,300],['Build',TC.amber,370,300],['Test (FAT)',TC.violet,680,200],['Install and start up',TC.green,890,280]];
+    ph.forEach(([n,c,x,w])=>b.s('rounded',x,190,n,{w,h:50,style:c}));
+    [['Kickoff',60],['Design review',360],['FAT complete',880],['Go live',1170]].forEach(([n,x],i)=>{ b.s('diamond',x-12,248,'',{w:24,h:24,style:{fill:'#475467',stroke:'#475467'}}); b.s('text',x-70,282+(i%2)*30,n,{w:140,h:26,style:{fontSize:13,fill:'none',stroke:'none'}}); });
+    return b.doc; }},
+  {id:'swot',cat:'Projects and strategy',name:'SWOT analysis',desc:'Strengths, weaknesses, opportunities and threats.',build(){
+    const b=tplBuilder('SWOT analysis').page('SWOT'); b.t(40,20,'SWOT analysis',22,300);
+    [['Strengths',TC.green,0,0],['Weaknesses',TC.red,1,0],['Opportunities',TC.blue,0,1],['Threats',TC.amber,1,1]].forEach(([n,c,cx,cy])=>b.s('rect',40+cx*400,80+cy*300,n+'\n\n- \n- \n- ',{w:390,h:290,style:Object.assign({align:'left',valign:'top',fontSize:15},c)}));
+    return b.doc; }},
+  {id:'bmc',cat:'Projects and strategy',name:'Business model canvas',desc:'Nine blocks of a business model.',build(){
+    const b=tplBuilder('Business model canvas').page('Canvas'); const W=220, H=200, S2={align:'left',valign:'top',fontSize:13,fill:'#ffffff',stroke:'#475467'};
+    const blk=(x,y,w,h,t)=>b.s('rect',40+x,70+y,t,{w,h,style:S2}); b.t(40,20,'Business model canvas',22,400);
+    blk(0,0,W,2*H,'Key partners'); blk(W,0,W,H,'Key activities'); blk(W,H,W,H,'Key resources'); blk(2*W,0,W,2*H,'Value propositions');
+    blk(3*W,0,W,H,'Customer relationships'); blk(3*W,H,W,H,'Channels'); blk(4*W,0,W,2*H,'Customer segments'); blk(0,2*H,2.5*W,150,'Cost structure'); blk(2.5*W,2*H,2.5*W,150,'Revenue streams');
+    return b.doc; }},
+  {id:'blueprint',cat:'Research and design',name:'Service blueprint',desc:'Customer actions, front stage, back stage and support processes.',build(){
+    const b=tplBuilder('Service blueprint').page('Blueprint'); const lanes=[['Customer actions',TC.amber],['Front stage',TC.blue],['Back stage',TC.violet],['Support processes',TC.gray]];
+    lanes.forEach(([n],i)=>b.s('lane_h',40,60+i*130,n,{w:1100,h:130,style:{fill:'#ffffff',stroke:'#7b8494',fontSize:12,bold:true}}));
+    const steps=['Calls for service','Gets visit date','Meets technician','Pays invoice'];
+    const ca=steps.map((t,i)=>b.s('rounded',200+i*230,90,t,{w:180,h:70,style:TC.amber}));
+    const fs=['Phone agent takes details','Scheduler confirms','Technician repairs','Billing emails invoice'].map((t,i)=>b.s('rounded',200+i*230,220,t,{w:180,h:70,style:TC.blue}));
+    const bs=['Ticket created','Route planned','Parts pulled','Invoice generated'].map((t,i)=>b.s('rounded',200+i*230,350,t,{w:180,h:70,style:TC.violet}));
+    const sp=b.s('rounded',200,480,'Service management system',{w:870,h:70,style:TC.gray});
+    for(let i=0;i<4;i++){ b.l(ca[i],'S',fs[i],'N'); b.l(fs[i],'S',bs[i],'N'); if(i<3) b.l(ca[i],'E',ca[i+1],'W'); } b.l(bs[0],'S',sp,'N',{end:'none',style:{dash:'dashed'}});
+    return b.doc; }},
+  {id:'wire',cat:'Research and design',name:'Website wireframe',desc:'A page layout with header, hero, cards and footer.',build(){
+    const b=tplBuilder('Website wireframe').page('Home page'); const G={fill:'#f2f4f7',stroke:'#98a2b3'};
+    b.s('rect',40,40,'',{w:900,h:760,style:{fill:'#ffffff',stroke:'#475467'}}); b.s('rect',40,40,'Logo          Products     Services     About     Contact',{w:900,h:60,style:Object.assign({align:'left',fontSize:14},G)});
+    b.s('rect',70,130,'Headline that says what you do\n\nShort supporting line\n\n[ Call to action ]',{w:840,h:240,style:Object.assign({fontSize:18},G)});
+    for(let i=0;i<3;i++) b.s('rect',70+i*285,400,'Card '+(i+1)+'\n\nImage\n\nShort text',{w:270,h:240,style:G});
+    b.s('rect',40,680,'Footer links     Address     Social',{w:900,h:120,style:G}); return b.doc; }},
+  {id:'story',cat:'Research and design',name:'Storyboard',desc:'Six panels with a caption under each.',build(){
+    const b=tplBuilder('Storyboard').page('Storyboard'); b.t(40,20,'Storyboard',22,300);
+    for(let i=0;i<6;i++){ const x=40+(i%3)*330, y=80+Math.floor(i/3)*330; b.s('rect',x,y,'Scene '+(i+1),{w:310,h:220,style:{fill:'#ffffff',stroke:'#475467',valign:'top',align:'left',fontSize:12}}); b.s('rect',x,y+228,'Caption',{w:310,h:70,style:{fill:'#f9fafb',stroke:'#d0d5dd',align:'left',valign:'top',fontSize:12}}); }
+    return b.doc; }},
+  {id:'cloud3',cat:'Technical systems',name:'Cloud web application',desc:'Load balancer, app servers and database in a virtual network.',build(){
+    const b=tplBuilder('Cloud web application').page('Architecture'); b.s('cl_region',200,40,'Region',{w:820,h:520});
+    b.s('cl_vnet',230,90,'Virtual network',{w:760,h:440}); b.s('cl_subpub',260,150,'Public subnet',{w:200,h:340}); b.s('cl_subpriv',500,150,'Private subnet (app)',{w:220,h:340}); b.s('cl_subpriv',750,150,'Private subnet (data)',{w:210,h:340});
+    const u=b.s('cl_users',40,270,'Users'), dns=b.s('cl_dns',40,120,'DNS'), lb=b.s('cl_lb',320,270,'Load balancer'), a1=b.s('cl_vm',570,200,'App server 1'), a2=b.s('cl_vm',570,350,'App server 2'), db=b.s('cl_db',820,270,'Database'), c=b.s('cl_cache',820,390,'Cache');
+    b.l(u,'E',lb,'W',{label:'HTTPS'}); b.l(u,'N',dns,'S'); b.l(lb,'E',a1,'W'); b.l(lb,'E',a2,'W'); b.l(a1,'E',db,'W'); b.l(a2,'E',db,'W'); b.l(a2,'E',c,'W'); return b.doc; }},
+  {id:'net_office',cat:'Technical systems',name:'Office network',desc:'Internet, firewall, core switch, Wi-Fi and devices.',build(){
+    const b=tplBuilder('Office network').page('Network'); const S={style:{fill:'#ffffff'}};
+    const inet=b.s('n_cloud',460,20,'Internet'), fw=b.s('n_firewall',480,150,'Firewall'), rt=b.s('n_router',480,270,'Router'), sw=b.s('n_switch',460,390,'Core switch');
+    const sv=b.s('n_server',160,520,'File server'), ap=b.s('n_ap',360,520,'Wi-Fi'), pc=b.s('n_pc',560,520,'Workstations'), pr=b.s('n_printer',760,520,'Printer'), lap=b.s('n_laptop',360,660,'Laptops');
+    const E={end:'none',style:{stroke:'#1d4fae',sw:2}}; b.l(inet,'S',fw,'N',E); b.l(fw,'S',rt,'N',E); b.l(rt,'S',sw,'N',E); for(const x of [sv,ap,pc,pr]) b.l(sw,'S',x,'N',E);
+    b.l(ap,'S',lap,'N',{end:'none',signal:'emUnguided',style:{stroke:'#6b7280'}}); return b.doc; }},
+  {id:'erd',cat:'Technical systems',name:'Database ERD',desc:'Three tables with crow\'s foot relationships.',build(){
+    const b=tplBuilder('Database ERD').page('ERD'); const ent=(x,y,t)=>b.s('er_entity',x,y,t,{w:220});
+    const c=ent(60,80,'customer\nPK id int\nname varchar\nemail varchar'), o=ent(400,80,'order\nPK id int\nFK customer_id int\ncreated date\ntotal decimal'), l=ent(740,80,'order_line\nPK id int\nFK order_id int\nsku varchar\nqty int');
+    b.l(c,'E',o,'W',{start:'erdOnlyOne',end:'erdZeroOrMany',style:{stroke:'#334155'}}); b.l(o,'E',l,'W',{start:'erdOnlyOne',end:'erdOneOrMany',style:{stroke:'#334155'}}); return b.doc; }},
+  {id:'uml_class',cat:'Technical systems',name:'UML class diagram',desc:'Classes with inheritance and an interface.',build(){
+    const b=tplBuilder('UML class diagram').page('Classes');
+    const i=b.s('uml_iface',330,40,'«interface»\nDevice\n--\n+ start(): void\n+ stop(): void',{w:190,h:100}), m=b.s('uml_class',120,230,'Motor\n--\n- rpm: int\n- amps: float\n--\n+ start(): void\n+ stop(): void',{w:190,h:150}), v=b.s('uml_class',540,230,'Valve\n--\n- position: int\n--\n+ start(): void\n+ stop(): void',{w:190,h:130});
+    b.l(m,'N',i,'S',{end:'arrowOpen',style:{dash:'dashed'}}); b.l(v,'N',i,'S',{end:'arrowOpen',style:{dash:'dashed'}}); return b.doc; }},
+  {id:'uml_seq',cat:'Technical systems',name:'UML sequence diagram',desc:'Lifelines and messages for a request.',build(){
+    const b=tplBuilder('UML sequence diagram').page('Sequence'); const ll=['Operator','HMI','PLC','Drive'].map((t,i)=>b.s('uml_lifeline',60+i*220,40,':'+t,{w:120,h:420}));
+    const msg=(a,c,y,t,rep)=>b.l({x:ll[a].x+60,y},null,{x:ll[c].x+60,y},null,{route:'straight',label:t,end:rep?'open':'arrow',style:rep?{dash:'dashed'}:{}});
+    msg(0,1,130,'Press Start'); msg(1,2,180,'Write start bit'); msg(2,3,230,'Run command'); msg(3,2,280,'Running',1); msg(2,1,330,'Status',1); msg(1,0,380,'Show running',1); return b.doc; }},
+  {id:'motor',cat:'Industrial controls',name:'Motor starter and P&ID loop',desc:'Three-wire start/stop ladder and a flow loop P&ID (two pages).',build(){ return sampleDoc2(); }},
+  {id:'dlr',cat:'Industrial controls',name:'EtherNet/IP ring (DLR) network',desc:'ControlLogix with a 1756-EN2TR ring through POINT I/O and a PanelView, plus a Stratix switch and a PowerFlex 525.',build(){
+    const b=tplBuilder('EtherNet/IP DLR network').page('Network'); b.t(40,20,'Device Level Ring (DLR) and star network',20,460);
+    const plc=b.s('ra_1756_l83e',40,90,'1756-L83E'), en=b.s('ra_1756_en2tr',200,90,'1756-EN2TR'), a1=b.s('ra_1734_aentr',400,90,'Node 1'), a2=b.s('ra_1734_aentr',560,90,'Node 2'), hmi=b.s('ra_panelview_plus_7_standard_2_ethernet_ports',720,90,'PanelView Plus 7');
+    const sw=b.s('ra_1783_bms10cgl',40,340,'Stratix 5700',{rot:180,style:{textLevel:true}}), vfd=b.s('ra_powerflex_525_25b',360,340,'PowerFlex 525',{rot:180,style:{textLevel:true}});
+    const E={end:'none',style:{stroke:'#1d4fae',sw:2}};
+    b.l(en,'p:1',a1,'p:1',E); b.l(a1,'p:2',a2,'p:1',E); b.l(a2,'p:2',hmi,'p:1',E);
+    const ret=b.l(hmi,'p:2',en,'p:2',E), q1=raPort(hmi,'2'), q2=raPort(en,'2'); ret.waypoints=[{x:q1.x,y:q1.y+48},{x:q2.x,y:q2.y+48}];
+    b.l(plc,'p:ENET',sw,'p:1',E); b.l(vfd,'p:ENET',sw,'p:2',E);
+    b.s('note',560,330,'Ring: EN2TR port 1 through both POINT I/O adapters and the PanelView, then back to EN2TR port 2. The PLC and the drive are on a star off the Stratix switch. Check every port against the product manuals.',{w:380,h:150});
+    return b.doc; }},
+  {id:'safety',cat:'Industrial controls',name:'Safety circuit (E-stop and guard)',desc:'Two-channel E-stop and guard switch in series into a safety relay driving two contactors.',build(){
+    const b=tplBuilder('Safety circuit').page('Safety circuit'); b.t(40,20,'Emergency stop and guard door circuit',20,460);
+    const es=b.s('s_estop2',120,100,'ES1'), gd=b.s('s_guard2',380,100,'GS1'), rl=b.s('s_relay',160,330,'Safety relay',{w:360,h:120}), k1=b.s('s_mirror',700,330,'K1'), k2=b.s('s_mirror',700,470,'K2'), rs=b.s('e_pbno',300,540,'Reset');
+    const W={end:'none'}, wp=(L,pts)=>{ L.waypoints=pts; return L; }, P=(sh,id)=>raPort(sh,id), top=rl.y;
+    b.l(es,'p:12',gd,'p:11',W); b.l(es,'p:22',gd,'p:21',W);
+    wp(b.l(rl,'p:S11',es,'p:11',W),[{x:P(rl,'S11').x,y:top-36},{x:es.x-24,y:top-36},{x:es.x-24,y:P(es,'11').y}]);
+    wp(b.l(rl,'p:S21',es,'p:21',W),[{x:P(rl,'S21').x,y:top-20},{x:es.x-40,y:top-20},{x:es.x-40,y:P(es,'21').y}]);
+    wp(b.l(rl,'p:S12',gd,'p:12',W),[{x:P(rl,'S12').x,y:top-52},{x:gd.x+gd.w+24,y:top-52},{x:gd.x+gd.w+24,y:P(gd,'12').y}]);
+    wp(b.l(rl,'p:S22',gd,'p:22',W),[{x:P(rl,'S22').x,y:top-68},{x:gd.x+gd.w+40,y:top-68},{x:gd.x+gd.w+40,y:P(gd,'22').y}]);
+    b.l(rl,'p:14',k1,'p:L1',W); b.l(rl,'p:24',k2,'p:L1',W); b.l(rs,'E',rl,'p:S34',W);
+    b.s('note',40,650,'Generic sketch only: channel 1 runs S11, ES1 11-12, GS1 11-12, S12; channel 2 runs S21, ES1 21-22, GS1 21-22, S22. Terminal names are typical and vary by relay. Follow the relay manual and your risk assessment (ISO 13849-1 / IEC 62061) for the required category and PL.',{w:420,h:130});
+    return b.doc; }},
+  {id:'rio',cat:'Industrial controls',name:'Remote I/O panel',desc:'POINT I/O adapter with input and output cards wired to field devices.',build(){
+    const b=tplBuilder('Remote I/O panel').page('I/O wiring'); b.t(40,20,'Remote I/O panel, node 1',20,360);
+    const aen=b.s('ra_1734_aentr',40,90,'1734-AENTR'), di=b.io('1734','di',8,300,90,'l','Slot 1 inputs'), dq=b.io('1734','do',8,600,90,'r','Slot 2 outputs');
+    const ins=[['e_prox','PX101 Part present'],['e_ls','LS102 Guard closed'],['e_pbno','PB103 Start'],['e_pbnc','PB104 Stop']].map(([k,t],i)=>b.s(k,60,280+i*80,t));
+    ins.forEach((s,i)=>b.l(s,'E',di,'p:'+i,{end:'none'}));
+    const outs=[['e_coil','M201 Conveyor run'],['e_light','LT202 Running'],['e_sol','SV203 Clamp']].map(([k,t],i)=>b.s(k,880,120+i*90,t));
+    outs.forEach((s,i)=>b.l(dq,'p:'+i,s,'W',{end:'none'}));
+    return b.doc; }},
+  {id:'pid',cat:'Industrial controls',name:'Tank level control P&ID',desc:'Tank, pump, control valve and a level loop.',build(){
+    const b=tplBuilder('Tank level control').page('P&ID'); const tk=b.s('p_tank',80,120,'T-101',{w:160,h:220}), pu=b.s('p_pump',360,300,'P-101'), cv=b.s('p_ctrl',560,268,'LV-101'), gv=b.s('p_gate',760,286,'');
+    const lt=b.s('p_inst',280,60,'LT\n101'), lc=b.s('p_shared',460,60,'LIC\n101');
+    b.l(tk,'E',pu,'W',{end:'arrow',signal:'process',style:{sw:2}}); b.l(pu,'E',cv,'W',{end:'arrow',signal:'process',style:{sw:2}}); b.l(cv,'E',gv,'W',{end:'none',signal:'process',style:{sw:2}});
+    b.l(tk,'N',lt,'W',{end:'none',signal:'electric'}); b.l(lt,'E',lc,'W',{end:'none',signal:'electric'}); b.l(lc,'S',cv,'N',{end:'none',signal:'electric'}); return b.doc; }}
+];
+function tplDoc(t){ return migrate(JSON.parse(JSON.stringify(t.build()))); }
+// Draws page 1 of a template doc to an SVG preview, using the normal renderer.
+function tplThumb(d){ const prev=S.doc, ed=S.editing; let node; try{ S.doc=d; S.editing=null; node=exportSVGNode({pad:16}); } catch(e){ node=null; } finally{ S.doc=prev; S.editing=ed; }
+  if(!node) return el('div',{class:'tpl-noprev',text:'Preview not available'}); node.removeAttribute('width'); node.removeAttribute('height'); node.setAttribute('preserveAspectRatio','xMidYMid meet'); node.setAttribute('class','tpl-svg'); node.setAttribute('aria-hidden','true'); return node; }
+function useTemplate(id,mode){
+  const t=TEMPLATES.find(x=>x.id===id); if(!t) return null; const d=tplDoc(t); closeModal();
+  if(mode==='pages'){ for(const p of d.pages){ let nm=p.name, k=2; while(S.doc.pages.some(q=>q.name===nm)) nm=p.name+' '+(k++); p.name=nm; S.doc.pages.push(p); }
+    for(const k of ['datasets','rules']) if(d[k]) S.doc[k]=(S.doc[k]||[]).concat(d[k]);
+    commit(); switchPage(d.pages[0].id); fitView(); toast('Added "'+t.name+'" as '+d.pages.length+' new page'+(d.pages.length>1?'s':'')+'.'); return d; }
+  fileReset(); loadDocument(d,'"'+t.name+'" template opened. Ctrl+Z brings back your previous diagram.'); return d;
+}
+function showTemplates(cat){
+  let cur=cat||'All', q='';
+  const grid=el('div',{class:'tpl-grid'}), cats=el('div',{class:'tpl-cats',role:'tablist','aria-label':'Template categories'}), search=el('input',{type:'search',placeholder:'Search templates','aria-label':'Search templates',class:'tpl-search'});
+  const fill=()=>{ cats.replaceChildren(...['All'].concat(TPL_CATS).map(c=>el('button',{type:'button',class:'tpl-cat'+(c===cur?' on':''),role:'tab','aria-selected':String(c===cur),'data-tplcat':c,text:c})));
+    const list=TEMPLATES.filter(t=>(cur==='All'||t.cat===cur)&&(!q||(t.name+' '+t.desc+' '+t.cat).toLowerCase().includes(q)));
+    grid.replaceChildren(...(list.length?list.map(t=>el('div',{class:'tpl-card','data-tpl':t.id},el('button',{type:'button',class:'tpl-prev','data-tpluse':t.id,'aria-label':'Use template '+t.name},tplThumb(tplDoc(t))),
+      el('div',{class:'tpl-meta'},el('b',{text:t.name}),el('span',{class:'muted small',text:t.desc}),
+        el('div',{class:'find-row'},el('button',{type:'button',class:'btn primary sm-t','data-tpluse':t.id,text:'Use'}),el('button',{type:'button',class:'btn sm-t','data-tpladd':t.id,text:'Add as page'}))))):[el('p',{class:'muted',text:'No templates match.'})])); };
+  openModal('Templates',el('div',{class:'tpl-top'},search,el('span',{class:'muted small',text:'Use replaces the open diagram (Ctrl+Z brings it back). Add as page keeps your diagram and adds the template\'s pages to it.'})),cats,grid);
+  modalEl.querySelector('.modal').classList.add('modal-wide');
+  modalEl.addEventListener('click',e=>{ const c=e.target.closest('[data-tplcat]'); if(c){ cur=c.getAttribute('data-tplcat'); fill(); return; }
+    const u=e.target.closest('[data-tpluse]'); if(u){ useTemplate(u.getAttribute('data-tpluse'),'replace'); return; } const a=e.target.closest('[data-tpladd]'); if(a) useTemplate(a.getAttribute('data-tpladd'),'pages'); });
+  search.addEventListener('input',()=>{ q=search.value.trim().toLowerCase(); fill(); });
+  fill(); try{ search.focus(); }catch(e){}
+}
+/* ============================== phone layout ============================== */
+const PHONE_Q='(max-width: 700px)';
+function isPhone(){ try{ return !!(window.matchMedia&&window.matchMedia(PHONE_Q).matches); }catch(e){ return false; } }
+function isCoarse(){ try{ return !!(window.matchMedia&&window.matchMedia('(pointer: coarse)').matches); }catch(e){ return false; } }
+// Overlay sizes in screen pixels; bigger on touch screens so handles can be grabbed with a finger.
+function uiK(){ return isCoarse()?1.7:1; }
+// On a phone the library and properties open as sheets over the canvas; only one at a time.
+function phoneSheets(which){ if(!isPhone()) return; if(which==='left'&&S.prefs.left) S.prefs.right=false; if(which==='right'&&S.prefs.right) S.prefs.left=false; }
+let lpTimer=null, lpAt=null;
+function longPressStart(e){
+  if(e.pointerType!=='touch'||touches.size>1) return; clearTimeout(lpTimer); lpAt={x:e.clientX,y:e.clientY,t:e.target};
+  lpTimer=setTimeout(()=>{ if(!lpAt||touches.size>1) return; const at=lpAt; lpAt=null; S.op=null;
+    const it=at.t&&at.t.closest&&at.t.closest('[data-id]'); if(it){ const id=it.getAttribute('data-id'); if(!S.sel.has(id)) setSel(expandGroups([id])); }
+    try{ if(navigator.vibrate) navigator.vibrate(15); }catch(x){} showCtx(at.x,at.y); },550);
+}
+function longPressMove(e){ if(lpAt&&Math.hypot(e.clientX-lpAt.x,e.clientY-lpAt.y)>9){ clearTimeout(lpTimer); lpAt=null; } }
+function longPressEnd(){ clearTimeout(lpTimer); lpAt=null; }
 function soonSection(names){ return section('Coming soon',el('div',{class:'soon-list'},names.map(n=>el('div',{class:'soon-row'},el('span',{text:n}),el('span',{class:'soon',text:'Coming Soon'}))))); }
 function renderProps(){
   const root=$('#props'), sel=selItems(), K=[];
@@ -4420,6 +4705,7 @@ function renderProps(){
       el('p',{class:'muted small',style:{marginTop:'6px'},text:'Source: '+dv.src.doc+'. Section: '+dv.src.sec+'. Quote: "'+dv.src.q+'"'}),
       dv.note?el('p',{class:'muted small',text:dv.note}):null,
       el('p',{class:'muted small',text:'Port placement on the shape is schematic, not the physical faceplate layout.'})));
+    K.splice(2,0,devPicSection(fs));
   }
   if(fs&&SYMBOL_INFO[fs.type]&&shapes.length===1){
     const info=SYMBOL_INFO[fs.type];
@@ -4457,6 +4743,8 @@ function renderProps(){
 }
 function parseVal(v){ if(v==='true') return true; if(v==='false') return false; return v; }
 function applyProp(prop,v,final){
+  if(prop==='picRemember'){ S.prefs.picRemember=!!v; savePrefs(); invalidate({props:true}); return; }
+  if(prop==='noPic'){ const sh=unlockedSel().filter(i=>RA_DEV[i.type]); sh.forEach(i=>{ if(v) delete i.noPic; else i.noPic=true; }); commit(); invalidate(); return; }
   if(applyExtraProp(prop,v,final)) return;
   if(prop==='docTitle'){ S.doc.title=String(v).slice(0,200)||'Untitled diagram'; if(final) commit(); invalidate({chrome:true}); return; }
   if(prop==='pageName'){ page().name=String(v).slice(0,80)||'Untitled page'; if(final) commit(); invalidate({pages:true}); return; }
@@ -4731,12 +5019,14 @@ function positionFtb(){
   const E=ftb.el; if(!E) return;
   const sel=selItems();
   if(!ftb.open||!sel.length||S.editing||(S.op&&S.op.type!=='pan')||selKey()!==ftb.key){ if(ftb.open&&(!sel.length||selKey()!==ftb.key)) hideFtb(); else E.hidden=true; return; }
+  if(isPhone()&&(S.prefs.left||S.prefs.right)){ E.hidden=true; return; }
   E.hidden=false;
   const b=bboxOf(sel), st=stageSize(), z=V.z, bw=ftb.bar.offsetWidth||360, bh=ftb.bar.offsetHeight||44;
   const ph=ftb.kind?(ftb.pop.offsetHeight||300):0;
   let left=V.tx+(b.x+b.w/2)*z-bw/2, topAbove=V.ty+b.y*z-bh-40, topBelow=V.ty+(b.y+b.h)*z+18;
   left=clamp(left,8,Math.max(8,st.w-bw-8));
   let top=topAbove>=8?topAbove:topBelow; top=clamp(top,8,Math.max(8,st.h-bh-8));
+  if(isPhone()){ top=8; left=clamp((st.w-bw)/2,8,Math.max(8,st.w-bw-8)); }
   const up=ftb.kind&&top+bh+ph+8>st.h&&top-ph-6>0;
   E.classList.toggle('up',!!up);
   E.style.left=r2(left)+'px'; E.style.top=r2(up?top-ph-6:top)+'px';
@@ -4984,10 +5274,10 @@ function registerAsset(rec){
   try{ if(URL.createObjectURL){ const b=dataUrlToBlob(rec.data); if(b) url=URL.createObjectURL(b); } }catch(e){}
   const a={id:rec.id,type:rec.type,w:rec.w,h:rec.h,data:rec.data,url}; ASSETS.set(rec.id,a); return a;
 }
-function usedAssetIds(){ const u=new Set(); for(const p of S.doc.pages) for(const i of p.items) if(i.type==='image'&&i.img) u.add(i.img); return u; }
+function usedAssetIds(){ const u=new Set(); for(const p of S.doc.pages) for(const i of p.items) if(i.type==='image'&&i.img) u.add(i.img); if(S.doc.devPics) for(const k in S.doc.devPics) u.add(S.doc.devPics[k]); return u; }
 async function loadAssets(){
   idb=await idbOpen();
-  const recs=(await idbAll())||[], used=usedAssetIds();
+  const recs=(await idbAll())||[], used=usedAssetIds(); for(const v of Object.values(picLib())) used.add(v);
   for(const r of recs){ if(!r||!r.id) continue; if(used.has(r.id)||S.history.stack.some(h=>h.includes(r.id))) registerAsset(r); else idbDel(r.id); }
   if(recs.length) invalidate({content:true});
 }
@@ -5031,6 +5321,7 @@ function wireImages(){
   stage.addEventListener('drop',e=>{
     const fl=e.dataTransfer&&e.dataTransfer.files; if(!fl||!fl.length) return; e.preventDefault();
     const w=toWorld(e); let off=0;
+    const tgt=shapeAt(w,0); if(fl.length===1&&tgt&&RA_DEV[tgt.type]&&IMG_TYPES.includes(fl[0].type)){ setDevPic(tgt.type,fl[0],S.prefs.picRemember!==false); return; }
     for(const f of fl){ if(/\.(json|vsdx|vsd|lucid)$/i.test(f.name)||f.type==='application/json'){ openAnyFile(f,null); return; } insertImageFile(f,{x:w.x+off,y:w.y+off}); off+=24; }
   });
   document.addEventListener('paste',e=>{
@@ -5112,9 +5403,9 @@ async function exportPdf(all){
 
 /* ============================== menus & context menu ============================== */
 const MENUS={
-  file:[['New diagram','newDoc'],['Duplicate page','duplicatePage'],['Open...','openJson','Ctrl+O'],['Save','save','Ctrl+S'],['Save as...','saveAs','Ctrl+Shift+S'],['Import Visio or Lucid file...','openJson'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import CSV data...','importData'],['Version history...','versions']],
+  file:[['New diagram','newDoc'],['New from template...','templates'],['Duplicate page','duplicatePage'],['Open...','openJson','Ctrl+O'],['Save','save','Ctrl+S'],['Save as...','saveAs','Ctrl+Shift+S'],['Import Visio or Lucid file...','openJson'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import CSV data...','importData'],['Version history...','versions']],
   edit:[['Undo','undo','Ctrl+Z'],['Redo','redo','Ctrl+Shift+Z'],'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',['Select all','selectAll','Ctrl+A'],['Select all shapes','selectShapes'],['Select all lines','selectLines'],['Select same fill color','selectSameFill'],'-',['Edit text','editText','Enter'],['Add text to line','addLineText'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],'-',['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],'-',['Find and replace','find','Ctrl+F']],
-  insert:[['Picture...','insertImage'],['Text box','insertText'],['Sticky note','insertNote'],['Page','addPage'],'-',['Icons','soon:Icon sets',null,true],['Freehand drawing','soon:Freehand pen',null,true]],
+  insert:[['Template pages...','templates'],['Picture...','insertImage'],['Text box','insertText'],['Sticky note','insertNote'],['Page','addPage'],'-',['Icons','soon:Icon sets',null,true],['Freehand drawing','soon:Freehand pen',null,true]],
   arrange:[['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',['Group','group','Ctrl+G'],['Ungroup','ungroup','Ctrl+Shift+G'],'-',['Align left','alignL'],['Align center','alignC'],['Align right','alignR'],['Align top','alignT'],['Align middle','alignM'],['Align bottom','alignB'],'-',['Distribute horizontally','distH'],['Distribute vertically','distV'],'-',['Rotate 90\u00b0 clockwise','rotate','Alt+R'],['Rotate 90\u00b0 counterclockwise','rotateCcw','Alt+Shift+R'],['Flip horizontal','flipH'],['Flip vertical','flipV'],'-',['Match width','matchW'],['Match height','matchH'],['Match size','matchSize'],'-',['Lock / unlock','toggleLock','Ctrl+Shift+L'],['Swap line endpoints','swapEnds']],
   view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','toggleMinimap',null,false,()=>S.prefs.minimap],['Present','present','F5'],['Comments','comments','Ctrl+Alt+M',false,()=>CMT.open]],
   help:[['Getting started and shortcuts','help','F1'],['About Linework','about']]
@@ -5349,6 +5640,9 @@ function showHelp(){
     el('h3',{text:'Pages'}),el('p',{text:'Use the tabs at the bottom to switch pages. The plus button adds a page, double-click a tab to rename it, and the x on the active tab deletes it (undo brings it back).'}),
     el('h3',{text:'Save and Save as'}),el('p',{text:'File > Save (Ctrl+S) and Save as (Ctrl+Shift+S) work like a desktop program. In Chrome and Edge, Save as opens the system Save dialog so you pick the folder and name, and after that Save writes straight back to that same file. Opening a .json with File > Open does the same, so Save updates the file you opened. The status at the top right shows the file name and whether there are unsaved changes, and the browser warns before you close the tab with unsaved changes. In browsers without that dialog (Firefox, Safari, and inside the claude.ai preview), Save as asks for a file name and the file goes to your Downloads folder.'}),
     el('h3',{text:'Importing Visio and Lucid files'}),el('p',{text:'File > Open or File > Import Visio or Lucid file (or drag the file onto the canvas) reads Visio .vsdx files and Lucid .lucid files (the Lucid Standard Import format, a ZIP holding document.json), as well as a bare Lucid document.json. Each page becomes a page. Shapes keep position, size, text, rotation and basic fill, line color and line width; Visio shape data and Lucid custom data become data fields; connectors stay attached to their shapes; groups stay grouped. Common flowchart shapes (decision, start/end, database, document and so on) are matched by name; anything else comes in as a rectangle, and pictures come in as [Picture] placeholders. Text formatting, themes, line routing points, master-shape artwork and Visio background pages are not carried over. Older binary .vsd files cannot be read: save them as .vsdx in Visio first. The imported diagram opens as a new, unsaved file, so the original is never overwritten. Check the result against the original.'}),
+    el('h3',{text:'Templates'}),el('p',{text:'File > New from template, Insert > Template pages, the Templates button on the toolbar, or Browse templates on an empty canvas opens the gallery. Pick a category or search, then Use to open the template as your diagram (Ctrl+Z brings back what you had) or Add as page to add its pages to the open diagram. The gallery covers the same kinds of diagrams as Lucidchart\'s (flowcharts and processes, brainstorming, teams and organizations, projects and strategy, research and design, technical systems) plus an Industrial controls set: motor starter and P&ID, EtherNet/IP ring network, safety circuit, remote I/O panel and tank level loop. The templates are drawn for Linework, not copied from Lucidchart. Industrial templates are sketches to start from; check them against the product manuals and your standards.'}),
+    el('h3',{text:'Device pictures'}),el('p',{text:'Select a Rockwell device (switch, controller, adapter, drive, HMI) and use Device picture > Add picture in the right panel, or drop a picture file onto the device. The picture shows on every shape of that catalog number in the diagram, the shape grows to fit it, the port pins stay on the edges, and lines stay attached. The catalog name moves under the shape. Untick Show the picture to hide it on one shape. Pictures are saved in the diagram file and, with Remember for new diagrams on, in this browser so new diagrams pick them up. Linework does not include product photos; use a photo or drawing you have the right to use.'}),
+    el('h3',{text:'On a phone'}),el('p',{text:'On a narrow screen the shape library and the properties panel open as sheets from the bottom (the first and last toolbar buttons); only one is open at a time, and the library closes after you add a shape. Less used toolbar buttons are in the menus. Tap a shape to select it: its connection dots show without hovering, and handles are larger. Drag a dot to connect. Press and hold a shape or the canvas for its menu. Two fingers pan and pinch to zoom. Dialogs fill the screen.'}),
     el('h3',{text:'Mini map'}),el('p',{text:'View > Mini map shows a small overview in the bottom right corner of the canvas with every shape and line on the page and a blue box for what is on screen. Click or drag in the map to move the view there. The setting is remembered.'}),
     el('h3',{text:'Comments'}),el('p',{text:'View > Comments (Ctrl+Alt+M) opens the comments panel. Type your name once at the top. With one item selected, a new comment attaches to that item and its numbered pin follows the item; with nothing selected, the comment is pinned at the middle of the view. Press Enter to post (Shift+Enter for a new line). Reply, Resolve, Reopen and Delete work per thread, Show resolved brings resolved threads back, and clicking a pin or a thread number jumps to it. Comments are saved in the diagram file and undo like any other edit, but they are not live: other people see them when they open the file, and they are left out of SVG, PNG and PDF exports.'}),
     el('h3',{text:'Saving'}),el('p',{text:'Your diagram autosaves in this browser. The status at the top right tells you if browser storage is blocked. Use File > Save for a portable copy you can reopen anywhere, and File > Export SVG or PNG for images.'}),
@@ -5389,6 +5683,7 @@ const CMDS={
   loadSample:()=>loadDocument(sampleDoc(),'Sample loaded. Ctrl+Z brings back your previous diagram.'),
   loadSample2:()=>loadDocument(sampleDoc2(),'Sample loaded. Ctrl+Z brings back your previous diagram.'),
   openJson:()=>{ openFilePick(); },
+  templates:()=>showTemplates(),
   save:()=>{ saveFile(); }, saveAs:()=>{ saveFileAs(); }, toggleMinimap:()=>togglePref('minimap'), comments:()=>{ if(CMT.open) closeComments(); else openComments(); },
   addComment:()=>{ openComments(); setTimeout(()=>{ const t=cmtEl&&cmtEl.querySelector('textarea[data-cmt="new"]'); if(t) t.focus(); },0); },
   saveJson:()=>download(fileBase()+'.json',JSON.stringify(docForSave(),null,2),'application/json','Saved '+fileBase()+'.json'),
@@ -5403,6 +5698,7 @@ function runCmd(name){
   if(name.startsWith('soon:')){ toast(name.slice(5)+' is coming soon.'); return; }
   if(name.startsWith('layer:')){ const p=name.split(':'); layerCmd(p[1],p[2]); return; }
   if(extraCmd(name)) return;
+  if(name.startsWith('devpic:')){ const p=name.split(':'); if(p[1]==='set') pickDevPic(p[2]); else if(p[1]==='del') clearDevPic(p[2],S.prefs.picRemember!==false); return; }
   const f=CMDS[name]; if(f) f();
 }
 
@@ -5520,6 +5816,7 @@ window.__app={
     geom, sampleDoc, saveLocal, loadLocal, expandGroups, alignSel, distributeSel, reorder, newDoc,
     insertImageData, importAssets, exportAssets, docForSave, buildPdf, pageSvgs, assets:ASSETS, geoBBox,
     findTarget, lineDefaults, raPorts, raPort, RA_DEV, RA_SRC, filterLibrary, duplicate,
+    TEMPLATES, tplDoc, showTemplates, useTemplate, setDevPic, clearDevPic, devPicOf, picLib, isPhone, isCoarse, longPressStart, longPressEnd, usedAssetIds, exportAssets, docForSave,
     saveFile, saveFileAs, openAnyFile, fileStatus, fileDirty, FILE, zipOpen, vsdxToDoc, lucidToDoc, isLucidJson, importZipBytes, miniContent, miniView, addComment, cmtCmd, openComments, closeComments, comments,
     setAngle, totalAngle, rotPt, itemBBox, shapeAt, parseCsv, importCsv, fieldsOf, resolveText, ruleHit, runAction, startPresent, stopPresent, presentGo, exportSVGNode,
     findMatches, findStep, replaceAll, openFind, closeFind, saveVersion, listVersions, restoreVersion, deleteVersion, showVersions, matchSize, extraCmd, portPoint2:portPoint, UML_TYPES,
