@@ -510,7 +510,7 @@ button{cursor:pointer}
   <aside id="left" aria-label="Shape library">
     <div class="lib-search"><input id="libSearch" type="search" placeholder="Search shapes" aria-label="Search shapes" autocomplete="off">
       <label class="lib-view">Show <select id="libView" aria-label="Library view"><option value="auto" title="Pictures for shapes, names for the Rockwell device lists">Auto</option><option value="icons">Pictures</option><option value="labeled">Pictures and names</option><option value="names">Names only</option></select></label>
-      <label class="lib-view">Place at <select id="placeRot" aria-label="Rotation for new shapes"><option value="0">0° (as drawn)</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label></div>
+      <label class="lib-view">Place at <select id="placeRot" aria-label="Rotation for new shapes"><option value="0">0° (as drawn)</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label><label class="lib-view">Robots as <select id="robotView" aria-label="How new robots are placed"><option value="card">Card</option><option value="plan">Plan view (to scale)</option></select></label></div>
     <div id="libList"></div>
   </aside>
 
@@ -548,7 +548,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.17.0';
+const APP_VERSION='1.18.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -723,8 +723,9 @@ function poly(pts){return 'M'+pts.map(p=>r2(p[0])+' '+r2(p[1])).join('L')+'Z';}
 const CLOUD=[['M',25,58],['C',8,58,2,44,10,36],['C',2,26,12,12,26,16],['C',30,4,50,0,58,12],['C',66,2,86,6,86,20],['C',98,22,100,40,90,46],['C',96,56,84,62,72,58],['C',64,64,34,64,25,58]];
 const GEOM_TYPES=['image','rect','text','terminator','ellipse','diamond','triangle','hexagon','parallelogram','document','cylinder','predefined','manualInput','delay','trapezoid','offpage','note','star','pentagon','octagon','cross','arrow','cloud','callout'];
 
-function geom(type,w,h,st){
-  const dvg=devDef(type); if(dvg) return dvg.io?ioGeom(dvg,w,h):dvg.robot?robotGeom(dvg,w,h):raGeom(dvg,w,h);
+function geom(type,w,h,st,it){
+  const dvg=devDef(type); if(dvg) return dvg.io?ioGeom(dvg,w,h):dvg.plan?robotPlanGeom(dvg,w,h):dvg.robot?robotGeom(dvg,w,h):raGeom(dvg,w,h);
+  if(type.charCodeAt(0)===99&&type.startsWith('cv_')) return conveyorGeom(type,w,h,st,it);
   let d,decor=null,tb={x:0,y:0,w,h};
   switch(type){
     case 'rect': case 'text': { const r=Math.max(0,Math.min(num(st&&st.radius,0),w/2,h/2)); d=roundRect(w,h,r2(r)); break; }
@@ -1773,6 +1774,7 @@ function buildRobots(){
     const robot={mk:f.mk,ser:f.ser,model,kin:f.kin,pay,reach,axes,src,asrc,ctrl:o.c||'',leg:!!f.leg};
     const v=!!src.v&&(axes==null||!!asrc.v);
     RA_DEV[key]={key,cat:f.mk+' '+model,fam:f.ser,ports:[P('ROB','rob','Controller cable (manipulator cable) to the robot controller')],two:false,src,note:[src.note,asrc&&asrc!==src?asrc.note:''].filter(Boolean).join(' '),v,robot};
+    RA_DEV['rbp_'+key.slice(3)]=Object.assign({},RA_DEV[key],{key:'rbp_'+key.slice(3),plan:true,base:key,ports:[P('ROB','rob','Controller cable (manipulator cable) to the robot controller')]});
     (groups[f.mk+(f.leg?'L':'')]=groups[f.mk+(f.leg?'L':'')]||[]).push({key,name:f.mk+' '+model,type:key,w:RB_W,h:RB_H,text:model,cap:model,dev:true,props:{data:robotData(robot)},
       style:{fill:'#ffffff',stroke:'#1f2430',fontSize:11,valign:'middle'}});
   }
@@ -1826,7 +1828,442 @@ function robotGeom(def,w,h){
   return {d:roundRect(w,h,3),decor,glyphs,tb:{x:2,y:tY,w:w-4,h:Math.max(8,sY-6-tY)},picBox:{x:pb.x-8,y:pb.y-2,w:pb.w+16,h:pb.h+4},label:false,hit:false,ports:null};
 }
 
-buildRa(); buildRobots();
+/* ============================== drawing scale, robot plan views, conveyors ==============================
+   A page can carry a drawing scale (page.scale = N for 1:N). One screen pixel at 100% zoom stands for
+   N * 25.4 / 96 mm, the same as one CSS pixel on paper. To-scale items store the mm-per-pixel they were
+   drawn at (it.mmpx); when the page scale changes they are resized about their centres. */
+const SCALES=[1,2,5,10,20,25,50,100,200,500];
+const MM_PX=25.4/96;
+function pgScale(pg){ pg=pg||page(); return pg&&SCALES.includes(pg.scale)?pg.scale:0; }
+function mmPerPx(pg){ const n=pgScale(pg); return n?n*MM_PX:0; }
+function ensureScale(){ if(pgScale()) return mmPerPx(); page().scale=50; toast('Drawing scale set to 1:50 for this page. Change it in Page settings.'); invalidate({props:true}); return mmPerPx(); }
+function fmtLen(mm){ if(mm==null||!Number.isFinite(mm)) return 'Not found'; return Math.round(mm)+' mm ('+(mm/25.4).toFixed(mm<254?2:1).replace(/\.?0+$/,'')+' in)'; }
+function setPageScale(n){
+  const pg=page(), old=pgScale(pg); n=SCALES.includes(+n)?+n:0;
+  if(n) pg.scale=n; else delete pg.scale;
+  if(n){ const mm=n*MM_PX; for(const it of pg.items) if(isShape(it)&&it.mmpx>0&&Math.abs(it.mmpx-mm)>1e-9){ const f=it.mmpx/mm, cx=it.x+it.w/2, cy=it.y+it.h/2;
+      it.w=r2(it.w*f); it.h=r2(it.h*f); it.x=r2(cx-it.w/2); it.y=r2(cy-it.h/2); it.mmpx=mm; } }
+  commit(); invalidate();
+  if(n&&n!==old) toast('Drawing scale 1:'+n+'. To-scale items were resized to match.');
+}
+// Real size of a to-scale item in mm, along its own length (w) and width (h).
+function realSize(it){ const m=it.mmpx>0?it.mmpx:0; return m?{L:it.w*m,W:it.h*m}:null; }
+
+/* ---------------- conveyors ---------------- */
+const CV_KINDS={
+  belt:{n:'Belt conveyor, straight',L:3048,W:610},
+  bcurve:{n:'Belt curve',W:610,R:762,ang:90,curve:true},
+  roller:{n:'Roller conveyor, gravity',L:3048,W:610,pitch:76.2},
+  mdr:{n:'Roller conveyor, zoned (MDR or live roller)',L:3048,W:610,pitch:76.2,zone:610,mot:true},
+  rcurve:{n:'Roller curve',W:610,R:826,ang:90,pitch:76.2,curve:true},
+  spur:{n:'Spur, merge or divert (angled end)',L:1219,W:610,ang:45,pitch:76.2},
+  rat:{n:'Right-angle transfer',L:914,W:914,pitch:76.2},
+  turn:{n:'Turntable',L:1219,W:1219,pitch:76.2},
+  arb:{n:'Activated roller belt (ARB) section',L:1829,W:610,ra:45},
+  pallet:{n:'Pallet conveyor (dual belt)',L:2000,W:320,pal:320},
+  pcorner:{n:'Pallet 90 degree corner',L:480,W:480,pal:320},
+  lift:{n:'Lift and locate station',L:640,W:320,pal:320},
+  chain:{n:'Chain conveyor (drag chain)',L:3048,W:1219,n:3}
+};
+const CV_TYPES=Object.keys(CV_KINDS).map(k=>'cv_'+k);
+const inch=a=>a.map(v=>Math.round(v*254)/10);
+const CV_SRC={
+  hyE24:{doc:'Hytrol 190-E24EZ standard specifications (Gilmore-Kramer distributor copy)',sec:'Price table: Between Rail Width, Overall Frame Width',q:'Between Rail Width 15" 21" 27" 33" 39" Overall Frame Width 18" 24" 30" 36" 42"',v:true,
+    note:'Bed: 1.9 in rollers on 3 in centers (2 in centers also listed). Zone length is not in the part read; 24 in is a placeholder.'},
+  hyE24C:{doc:'Hytrol E24 product focus sheet (cdn.hytrol.com) and Bastian Solutions configurator for the 190-E24C',sec:'190-E24C bullets; Radius "R" option',q:'30- and 45-degree curves require (1) 24-volt motor and control card',v:false,
+    note:'Widths from the Hytrol 190-E24EZC table (Cisco-Eagle copy). Inside radii 32.5 and 48 in come from the 190-E24C configurator, so they are marked unverified for the EZC.'},
+  hySS:{doc:'Hytrol E24 product focus sheet (cdn.hytrol.com) and Gilmore-Kramer 190-E24EZSS listing',sec:'190-E24SS bullets; Between Rail Width',q:'Section lengths for the 45-degree include 21", 36", and 48"',v:true,note:'30 and 45 degree spurs. Overall width is taken as between-rail width plus 3 in, as on the E24EZ table.'},
+  hyCRE:{doc:'Hytrol 25-CRE24EZ specifications (Cisco-Eagle copy)',sec:'Accumulation zones',q:'4 in. roller centers, 32 in. to 120 in. on 4 in. increments',v:true,note:'Pallet handling chain-driven live roller. Standard widths were not found; set the width yourself.'},
+  hyLRC:{doc:'Hytrol catalog 589, model 190-LRC (Cisco-Eagle copy); Bastian Solutions 190LRC configurator',sec:'Live Roller Curve table; Inside Radius option',q:'Inside Radius 24 in., 32.5 in., 48 in.',v:true,note:'30, 45, 60 or 90 degree turns. Overall widths 16 to 24 in from the Hytrol table.'},
+  hyLREZ:{doc:'Hytrol 25-LREZ specifications (Cisco-Eagle copy)',sec:'Accumulation zone lengths',q:'3" Roller Centers 4" Roller Centers 6" Roller Centers',v:true,note:'Belt-driven live roller, zero-pressure accumulation. Standard widths were not read clearly; set the width yourself.'},
+  hyTA:{doc:'Cisco-Eagle product page, Hytrol model TA',sec:'Description',q:'Overall width includes the width of the frame, which is 2" on either side of the belt',v:false,note:'Standard TA bed widths were not found; set the width yourself.'},
+  hySBC:{doc:'Cisco-Eagle product page, Hytrol SBC belt curve',sec:'Product title',q:'belt conveyor model sbc 90 degree left hand curve 24 belt width',v:false,note:'Inside radius was not found; the default is a placeholder.'},
+  do2200:{doc:'Dorner 2200 Series Engineering Manual (EU) and 2200 Idea Guide',sec:'Specifications',q:'Belt widths: 44 mm to 610 mm • Conveyor lengths: 457 mm to 5,486 mm',v:true},
+  do2200xl:{doc:'Dorner 2200 XL Series flyer (EU)',sec:'Features & Specifications',q:'Widths: 660, 711, 762, 813, 864 and 914 mm',v:true,note:'Lengths 650 to 3500 mm.'},
+  do3200:{doc:'GlobalSpec datasheet, Dorner 3200 Series iDrive',sec:'General Specifications',q:'Belt Widths: 6″ (152 mm) to 24″ (610 mm)',v:false,note:'Lengths 914 to 3658 mm. Secondary listing of Dorner data.'},
+  doArb:{doc:'Dorner 3200 Series with Intralox ARB brochure (CMCO copy)',sec:'ARB Specifications',q:'Widths: 8 in (203 mm) to 60 in (1524 mm) in 2 in (51 mm) increments',v:true,note:'2 in pitch ARB chain, minimum length 914 mm. 90 degree passive on and passive off transfers.'},
+  doPM:{doc:'Dorner 2200 Series Precision Move Pallet Systems brochure',sec:'Conveyors; Modules',q:'Widths: 160, 240, 320, 400, and 480 mm',v:true,note:'Lengths up to 7500 mm. Modules: lift and locate, lift and rotate, lift and transfer, 90 degree corner, 90 degree corner and merge, pallet stop. Pallet size here is a placeholder.'},
+  inArb:{doc:'Intralox, Packer to Palletizer technology page',sec:'Packer to Palletizer ARB Applications',q:'Sorter ... Switch ... Turner divider ... 90-degree transfer ... Merge',v:false,
+    note:'Intralox lists these ARB applications but no standard sizes were found, so widths and lengths are placeholders. Dorner builds ARB conveyors from 203 to 1524 mm wide.'}
+};
+const CV_VENDORS_BUILTIN=[
+  {id:'hytrol',name:'Hytrol',models:[
+    {id:'190e24ez',name:'190-E24EZ (24 V MDR accumulation)',k:'mdr',w:inch([18,24,30,36,42]),dw:inch([24])[0],pitch:76.2,pitches:inch([2,3]),zone:609.6,src:'hyE24'},
+    {id:'190e24ezc',name:'190-E24EZC (24 V MDR curve)',k:'rcurve',w:inch([24,30,36,42]),dw:inch([24])[0],R:inch([32.5,48]),angs:[30,45,60,90],pitch:76.2,src:'hyE24C'},
+    {id:'190e24ezss',name:'190-E24EZSS (24 V spur, 30 or 45 degree)',k:'spur',w:inch([18,24,30]),dw:inch([24])[0],angs:[30,45],lens:inch([21,36,48]),pitch:76.2,src:'hySS'},
+    {id:'25cre24ez',name:'25-CRE24EZ (pallet handling live roller)',k:'mdr',pitch:101.6,pitches:inch([3,4,5,6]),zone:812.8,src:'hyCRE'},
+    {id:'190lrc',name:'190-LRC (live roller curve)',k:'rcurve',w:inch([16,18,20,22,24]),dw:inch([24])[0],R:inch([24,32.5,48]),angs:[30,45,60,90],pitch:76.2,src:'hyLRC'},
+    {id:'25lrez',name:'25-LREZ (live roller accumulation)',k:'mdr',mot:false,pitch:76.2,pitches:inch([3,4,6]),zone:1524,src:'hyLREZ'},
+    {id:'ta',name:'TA (slider bed belt)',k:'belt',src:'hyTA'},
+    {id:'sbc',name:'SBC (90 degree belt curve)',k:'bcurve',angs:[90],src:'hySBC'}]},
+  {id:'dorner',name:'Dorner',models:[
+    {id:'2200',name:'2200 Series (belt)',k:'belt',wr:[44,610],dw:152,lr:[457,5486],src:'do2200'},
+    {id:'2200xl',name:'2200 XL Series (belt)',k:'belt',w:[660,711,762,813,864,914],dw:660,lr:[650,3500],src:'do2200xl'},
+    {id:'3200',name:'3200 Series iDrive (belt)',k:'belt',wr:[152,610],dw:305,lr:[914,3658],src:'do3200'},
+    {id:'3200arb',name:'3200 Series with Intralox ARB',k:'arb',wr:[203,1524,51],dw:610,lr:[914,null],src:'doArb'},
+    {id:'2200pm',name:'2200 Precision Move pallet conveyor',k:'pallet',w:[160,240,320,400,480],dw:320,lr:[null,7500],src:'doPM'},
+    {id:'2200pmll',name:'2200 Precision Move lift and locate',k:'lift',w:[160,240,320,400,480],dw:320,src:'doPM'},
+    {id:'2200pmc',name:'2200 Precision Move 90 degree corner',k:'pcorner',w:[160,240,320,400,480],dw:320,src:'doPM'}]},
+  {id:'intralox',name:'Intralox',models:[
+    {id:'arbsort',name:'ARB sorter',k:'arb',src:'inArb'},
+    {id:'arbswitch',name:'ARB switch',k:'arb',src:'inArb'},
+    {id:'arbmerge',name:'ARB merge',k:'arb',ra:30,src:'inArb'},
+    {id:'arbturn',name:'ARB turner divider',k:'arb',src:'inArb'},
+    {id:'arb90',name:'ARB 90-degree transfer',k:'rat',src:'inArb'}]}
+];
+const KEY_CVV='linework.cvvendors';
+function cvLocalVendors(){ try{ const a=JSON.parse(store.get(KEY_CVV)||'[]'); return Array.isArray(a)?sanCvVendors(a):[]; }catch(e){ return []; } }
+function cvSaveLocal(list){ try{ store.set(KEY_CVV,JSON.stringify(list)); }catch(e){} }
+// User vendors: the diagram's own list plus the ones remembered in this browser, merged by id.
+function cvUserVendors(){ const out=[], seen=new Set(); for(const v of (S.doc&&S.doc.cvVendors||[]).concat(cvLocalVendors())) if(!seen.has(v.id)){ seen.add(v.id); out.push(v); } return out; }
+function cvVendors(){ return CV_VENDORS_BUILTIN.concat(cvUserVendors()); }
+function cvModel(cv){ if(!cv||!cv.v) return null; const V=cvVendors().find(v=>v.id===cv.v); return V&&V.models.find(m=>m.id===cv.m)||null; }
+function sanCvVendors(a){
+  const num0=v=>Number.isFinite(+v)&&+v>0?Math.round(+v*10)/10:undefined;
+  return (Array.isArray(a)?a:[]).slice(0,40).filter(v=>v&&typeof v==='object').map(v=>({id:sid(v.id)||uid(),name:str(v.name).trim().slice(0,60)||'Vendor',user:true,
+    models:(Array.isArray(v.models)?v.models:[]).slice(0,200).filter(m=>m&&typeof m==='object').map(m=>({id:sid(m.id)||uid(),name:str(m.name).trim().slice(0,80)||'Model',k:CV_KINDS[m.k]?m.k:'belt',
+      w:Array.isArray(m.w)?m.w.map(num0).filter(Boolean).slice(0,30):undefined,dw:num0(m.dw),pitch:num0(m.pitch),zone:num0(m.zone),R:Array.isArray(m.R)?m.R.map(num0).filter(Boolean).slice(0,10):undefined,
+      note:str(m.note).slice(0,300)||undefined}))}));
+}
+function sanCv(c){
+  if(!c||typeof c!=='object'||!CV_KINDS[c.k]) return undefined;
+  const n=(v,lo,hi)=>Number.isFinite(+v)?clamp(+v,lo,hi):undefined, o={k:c.k};
+  if(typeof c.v==='string') o.v=c.v.slice(0,64); if(typeof c.m==='string') o.m=c.m.slice(0,64);
+  for(const [k,lo,hi] of [['W',10,20000],['R',0,50000],['ang',5,180],['pitch',10,1000],['zone',50,20000],['pal',20,5000],['ra',10,80],['n',1,8]]){ const v=n(c[k],lo,hi); if(v!=null) o[k]=v; }
+  if(c.mot===false) o.mot=false;
+  return o;
+}
+// Curves: annular sector in mm, centre at the origin, from 0 to ang degrees, screen coordinates (y down).
+function cvCurvePts(cv){
+  const Ri=cv.R!=null?cv.R:CV_KINDS[cv.k].R, W=cv.W||CV_KINDS[cv.k].W, a=(cv.ang||90)*Math.PI/180, Ro=Ri+W, n=Math.max(6,Math.ceil((cv.ang||90)/4)), out=[], inn=[];
+  for(let i=0;i<=n;i++){ const t=a*i/n; out.push([Ro*Math.cos(t),-Ro*Math.sin(t)]); inn.push([Ri*Math.cos(t),-Ri*Math.sin(t)]); }
+  const all=out.concat(inn); let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity; for(const p of all){ x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); }
+  return {Ri,Ro,W,a,out,inn,bb:{x0,y0,w:Math.max(1,x1-x0),h:Math.max(1,y1-y0)}};
+}
+function cvSizeMm(cv,L){ const K=CV_KINDS[cv.k]; if(K.curve){ const c=cvCurvePts(cv); return {w:c.bb.w,h:c.bb.h}; } return {w:L||K.L,h:cv.W||K.W}; }
+function cvMmpx(it,w){ if(it&&it.mmpx>0) return it.mmpx; const cv=it&&it.cv; return cv?(cvSizeMm(cv).w/(w||100)):10; }
+const chev=(x,y,s,ang)=>{ const c=Math.cos(ang), sn=Math.sin(ang), P=(dx,dy)=>[x+dx*c-dy*sn,y+dx*sn+dy*c]; return PL(P(-s*.5,-s),P(s*.5,0),P(-s*.5,s)); };
+function conveyorGeom(type,w,h,st,it){
+  const k=type.slice(3), K=CV_KINDS[k]||CV_KINDS.belt, cv=Object.assign({k},K,(it&&it.cv)||{}), m=cvMmpx(Object.assign({},it,{cv}),w), px=v=>v/m;
+  const decor=[], D=(d,f,o)=>decor.push(Object.assign({d,f:f||'none',dash:false},o||{})), cap={n:0}, lim=()=>++cap.n<=1600;
+  const flow=(y0,y1)=>{ const s=Math.max(3,Math.min((y1-y0)*0.18,14)), gap=Math.max(s*5,60); for(let x=gap/2;x<w-s;x+=gap) if(lim()) D(chev(x,(y0+y1)/2,s,0)); };
+  const tf=Math.min(px(Math.min(60,(cv.W||K.W)*0.07)),h*0.2); let d=roundRect(w,h,0), tb={x:0,y:0,w,h};
+  const rollers=(x0,x1,y0,y1,clipY)=>{ const p=px(cv.pitch||76.2); if(!(p>0)) return; const step=p*Math.max(1,Math.ceil(2.5/p)); for(let x=x0+step/2;x<x1;x+=step){ if(!lim()) break; const yy=clipY?Math.min(y1,clipY(x)):y1; if(yy>y0) D(PL([x,y0],[x,yy])); } };
+  switch(k){
+    case 'belt': D(PL([0,tf],[w,tf])+PL([0,h-tf],[w,h-tf])); D(PL([tf,tf],[tf,h-tf])+PL([w-tf,tf],[w-tf,h-tf])); flow(tf,h-tf); break;
+    case 'roller': case 'mdr': {
+      D(PL([0,tf],[w,tf])+PL([0,h-tf],[w,h-tf])); rollers(0,w,tf,h-tf);
+      if(k==='mdr'){ const z=px(cv.zone||610); if(z>4) for(let x=z;x<w-1;x+=z){ if(lim()) D(PL([x,0],[x,h]),'none',{dash:true}); }
+        if(cv.mot!==false&&z>4){ const mw=Math.max(1.5,px(48)); for(let x=z/2;x<w;x+=z) if(lim()) D(`M${r2(x-mw/2)} ${r2(tf)}H${r2(x+mw/2)}V${r2(h-tf)}H${r2(x-mw/2)}Z`,'stroke'); } }
+      flow(tf,h-tf); break; }
+    case 'spur': {
+      const a=(cv.ang||45)*Math.PI/180, off=Math.min(w*0.95,h/Math.tan(a)); d=poly([[0,0],[w,0],[w-off,h],[0,h]]);
+      const xr=y=>w-y/Math.tan(a); D(PL([0,tf],[xr(tf),tf])+PL([0,h-tf],[Math.max(0,xr(h-tf)),h-tf])); rollers(0,w,tf,h-tf,x=>(w-x)*Math.tan(a)); flow(tf,h-tf); break; }
+    case 'rat': { D(PL([0,tf],[w,tf])+PL([0,h-tf],[w,h-tf])); rollers(0,w,tf,h-tf); const sw=Math.max(2,w*0.04);
+      for(const f of [0.25,0.5,0.75]){ const x=w*f; D(`M${r2(x-sw/2)} ${r2(tf)}H${r2(x+sw/2)}V${r2(h-tf)}H${r2(x-sw/2)}Z`,'fill',{dash:true}); }
+      const s=Math.min(w,h)*0.07; D(chev(w*0.88,h/2,s,0)); D(chev(w/2,h*0.12,s,-Math.PI/2)); break; }
+    case 'turn': { const r=Math.min(w,h)/2*0.92, cx=w/2, cy=h/2; D(circ(cx,cy,r),'fill'); const p=px(cv.pitch||76.2), step=p*Math.max(1,Math.ceil(2.5/p));
+      for(let x=-r+step/2;x<r;x+=step){ if(!lim()) break; const hh=Math.sqrt(Math.max(0,r*r-x*x))*0.96; D(PL([cx+x,cy-hh],[cx+x,cy+hh])); }
+      const ra=r*1.04, a0=-2.2, a1=-0.9; D(`M${r2(cx+ra*Math.cos(a0))} ${r2(cy+ra*Math.sin(a0))}A${r2(ra)} ${r2(ra)} 0 0 1 ${r2(cx+ra*Math.cos(a1))} ${r2(cy+ra*Math.sin(a1))}`); D(chev(cx+ra*Math.cos(a1),cy+ra*Math.sin(a1),Math.max(2,r*0.08),a1+Math.PI/2)); break; }
+    case 'arb': { D(PL([0,tf],[w,tf])+PL([0,h-tf],[w,h-tf])); const g=Math.max(px(102),6), t=Math.max(1.5,g*0.32), ra=(cv.ra||45)*Math.PI/180;
+      for(let x=g/2;x<w;x+=g) for(let y=tf+g/2;y<h-tf;y+=g){ if(!lim()) break; D(PL([x-t*Math.cos(ra),y+t*Math.sin(ra)],[x+t*Math.cos(ra),y-t*Math.sin(ra)])); } flow(tf,h-tf); break; }
+    case 'pallet': case 'lift': case 'pcorner': {
+      const sw=Math.max(2,h*0.09), pal=px(cv.pal||K.pal||320), ph=Math.min(h*0.92,pal), pw=pal;
+      const strand=y=>D(`M0 ${r2(y)}H${r2(w)}V${r2(y+sw)}H0Z`,'stroke',{op:0.25});
+      strand(h*0.06); strand(h*0.94-sw);
+      if(k==='pallet'){ for(let x=pw*0.3;x+pw<=w;x+=pw*1.6) if(lim()) D(`M${r2(x)} ${r2((h-ph)/2)}h${r2(pw)}v${r2(ph)}h${r2(-pw)}Z`,'none',{dash:true}); flow(sw,h-sw); }
+      if(k==='lift'){ const x0=(w-pw)/2; D(`M${r2(x0)} ${r2((h-ph)/2)}h${r2(pw)}v${r2(ph)}h${r2(-pw)}Z`,'none',{dash:true}); const pr=Math.max(1.5,Math.min(pw,ph)*0.05);
+        D(circ(x0+pw*0.15,(h-ph)/2+ph*0.15,pr)+circ(x0+pw*0.85,(h-ph)/2+ph*0.85,pr),'stroke'); D(`M${r2(w*0.93)} ${r2(h*0.25)}h${r2(Math.max(2,w*0.025))}v${r2(h*0.5)}h${r2(-Math.max(2,w*0.025))}Z`,'stroke'); }
+      if(k==='pcorner'){ const s2=Math.max(2,w*0.09); D(`M${r2(w*0.06)} 0H${r2(w*0.06+s2)}V${r2(h)}H${r2(w*0.06)}Z`,'stroke',{op:0.25,dash:true}); D(`M${r2(w*0.94-s2)} 0H${r2(w*0.94)}V${r2(h)}H${r2(w*0.94-s2)}Z`,'stroke',{op:0.25,dash:true});
+        const r=Math.min(w,h)*0.32; D(`M${r2(w*0.18)} ${r2(h/2)}A${r2(r)} ${r2(r)} 0 0 0 ${r2(w/2)} ${r2(h/2-r)}`); D(chev(w/2,h/2-r,Math.max(2,r*0.18),-Math.PI/2)); }
+      break; }
+    case 'chain': { const n=Math.round(cv.n||3), sw=Math.max(1.5,h*0.035), lk=px(100); for(let i=0;i<n;i++){ const y=h*(i+0.5)/n; D(`M0 ${r2(y-sw/2)}H${r2(w)}V${r2(y+sw/2)}H0Z`,'fill');
+        if(lk>3) for(let x=lk;x<w;x+=lk){ if(!lim()) break; D(PL([x,y-sw/2],[x,y+sw/2])); } } D(PL([0,0],[w,0])+PL([0,h],[w,h])); flow(0,h); break; }
+    case 'bcurve': case 'rcurve': {
+      const c=cvCurvePts(cv), X=p=>[(p[0]-c.bb.x0)/c.bb.w*w,(p[1]-c.bb.y0)/c.bb.h*h];
+      d=poly(c.out.map(X).concat(c.inn.slice().reverse().map(X)));
+      const tmm=Math.min(60,c.W*0.07), arc=r=>{ const n=Math.max(6,Math.ceil((cv.ang||90)/4)), pts=[]; for(let i=0;i<=n;i++){ const t=c.a*i/n; pts.push(X([r*Math.cos(t),-r*Math.sin(t)])); } return PL(...pts); };
+      D(arc(c.Ri+tmm)+arc(c.Ro-tmm));
+      if(k==='rcurve'){ const rm=c.Ri+c.W/2, dt=(cv.pitch||76.2)/rm, pxs=(cv.pitch||76.2)/m, stepK=Math.max(1,Math.ceil(2.5/pxs));
+        for(let t=dt*stepK/2;t<c.a;t+=dt*stepK){ if(!lim()) break; D(PL(X([(c.Ri+tmm)*Math.cos(t),-(c.Ri+tmm)*Math.sin(t)]),X([(c.Ro-tmm)*Math.cos(t),-(c.Ro-tmm)*Math.sin(t)]))); } }
+      const rm=c.Ri+c.W/2, s=Math.max(3,Math.min(c.W/m*0.18,14)); for(let t=c.a*0.2;t<c.a;t+=c.a*0.3){ const p=X([rm*Math.cos(t),-rm*Math.sin(t)]); if(lim()) D(chev(p[0],p[1],s,Math.atan2(-Math.cos(t),-Math.sin(t)))); }
+      tb={x:w*0.2,y:h*0.2,w:w*0.6,h:h*0.6}; break; }
+  }
+  return {d,decor,tb,label:false,hit:false,ports:null};
+}
+function cvDefaults(k,model){
+  const K=CV_KINDS[k], cv={k}; for(const p of ['W','R','ang','pitch','zone','pal','ra','n']) if(K[p]!=null) cv[p]=K[p];
+  let L=K.L;
+  if(model){ if(model.dw) cv.W=model.dw; else if(model.w&&model.w.length) cv.W=model.w[0];
+    if(model.R&&model.R.length) cv.R=model.R[0]; if(model.angs&&model.angs.length) cv.ang=model.angs[model.angs.length-1];
+    for(const p of ['pitch','zone','ra']) if(model[p]) cv[p]=model[p]; if(model.mot===false) cv.mot=false;
+    if(model.lens&&model.lens.length) L=model.lens[model.lens.length-1]; else if(model.lr){ const lo=model.lr[0]||0, hi=model.lr[1]||Infinity; L=clamp(L,lo,hi); }
+    if(k==='pallet'||k==='lift'||k==='pcorner') cv.pal=cv.W; if(k==='lift'||k==='pcorner') L=cv.W*(k==='lift'?2:1); }
+  return {cv,L};
+}
+function buildConveyorLib(){
+  const sty={fill:'#f4f6f8',stroke:'#1f2430',fontSize:11,valign:'middle'};
+  const item=(key,name,k,model,vid)=>{ const {cv,L}=cvDefaults(k,model); if(vid){ cv.v=vid; cv.m=model.id; } const sz=cvSizeMm(cv,L), sc=Math.max(sz.w,sz.h)/120;
+    return {key,name,type:'cv_'+k,w:r2(sz.w/sc),h:r2(Math.max(14,sz.h/sc)),text:'',cvL:L,props:{cv},style:Object.assign({},sty)}; };
+  LIB.push({cat:'Conveyors (plan view, to scale)',items:Object.keys(CV_KINDS).map(k=>item('cv_'+k,CV_KINDS[k].n+' (generic)',k,null,null))});
+  for(const V of CV_VENDORS_BUILTIN) LIB.push({cat:'Conveyors: '+V.name,closed:true,items:V.models.map(m=>item('cvm_'+V.id+'_'+m.id,V.name+' '+m.name,m.k,m,V.id))});
+  GEOM_TYPES.push(...CV_TYPES);
+}
+// Place a conveyor at real size: the library tile is only a preview.
+function placeConveyor(key,x,y,rot){
+  const def=LIB_MAP[key], mm=ensureScale(), cv=JSON.parse(JSON.stringify(def.props.cv)), sz=cvSizeMm(cv,def.cvL);
+  const s=addShape(key,x,y,{cv,mmpx:mm}); s.w=r2(sz.w/mm); s.h=r2(sz.h/mm); s.x=r2(x-s.w/2); s.y=r2(y-s.h/2);
+  const turns=Math.round(((rot==null?S.prefs.placeRot:rot)||0)/90); if(turns%4) rotateShapes([s],turns);
+  commit(); invalidate(); return s;
+}
+// Change one conveyor parameter, keeping the item centred and at real size.
+function setCv(s,patch){
+  if(!s||!s.cv) return false; const m=s.mmpx>0?s.mmpx:ensureScale(); if(!(s.mmpx>0)) s.mmpx=m;
+  const L=s.w*m, cx=s.x+s.w/2, cy=s.y+s.h/2; let newL=L;
+  if(patch.L!=null){ newL=+patch.L; delete patch.L; }
+  if(patch.k&&patch.k!==s.cv.k){ const d0=cvDefaults(patch.k,null).cv; s.cv=Object.assign(d0,{W:s.cv.W||d0.W}); s.type='cv_'+patch.k; delete patch.k; if(!CV_KINDS[s.cv.k].curve&&CV_KINDS[s.cv.k].L) newL=CV_KINDS[s.cv.k].L; }
+  if(patch.model!==undefined){ const [vid,mid]=String(patch.model).split('/'); delete patch.model;
+    if(!vid){ delete s.cv.v; delete s.cv.m; }
+    else { const V=cvVendors().find(v=>v.id===vid), M=V&&V.models.find(q=>q.id===mid); if(M){ const dd=cvDefaults(M.k,M); s.cv=Object.assign(dd.cv,{v:vid,m:mid}); s.type='cv_'+M.k; if(!CV_KINDS[M.k].curve) newL=dd.L; } } }
+  Object.assign(s.cv,patch); for(const k in s.cv) if(s.cv[k]===''||s.cv[k]==null) delete s.cv[k];
+  const sz=cvSizeMm(s.cv,newL); s.w=r2(sz.w/m); s.h=r2(sz.h/m); s.x=r2(cx-s.w/2); s.y=r2(cy-s.h/2); return true;
+}
+function cvRange(M,key){ const r=M&&M[key]; if(!r) return ''; return (r[0]!=null?Math.round(r[0])+' mm':'')+(r[1]!=null?' to '+Math.round(r[1])+' mm':' and up')+(r[2]?' in '+r[2]+' mm steps':''); }
+function conveyorSection(s){
+  const cv=s.cv, K=CV_KINDS[cv.k], M=cvModel(cv), V=M?cvVendors().find(v=>v.id===cv.v):null, src=M&&CV_SRC[M.src], rs=realSize(s), opts=[['/','Generic (sizes you set)']];
+  for(const v of cvVendors()) for(const m of v.models) opts.push([v.id+'/'+m.id,v.name+' '+m.name+(v.user?' (yours)':'')]);
+  const lenRow=!K.curve&&rs?row('Length',numIn('cvL',Math.round(rs.L),10,200000,1,'Length in mm'),el('span',{class:'muted small',text:'mm, '+(rs.L/25.4).toFixed(1)+' in'})):null;
+  const wList=M&&M.w&&M.w.length?M.w:null;
+  const wRow=row('Width',wList?selIn('cvW',String(cv.W),wList.map(v=>[String(v),fmtLen(v)]).concat(wList.includes(cv.W)?[]:[[String(cv.W),fmtLen(cv.W)+' (custom)']]),'Width'):numIn('cvW',Math.round(cv.W||K.W),10,20000,1,'Width in mm'),
+    wList?null:el('span',{class:'muted small',text:'mm, '+((cv.W||K.W)/25.4).toFixed(1)+' in'}));
+  return section('Conveyor',
+    row('Type',selIn('cvK',cv.k,Object.keys(CV_KINDS).map(k=>[k,CV_KINDS[k].n]),'Conveyor type')),
+    row('Vendor and model',selIn('cvModel',M?cv.v+'/'+cv.m:'/',opts,'Vendor and model')),
+    lenRow,wRow,
+    K.curve?row('Angle',selIn('cvAng',String(cv.ang||90),(M&&M.angs||[30,45,60,90,180]).map(a=>[String(a),a+'°']),'Curve angle')):null,
+    K.curve?row('Inside radius',M&&M.R&&M.R.length?selIn('cvR',String(cv.R),M.R.map(v=>[String(v),fmtLen(v)]).concat(M.R.includes(cv.R)?[]:[[String(cv.R),fmtLen(cv.R)+' (custom)']]),'Inside radius'):numIn('cvR',Math.round(cv.R),0,50000,1,'Inside radius in mm'),M&&M.R?null:el('span',{class:'muted small',text:'mm'})):null,
+    cv.k==='spur'?row('Angle',selIn('cvAng',String(cv.ang||45),(M&&M.angs||[30,45,60]).map(a=>[String(a),a+'°']),'Spur angle')):null,
+    ['roller','mdr','rcurve','spur','rat','turn'].includes(cv.k)?row('Roller centers',M&&M.pitches?selIn('cvPitch',String(cv.pitch),M.pitches.map(v=>[String(v),fmtLen(v)]),'Roller centers'):numIn('cvPitch',r2(cv.pitch||76.2),10,1000,0.1,'Roller centers in mm'),M&&M.pitches?null:el('span',{class:'muted small',text:'mm'})):null,
+    cv.k==='mdr'?row('Zone length',numIn('cvZone',Math.round(cv.zone||610),50,20000,1,'Zone length in mm'),el('span',{class:'muted small',text:'mm'})):null,
+    cv.k==='mdr'?row('Motor rollers',chk('cvMot',cv.mot!==false,'Show one per zone')):null,
+    ['pallet','lift','pcorner'].includes(cv.k)?row('Pallet size',numIn('cvPal',Math.round(cv.pal||320),20,5000,1,'Pallet size in mm'),el('span',{class:'muted small',text:'mm'})):null,
+    cv.k==='arb'?row('Roller angle',selIn('cvRa',String(cv.ra||45),[['30','30°'],['45','45°']],'ARB roller angle')):null,
+    cv.k==='chain'?row('Strands',numIn('cvN',cv.n||3,1,8,1,'Chain strands')):null,
+    rs?el('p',{class:'small',style:{margin:'4px 0'},text:'Real size: '+fmtLen(rs.L)+' by '+fmtLen(rs.W)+' at 1:'+(pgScale()||Math.round(s.mmpx/MM_PX))+'.'}):null,
+    M?el('div',{class:'soon-row',style:{margin:'6px 0'}},el('span',{text:V.name+(V.user?', your entry':'')}),el('span',{class:'soon',style:src&&src.v?{background:'var(--accent-2)',color:'var(--accent)'}:null,text:src?(src.v?'Sizes verified':'Unverified'):'Your data'})):null,
+    M&&(M.wr||M.lr)?el('p',{class:'muted small',text:(M.wr?'Width range: '+cvRange(M,'wr')+'. ':'')+(M.lr?'Length range: '+cvRange(M,'lr')+'.':'')}):null,
+    src?el('p',{class:'muted small',text:'Source: '+src.doc+'. Section: '+src.sec+'. Quote: "'+src.q+'"'}):null,
+    src&&src.note?el('p',{class:'muted small',text:src.note}):null, M&&M.note?el('p',{class:'muted small',text:M.note}):null,
+    !M?el('p',{class:'muted small',text:'Generic conveyor: every size is yours to set. Flow runs left to right as drawn; rotate or flip the shape to change direction.'}):null,
+    el('div',{class:'find-row',style:{flexWrap:'wrap',marginTop:'4px'}},el('button',{type:'button',class:'btn','data-cmd':'cv:vendors',text:'Manage vendors...'})));
+}
+function applyCvProp(prop,v,final){
+  const map={cvK:'k',cvModel:'model',cvL:'L',cvW:'W',cvAng:'ang',cvR:'R',cvPitch:'pitch',cvZone:'zone',cvPal:'pal',cvRa:'ra',cvN:'n',cvMot:'mot'};
+  if(!(prop in map)) return false; if(!final&&prop!=='cvMot') return true;
+  const s=unlockedSel().filter(i=>isShape(i)&&i.cv)[0]; if(!s) return true;
+  const key=map[prop]; let val=v;
+  if(['L','W','ang','R','pitch','zone','pal','ra','n'].includes(key)){ val=+v; if(!Number.isFinite(val)||val<=0&&key!=='R'){ toast('Enter a number greater than zero.'); invalidate({props:true}); return true; } }
+  if(key==='mot') val=v?undefined:false;
+  if(setCv(s,{[key]:val})){ if(key==='mot'&&v) delete s.cv.mot; commit(); invalidate(); }
+  return true;
+}
+function showCvVendors(){
+  const list=cvUserVendors().map(v=>JSON.parse(JSON.stringify(v)));
+  const box=el('div',{class:'cvv'}), msg=el('p',{class:'muted small'});
+  const draw=()=>{ box.textContent='';
+    if(!list.length) box.appendChild(el('p',{class:'muted small',text:'No vendors of your own yet. Hytrol, Dorner and Intralox are built in.'}));
+    list.forEach((V,vi)=>{ box.appendChild(el('div',{class:'cvv-v'},el('div',{class:'find-row'},el('input',{type:'text',value:V.name,'data-cvv':'vname:'+vi,'aria-label':'Vendor name',maxlength:60}),el('button',{type:'button',class:'btn','data-cvv':'madd:'+vi,text:'Add model'}),el('button',{type:'button',class:'btn','data-cvv':'vdel:'+vi,text:'Delete vendor'})),
+      V.models.map((M,mi)=>el('div',{class:'cvv-m'},
+        el('input',{type:'text',value:M.name,'data-cvv':'mname:'+vi+':'+mi,'aria-label':'Model name',maxlength:80,placeholder:'Model name'}),
+        (()=>{ const s=el('select',{'data-cvv':'mk:'+vi+':'+mi,'aria-label':'Conveyor type'},Object.keys(CV_KINDS).map(k=>el('option',{value:k,text:CV_KINDS[k].n}))); s.value=M.k; return s; })(),
+        el('input',{type:'text',value:(M.w||[]).map(x=>Math.round(x)).join(', '),'data-cvv':'mw:'+vi+':'+mi,'aria-label':'Standard widths','placeholder':'Widths in mm, or 18in, 24in'}),
+        el('input',{type:'text',value:M.pitch?String(M.pitch):'','data-cvv':'mp:'+vi+':'+mi,'aria-label':'Roller centers','placeholder':'Roller centers mm'}),
+        el('input',{type:'text',value:M.R&&M.R.length?M.R.map(x=>Math.round(x)).join(', '):'','data-cvv':'mr:'+vi+':'+mi,'aria-label':'Curve inside radii','placeholder':'Curve radii mm'}),
+        el('input',{type:'text',value:M.note||'','data-cvv':'mn:'+vi+':'+mi,'aria-label':'Note or source','placeholder':'Note or source'}),
+        el('button',{type:'button',class:'btn','data-cvv':'mdel:'+vi+':'+mi,text:'Remove'}))))); });
+  };
+  const parseLens=t=>String(t).split(/[,;]+/).map(x=>x.trim()).filter(Boolean).map(x=>{ const m=/^([\d.]+)\s*(in|"|inch|inches|mm)?$/i.exec(x); if(!m) return NaN; const n=+m[1]; return m[2]&&!/mm/i.test(m[2])?n*25.4:n; });
+  draw();
+  openModal('Conveyor vendors',el('p',{class:'muted small',text:'Add your own vendors and models. Widths and radii take mm, or inches with in or ". Saved in this diagram, and remembered in this browser for new diagrams.'}),
+    el('div',{class:'find-row'},el('button',{type:'button',class:'btn','data-cvv':'vadd',text:'Add vendor'})),box,msg,
+    el('div',{class:'modal-actions'},el('button',{type:'button',class:'btn','data-close':'btn',text:'Cancel'}),el('button',{type:'button',class:'btn primary','data-cvv':'save',text:'Save'})));
+  const root=modalEl;
+  root.addEventListener('input',e=>{ const a=e.target.getAttribute('data-cvv'); if(!a) return; const p=a.split(':'), V=list[+p[1]], M=V&&V.models[+p[2]], t=e.target.value;
+    if(p[0]==='vname') V.name=t; else if(!M) return; else if(p[0]==='mname') M.name=t; else if(p[0]==='mk') M.k=t; else if(p[0]==='mn') M.note=t;
+    else if(p[0]==='mw'){ M._w=t; } else if(p[0]==='mp'){ M._p=t; } else if(p[0]==='mr'){ M._r=t; } });
+  root.addEventListener('change',e=>{ const a=e.target.getAttribute('data-cvv'); if(a&&a.startsWith('mk:')){ const p=a.split(':'); list[+p[1]].models[+p[2]].k=e.target.value; } });
+  root.addEventListener('click',e=>{ const b=e.target.closest('[data-cvv]'); if(!b||b.tagName!=='BUTTON') return; const p=b.getAttribute('data-cvv').split(':');
+    if(p[0]==='vadd'){ list.push({id:uid(),name:'New vendor',user:true,models:[]}); draw(); }
+    else if(p[0]==='vdel'){ list.splice(+p[1],1); draw(); }
+    else if(p[0]==='madd'){ list[+p[1]].models.push({id:uid(),name:'New model',k:'belt'}); draw(); }
+    else if(p[0]==='mdel'){ list[+p[1]].models.splice(+p[2],1); draw(); }
+    else if(p[0]==='save'){
+      for(const V of list) for(const M of V.models){
+        if(M._w!=null){ const a=parseLens(M._w); if(a.some(x=>!(x>0))){ msg.textContent='Check the widths for '+M.name+': use numbers in mm, or inches like 24in.'; msg.className='small io-err'; return; } M.w=a; M.dw=a[0]; delete M._w; }
+        if(M._p!=null){ const a=parseLens(M._p); M.pitch=a[0]>0?a[0]:undefined; delete M._p; }
+        if(M._r!=null){ const a=parseLens(M._r); if(a.some(x=>!(x>0))){ msg.textContent='Check the curve radii for '+M.name+'.'; msg.className='small io-err'; return; } M.R=a; delete M._r; } }
+      const clean=sanCvVendors(list); S.doc.cvVendors=clean; if(!clean.length) delete S.doc.cvVendors; cvSaveLocal(clean);
+      closeModal(); commit(); invalidate(); toast('Conveyor vendors saved.'); } });
+}
+
+/* ---------------- robot plan views and plan-view CAD ---------------- */
+// Plan-view CAD per robot model: S.doc.cadPlans[card key] = {a: asset id, bb: [x, y, w, h] mm in the
+// drawing's own coordinates (y down), ox, oy: robot centre (J1 axis) in those coordinates, rot: degrees}.
+const KEY_CADLIB='linework.cadlib';
+function cadLib(){ try{ const o=JSON.parse(store.get(KEY_CADLIB)||'{}'); return o&&typeof o==='object'?o:{}; }catch(e){ return {}; } }
+function saveCadLib(o){ if(!store.set(KEY_CADLIB,JSON.stringify(o))){ toast('Could not remember the drawing in this browser (storage is blocked or full). It is still saved in this diagram.'); } }
+function sanCad(c){ if(!c||typeof c!=='object'||typeof c.a!=='string'||!Array.isArray(c.bb)||c.bb.length!==4||!c.bb.every(Number.isFinite)) return null;
+  return {a:c.a.slice(0,64),bb:c.bb.map(Number),ox:Number.isFinite(+c.ox)?+c.ox:c.bb[0]+c.bb[2]/2,oy:Number.isFinite(+c.oy)?+c.oy:c.bb[1]+c.bb[3]/2,rot:[0,90,180,270].includes(+c.rot)?+c.rot:0,name:str(c.name).slice(0,120),org:c.org==='center'?'center':'origin',z:c.z===true}; }
+function sanCadPlans(d){ if(!d.cadPlans||typeof d.cadPlans!=='object') return {}; const o={}; let n=0;
+  for(const k in d.cadPlans){ if(n>=300) break; if(!RA_DEV[k]||!RA_DEV[k].robot) continue; const c=sanCad(d.cadPlans[k]); if(c){ o[k]=c; n++; } } return n?{cadPlans:o}:{}; }
+function planKey(card){ return 'rbp_'+card.slice(3); }
+function cardKey(t){ return t.startsWith('rbp_')?'rb_'+t.slice(4):t; }
+function robotReach(R){ const v=parseFloat(String(R.reach==null?'':R.reach)); return Number.isFinite(v)&&v>0?v:null; }
+function cadOf(cardK){ const c=S.doc&&S.doc.cadPlans&&S.doc.cadPlans[cardK]; return c&&ASSETS.get(c.a)?c:null; }
+function cadExtent(c){ const xs=[c.bb[0],c.bb[0]+c.bb[2]], ys=[c.bb[1],c.bb[1]+c.bb[3]]; let r=0; for(const x of xs) for(const y of ys) r=Math.max(r,Math.hypot(x-c.ox,y-c.oy)); return r; }
+function planRadius(def){ const R=robotReach(def.robot); if(R) return R; const c=cadOf(def.base); return c?cadExtent(c):1000; }
+function planLayout(def,w,h){ return [{p:def.ports[0],x:w/2,y:h/2+w*0.075,side:'S'}]; }
+function robotPlanGeom(def,w,h){
+  const R=def.robot, Rmm=planRadius(def), cx=w/2, cy=h/2, r=w/2, k=w/(2*Rmm), decor=[], glyphs=[], D=(d,f,o)=>decor.push(Object.assign({d,f:f||'none',dash:false},o||{}));
+  const cad=cadOf(def.base), reach=robotReach(R);
+  D(PL([0,cy],[w,cy])+PL([cx,0],[cx,h]),'none',{dash:true});
+  if(!cad){ const b=w*0.075, tr=w*0.05;
+    D(`M${r2(cx-b)} ${r2(cy-b)}H${r2(cx+b)}V${r2(cy+b)}H${r2(cx-b)}Z`,'fill',{pg:true}); D(circ(cx,cy,tr),'fill',{pg:true});
+    const aw=w*0.035, ax=cx+r*0.78; D(`M${r2(cx)} ${r2(cy-aw)}H${r2(ax)}V${r2(cy+aw)}H${r2(cx)}Z`,'fill',{pg:true}); D(circ(ax,cy,aw*1.3),'fill',{pg:true}); D(PL([ax+aw*1.3,cy],[ax+aw*3,cy]),'none',{pg:true}); }
+  const t=0.6, ex=cx+r*Math.cos(t), ey=cy+r*Math.sin(t); D(PL([cx,cy],[ex,ey]));
+  const fs=clamp(w*0.035,6,13);
+  glyphs.push({t:reach?'R '+Math.round(reach):'Reach not found',x:cx+r*0.62*Math.cos(t)+fs*1.2,y:cy+r*0.62*Math.sin(t)+fs*0.2,s:fs});
+  glyphs.push({t:'0°',x:w-fs*1.4,y:cy-fs*0.9,s:fs});
+  const out={d:circ(cx,cy,r),decor,glyphs,tb:{x:w*0.22,y:cy+w*0.12,w:w*0.56,h:Math.max(10,w*0.1)},label:false,hit:false,ports:null,dashBody:true};
+  if(cad) out.img={a:cad.a,x:cx+(cad.bb[0]-cad.ox)*k,y:cy+(cad.bb[1]-cad.oy)*k,w:cad.bb[2]*k,h:cad.bb[3]*k,tf:cad.rot?'rotate('+cad.rot+' '+r2(cx)+' '+r2(cy)+')':null};
+  return out;
+}
+function setRobotView(s,view){
+  const ck=cardKey(s.type), dv=RA_DEV[ck]; if(!dv||!dv.robot) return false;
+  const cx=s.x+s.w/2, cy=s.y+s.h/2;
+  if(view==='plan'){ const mm=ensureScale(), pk=planKey(ck), R=planRadius(RA_DEV[pk]); s.type=pk; s.w=s.h=r2(2*R/mm); s.mmpx=mm; s.style.fill='none'; }
+  else { s.type=ck; s.w=RB_W; s.h=RB_H; delete s.mmpx; if(s.style.fill==='none') s.style.fill='#ffffff'; }
+  s.x=r2(cx-s.w/2); s.y=r2(cy-s.h/2); return true;
+}
+// Resize plan robots of a model after its drawing changes (reach not found means the drawing sets the size).
+function refitPlans(ck){ for(const pg of S.doc.pages) for(const it of pg.items) if(it.type===planKey(ck)&&it.mmpx>0){ const cx=it.x+it.w/2, cy=it.y+it.h/2, R=planRadius(RA_DEV[it.type]); it.w=it.h=r2(2*R/it.mmpx); it.x=r2(cx-it.w/2); it.y=r2(cy-it.h/2); } }
+/* DXF reader. Reads LINE, LWPOLYLINE, POLYLINE/VERTEX, CIRCLE, ARC, ELLIPSE, SPLINE and INSERT (blocks,
+   nested up to 4 deep). Everything becomes polylines in mm with y up. $INSUNITS sets the unit; no unit
+   means mm. Text, hatches and dimensions are skipped. */
+function parseDxf(text){
+  const L=String(text).split(/\r?\n/), pairs=[]; for(let i=0;i+1<L.length;i+=2) pairs.push([parseInt(L[i].trim(),10),L[i+1].trim()]);
+  let unit=1; const units={1:25.4,2:304.8,4:1,5:10,6:1000,8:0.0000254,9:0.0254,10:914.4,14:100};
+  for(let i=0;i<pairs.length;i++) if(pairs[i][0]===9&&pairs[i][1]==='$INSUNITS'){ for(let j=i+1;j<i+4&&j<pairs.length;j++) if(pairs[j][0]===70){ unit=units[+pairs[j][1]]||1; break; } break; }
+  // Split into entity records: [type, [[code,val],...]]
+  const ents=[], blocks={}; let sec=null, cur=null, blk=null;
+  for(let i=0;i<pairs.length;i++){ const [c,v]=pairs[i];
+    if(c===0){ if(v==='SECTION'){ sec=(pairs[i+1]&&pairs[i+1][0]===2)?pairs[i+1][1]:null; cur=null; continue; }
+      if(v==='ENDSEC'){ sec=null; cur=null; continue; }
+      if(sec==='BLOCKS'&&v==='BLOCK'){ blk={name:'',bx:0,by:0,ents:[]}; cur=null; let j=i+1; for(;j<pairs.length&&pairs[j][0]!==0;j++){ const [cc,vv]=pairs[j]; if(cc===2) blk.name=vv; if(cc===10) blk.bx=+vv; if(cc===20) blk.by=+vv; } i=j-1; continue; }
+      if(sec==='BLOCKS'&&v==='ENDBLK'){ if(blk&&blk.name) blocks[blk.name]=blk; blk=null; cur=null; continue; }
+      if(sec==='ENTITIES'||(sec==='BLOCKS'&&blk)){ cur={t:v,g:[]}; (blk?blk.ents:ents).push(cur); continue; }
+      cur=null; continue; }
+    if(cur) cur.g.push([c,v]); }
+  const polys=[]; let npts=0; const MAXP=300000;
+  const arcPts=(x,y,r,a0,a1)=>{ while(a1<=a0) a1+=360; const n=Math.max(4,Math.ceil((a1-a0)/6)), out=[]; for(let i=0;i<=n;i++){ const t=(a0+(a1-a0)*i/n)*Math.PI/180; out.push([x+r*Math.cos(t),y+r*Math.sin(t)]); } return out; };
+  const bulge=(p1,p2,b)=>{ if(!b) return [p2]; const th=4*Math.atan(b), dx=p2[0]-p1[0], dy=p2[1]-p1[1], c=Math.hypot(dx,dy); if(!c) return [p2];
+    const r=c/(2*Math.sin(th/2)), mx=(p1[0]+p2[0])/2, my=(p1[1]+p2[1])/2, hd=r*Math.cos(th/2), nx=-dy/c, ny=dx/c, cx=mx+nx*hd, cy=my+ny*hd;
+    const a0=Math.atan2(p1[1]-cy,p1[0]-cx), n=Math.max(2,Math.ceil(Math.abs(th)/(Math.PI/30))), out=[]; for(let i=1;i<=n;i++){ const t=a0+th*i/n; out.push([cx+Math.abs(r)*Math.cos(t)*Math.sign(r),cy+Math.abs(r)*Math.sin(t)*Math.sign(r)]); } out[out.length-1]=p2; return out; };
+  const emit=(pts,M)=>{ if(pts.length<2||npts>MAXP) return; const o=[]; for(const p of pts){ const x=M[0]*p[0]+M[2]*p[1]+M[4], y=M[1]*p[0]+M[3]*p[1]+M[5]; if(Number.isFinite(x)&&Number.isFinite(y)) o.push(x*unit,y*unit); } npts+=o.length/2; if(o.length>=4) polys.push(o); };
+  const mul=(A,B)=>[A[0]*B[0]+A[2]*B[1],A[1]*B[0]+A[3]*B[1],A[0]*B[2]+A[2]*B[3],A[1]*B[2]+A[3]*B[3],A[0]*B[4]+A[2]*B[5]+A[4],A[1]*B[4]+A[3]*B[5]+A[5]];
+  const g1=(e,c,def)=>{ const q=e.g.find(p=>p[0]===c); return q?+q[1]:def; };
+  const walk=(list,M,depth)=>{
+    for(let i=0;i<list.length;i++){ const e=list[i];
+      switch(e.t){
+        case 'LINE': emit([[g1(e,10,0),g1(e,20,0)],[g1(e,11,0),g1(e,21,0)]],M); break;
+        case 'LWPOLYLINE': { const pts=[], bs=[]; let closed=(g1(e,70,0)&1)===1, cx=null; for(const [c,v] of e.g){ if(c===10){ cx=+v; } else if(c===20&&cx!=null){ pts.push([cx,+v]); bs.push(0); cx=null; } else if(c===42&&pts.length) bs[bs.length-1]=+v; }
+          if(closed&&pts.length) { pts.push(pts[0]); }
+          const out=[pts[0]]; for(let j=1;j<pts.length;j++) out.push(...bulge(pts[j-1],pts[j],bs[j-1])); if(pts.length) emit(out,M); break; }
+        case 'POLYLINE': { const closed=(g1(e,70,0)&1)===1, pts=[], bs=[]; let j=i+1; for(;j<list.length&&list[j].t==='VERTEX';j++){ pts.push([g1(list[j],10,0),g1(list[j],20,0)]); bs.push(g1(list[j],42,0)); } if(j<list.length&&list[j].t==='SEQEND') j++; i=j-1;
+          if(closed&&pts.length) pts.push(pts[0]); const out=pts.length?[pts[0]]:[]; for(let q=1;q<pts.length;q++) out.push(...bulge(pts[q-1],pts[q],bs[q-1])); emit(out,M); break; }
+        case 'CIRCLE': emit(arcPts(g1(e,10,0),g1(e,20,0),g1(e,40,0),0,360),M); break;
+        case 'ARC': emit(arcPts(g1(e,10,0),g1(e,20,0),g1(e,40,0),g1(e,50,0),g1(e,51,360)),M); break;
+        case 'ELLIPSE': { const cx=g1(e,10,0), cy=g1(e,20,0), mx=g1(e,11,1), my=g1(e,21,0), ra=g1(e,40,1); let t0=g1(e,41,0), t1=g1(e,42,Math.PI*2); if(t1<=t0) t1+=Math.PI*2;
+          const n=Math.max(8,Math.ceil((t1-t0)/(Math.PI/30))), out=[]; for(let q=0;q<=n;q++){ const t=t0+(t1-t0)*q/n; out.push([cx+mx*Math.cos(t)-my*ra*Math.sin(t),cy+my*Math.cos(t)+mx*ra*Math.sin(t)]); } emit(out,M); break; }
+        case 'SPLINE': { const fit=[], ctl=[]; let fx=null, cx=null; for(const [c,v] of e.g){ if(c===11) fx=+v; else if(c===21&&fx!=null){ fit.push([fx,+v]); fx=null; } else if(c===10) cx=+v; else if(c===20&&cx!=null){ ctl.push([cx,+v]); cx=null; } } emit(fit.length>=2?fit:ctl,M); break; }
+        case 'INSERT': { if(depth>=4) break; const nm=(e.g.find(p=>p[0]===2)||[])[1], B=blocks[nm]; if(!B||/^\*D/i.test(nm)) break;
+          const sx=g1(e,41,1), sy=g1(e,42,1), a=g1(e,50,0)*Math.PI/180, c=Math.cos(a), s=Math.sin(a);
+          const T=[sx*c,sx*s,-sy*s,sy*c,g1(e,10,0),g1(e,20,0)], Bm=[1,0,0,1,-B.bx,-B.by]; walk(B.ents,mul(M,mul(T,Bm)),depth+1); break; }
+      } }
+  };
+  walk(ents,[1,0,0,1,0,0],0);
+  if(!polys.length) throw new Error('No lines, arcs, circles or polylines were found in that DXF file.');
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity; for(const p of polys) for(let i=0;i<p.length;i+=2){ x0=Math.min(x0,p[i]); x1=Math.max(x1,p[i]); y0=Math.min(y0,p[i+1]); y1=Math.max(y1,p[i+1]); }
+  return {polys,bb:{x0,y0,x1,y1},unit,truncated:npts>MAXP};
+}
+// SVG text for a parsed DXF: y flipped so the drawing reads the same way up; units stay mm.
+function dxfToSvg(p){
+  const {x0,y0,x1,y1}=p.bb, W=Math.max(1,x1-x0), H=Math.max(1,y1-y0), pad=Math.max(W,H)*0.01, sw=Math.max(W,H)/600, R=v=>Math.round(v*10)/10;
+  const d=p.polys.map(q=>{ let s='M'+R(q[0])+' '+R(-q[1]); for(let i=2;i<q.length;i+=2) s+='L'+R(q[i])+' '+R(-q[i+1]); return s; }).join('');
+  const vb=[R(x0-pad),R(-y1-pad),R(W+pad*2),R(H+pad*2)];
+  return {svg:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="'+vb.join(' ')+'" width="'+vb[2]+'mm" height="'+vb[3]+'mm"><path d="'+d+'" fill="none" stroke="#1f2430" stroke-width="'+R(sw)+'" stroke-linejoin="round" stroke-linecap="round"/></svg>',bb:vb,
+    hasOrigin:x0<=0&&x1>=0&&y0<=0&&y1>=0};
+}
+// Size of an SVG drawing in mm from its width/height units and viewBox. Returns null when it has no real units.
+function svgMm(text){
+  const doc=new DOMParser().parseFromString(text,'image/svg+xml'), s=doc.documentElement; if(!s||s.nodeName.toLowerCase()!=='svg') throw new Error('That file is not an SVG drawing.');
+  const vb=(s.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number); const U={mm:1,cm:10,in:25.4,pt:25.4/72,pc:25.4/6,px:MM_PX,m:1000};
+  const lenOf=a=>{ const m=/^([\d.]+)\s*(mm|cm|in|pt|pc|px|m)?$/i.exec(String(a||'').trim()); return m?{v:+m[1],u:(m[2]||'').toLowerCase()}:null; };
+  const W=lenOf(s.getAttribute('width')), box=vb.length===4&&vb.every(Number.isFinite)?vb:(W?[0,0,W.v,(lenOf(s.getAttribute('height'))||W).v]:null);
+  if(!box) throw new Error('That SVG has no viewBox or size.');
+  const per=W&&W.u&&W.u!=='px'?(W.v*U[W.u])/box[2]:null;
+  return {box,per};
+}
+async function importCad(ck,file,opts){
+  opts=opts||{}; const name=file.name||'drawing';
+  let text; try{ text=await file.text(); }catch(e){ toast('Could not read that file.'); return false; }
+  let svg, bb, ox, oy, org='origin';
+  try{
+    if(/\.dxf$/i.test(name)||/^\s*0\s*\r?\n\s*SECTION/i.test(text.slice(0,200))){
+      const p=parseDxf(text), r=dxfToSvg(p); svg=r.svg; bb=r.bb; if(r.hasOrigin){ ox=0; oy=0; } else { org='center'; ox=bb[0]+bb[2]/2; oy=bb[1]+bb[3]/2; }
+      if(p.truncated) toast('That drawing is very large; only the first 300,000 points were kept.');
+    } else if(/\.svg$/i.test(name)||/<svg[\s>]/i.test(text.slice(0,2000))){
+      const m=svgMm(text); let per=m.per;
+      if(!per){ const a=opts.mmPerUnit||(typeof prompt==='function'?parseFloat(prompt('This SVG has no real units. How many mm is one drawing unit?','1')):NaN); if(!(a>0)){ toast('Import cancelled: the SVG needs a size in mm.'); return false; } per=a; }
+      const vb=m.box.map(v=>v*per); svg=text; bb=vb; org='center'; ox=vb[0]+vb[2]/2; oy=vb[1]+vb[3]/2;
+      if(per!==1){ // scale the SVG to mm by rewriting its viewBox into a wrapper
+        svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="'+vb.join(' ')+'" width="'+vb[2]+'mm" height="'+vb[3]+'mm"><image href="data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(text)))+'" x="'+vb[0]+'" y="'+vb[1]+'" width="'+vb[2]+'" height="'+vb[3]+'" preserveAspectRatio="none"/></svg>'; }
+    } else { toast('Use a DXF or SVG file for the plan-view drawing.'); return false; }
+  }catch(e){ toast(e.message||'Could not read that drawing.'); return false; }
+  if(svg.length>20*1024*1024){ toast('That drawing is over 20 MB after conversion. Simplify it first.'); return false; }
+  const data='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg))), rec={id:uid(),type:'image/svg+xml',w:Math.round(bb[2]),h:Math.round(bb[3]),data};
+  registerAsset(rec); try{ await idbPut(rec); }catch(e){}
+  const c={a:rec.id,bb,ox,oy,rot:0,name,org}; (S.doc.cadPlans||(S.doc.cadPlans={}))[ck]=c;
+  if(opts.remember!==false&&S.prefs.picRemember!==false){ const L=cadLib(); L[ck]=c; saveCadLib(L); }
+  refitPlans(ck); commit(); invalidate();
+  toast('Plan-view drawing set for '+RA_DEV[ck].cat+(org==='origin'?'. The drawing origin (0,0) is used as the robot centre.':'. The drawing centre is used as the robot centre.'));
+  return true;
+}
+function cadCmd(p){
+  const ck=p[2]; if(!RA_DEV[ck]) return;
+  if(p[1]==='set'){ const f=el('input',{type:'file',accept:'.dxf,.svg,image/svg+xml'}); f.addEventListener('change',()=>{ const x=f.files&&f.files[0]; if(x) importCad(ck,x); }); f.click(); return; }
+  const c=S.doc.cadPlans&&S.doc.cadPlans[ck]; if(!c) return;
+  if(p[1]==='del'){ delete S.doc.cadPlans[ck]; if(!Object.keys(S.doc.cadPlans).length) delete S.doc.cadPlans; if(S.prefs.picRemember!==false){ const L=cadLib(); delete L[ck]; saveCadLib(L); } refitPlans(ck); toast('Plan-view drawing removed.'); }
+  if(p[1]==='rot'){ c.rot=(c.rot+90)%360; }
+  if(p[1]==='org'){ if(c.org==='origin'){ c.org='center'; c.ox=c.bb[0]+c.bb[2]/2; c.oy=c.bb[1]+c.bb[3]/2; } else { c.org='origin'; c.ox=0; c.oy=0; } refitPlans(ck); }
+  if(S.prefs.picRemember!==false&&p[1]!=='del'){ const L=cadLib(); if(L[ck]){ L[ck]=c; saveCadLib(L); } }
+  commit(); invalidate();
+}
+function adoptCad(ck){ if(S.doc.cadPlans&&S.doc.cadPlans[ck]) return; const c=sanCad(cadLib()[ck]); if(c&&ASSETS.get(c.a)) (S.doc.cadPlans||(S.doc.cadPlans={}))[ck]=c; }
+function robotViewSection(fs){
+  const ck=cardKey(fs.type), plan=fs.type.startsWith('rbp_'), c=S.doc.cadPlans&&S.doc.cadPlans[ck], dv=RA_DEV[ck];
+  return section('Robot view',
+    row('Show as',seg('rbView',plan?'plan':'card',[{v:'card',l:'Card',t:'Card with specs and pins'},{v:'plan',l:'Plan view',t:'Top view drawn to the page scale'}])),
+    plan?el('p',{class:'small',style:{margin:'4px 0'},text:'Reach circle '+(robotReach(dv.robot)?'R '+Math.round(robotReach(dv.robot))+' mm':'not found, sized from the drawing')+' at 1:'+(pgScale()||Math.round(fs.mmpx/MM_PX))+'.'}):null,
+    plan&&!c?el('p',{class:'muted small',text:'The base and arm are a schematic outline, not the real robot shape: base size, joint limits and arm widths were not in the sources checked. Import the manufacturer\'s 2D plan-view DXF (or an SVG) to show the real drawing. Yaskawa and FANUC provide these to customers; this app does not include them.'}):null,
+    plan?el('div',{class:'find-row',style:{flexWrap:'wrap'}},el('button',{type:'button',class:'btn','data-cmd':'cad:set:'+ck,text:c?'Replace drawing...':'Import DXF or SVG...'}),
+      c?el('button',{type:'button',class:'btn','data-cmd':'cad:rot:'+ck,text:'Turn 90°'}):null,c?el('button',{type:'button',class:'btn','data-cmd':'cad:org:'+ck,text:c.org==='origin'?'Centre on drawing middle':'Centre on origin (0,0)'}):null,
+      c?el('button',{type:'button',class:'btn','data-cmd':'cad:del:'+ck,text:'Remove'}):null):null,
+    plan&&c?el('p',{class:'muted small',text:'Drawing: '+c.name+'. Robot centre: '+(c.org==='origin'?'drawing origin (0,0)':'middle of the drawing')+'. The drawing is used for every '+dv.cat+' plan view in this diagram'+(cadLib()[ck]?' and remembered in this browser':'')+'. Check its J1 axis lines up with the crosshair.'}):null,
+    plan?el('label',{class:'chk',style:{marginTop:'4px'}},el('input',{type:'checkbox','data-prop':'picRemember',checked:S.prefs.picRemember!==false}),'Remember drawings for new diagrams in this browser'):null);
+}
+
+buildRa(); buildRobots(); buildConveyorLib();
 // Port positions in unrotated shape coordinates. One row along the bottom edge, or for more
 // than RA_ROW ports, odd-numbered positions along the top edge and even along the bottom.
 function raLayout(def,w,h){
@@ -1935,7 +2372,7 @@ function ioLayout(def,w,h){
     else { const right=allR||(c.side==='s'&&i>=pr); at(p,right,allR?i:(right?i-pr:i)); } });
   return out;
 }
-function devLayout(def,w,h){ return def.io?ioLayout(def,w,h):raLayout(def,w,h); }
+function devLayout(def,w,h){ return def.io?ioLayout(def,w,h):def.plan?planLayout(def,w,h):raLayout(def,w,h); }
 function ioGeom(def,w,h){
   const c=def.io, K=IO_KINDS[c.kind], decor=[], glyphs=[], lay=ioLayout(def,w,h);
   const fs=clamp((h-IO_HDR-6)/ioRows(c.n,c.side,c.com)*0.55,5,8.5);
@@ -2508,13 +2945,14 @@ let V={tx:80,ty:60,z:1};
 
 function defaultPrefs(){
   const narrow=(window.innerWidth||1200)<820;
-  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,minimap:false,picRemember:true,penColor:'#1f2430',penWidth:3,penHl:false,penSmooth:true,userName:'',recent:[],endings:END_DEFAULT.slice(),dragMode:'pan'};
+  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,minimap:false,picRemember:true,penColor:'#1f2430',penWidth:3,penHl:false,penSmooth:true,userName:'',recent:[],endings:END_DEFAULT.slice(),dragMode:'pan',robotView:'card'};
 }
 function loadPrefs(){
   const p=defaultPrefs(); const raw=store.get(KEY_PREFS);
   if(raw){ try{ const o=JSON.parse(raw); for(const k in p) if(k in o && typeof o[k]===typeof p[k]) p[k]=o[k]; }catch(e){} }
   if(!ROUTES.includes(p.route)) p.route='orthogonal';
   if(!['pan','select'].includes(p.dragMode)) p.dragMode='pan';
+  if(!['card','plan'].includes(p.robotView)) p.robotView='card';
   if(!Array.isArray(p.endings)) p.endings=END_DEFAULT.slice(); p.endings=p.endings.filter(k=>END_DEFS[k]);
   if(!Array.isArray(p.recent)) p.recent=[]; p.recent=p.recent.filter(c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c)).slice(0,8);
   if(!Array.isArray(p.collapsed)) p.collapsed=[]; p.collapsed=p.collapsed.filter(c=>typeof c==='string').slice(0,40);
@@ -2624,6 +3062,8 @@ function pageSection(){
     row('Size',selIn('pageSize',k,[['','Infinite canvas'],...Object.keys(PAGE_SIZES).map(x=>[x,PAGE_SIZES[x].n])],'Page size')),
     k?row('Orientation',seg('pageOrient',sz.o==='landscape'?'landscape':'portrait',[{v:'portrait',l:'Portrait',t:'Portrait'},{v:'landscape',l:'Landscape',t:'Landscape'}])):null,
     row('Background',colorIn('pageBg',pg.bg||'#ffffff','Page background color'),chk('pageBgNone',!pg.bg,'Default')),
+    row('Drawing scale',selIn('pageScale',String(pgScale(pg)),[['0','None (not to scale)']].concat(SCALES.map(n=>[String(n),'1:'+n])),'Drawing scale')),
+    pgScale(pg)?el('p',{class:'muted small',style:{marginTop:'2px'},text:'1:'+pgScale(pg)+': 1 grid square (20 px) is '+Math.round(20*mmPerPx(pg))+' mm at 100% zoom. Conveyors and robot plan views are drawn to this scale.'}):null,
     row('Grid',chk('pref:grid',S.prefs.grid,'Show')),
     row('Snapping',chk('pref:snap',S.prefs.snap,'Grid'),chk('pref:guides',S.prefs.guides,'Guides')),
     row('Items',el('span',{class:'muted',text:items().length+' on this page'})),
@@ -2633,6 +3073,7 @@ function sanPageExtras(p,its){
   const o={};
   if(p.size&&typeof p.size==='object'&&PAGE_SIZES[p.size.k]) o.size={k:p.size.k,o:p.size.o==='landscape'?'landscape':'portrait'};
   if(typeof p.bg==='string'&&COLOR_RE.test(p.bg)) o.bg=p.bg;
+  if(SCALES.includes(+p.scale)) o.scale=+p.scale;
   const seen=new Set();
   o.layers=(Array.isArray(p.layers)?p.layers:[]).filter(l=>l&&typeof l==='object').slice(0,50).map(l=>{
     let id=(typeof l.id==='string'&&l.id)?l.id.slice(0,64):uid(); if(seen.has(id)) id=uid(); seen.add(id);
@@ -2715,6 +3156,7 @@ function sanitizeItem(it){
     text:str(it.text).slice(0,10000),style:sanStyle(it.style,DEF_SHAPE_STYLE),layer:typeof it.layer==='string'?it.layer.slice(0,64):undefined,groupId:gid,
     rot:[90,180,270].includes(it.rot)?it.rot:undefined,flip:it.flip===true?true:undefined,ang:(Number.isFinite(+it.ang)&&Math.abs(normAng(+it.ang))>0.05&&Math.abs(Math.abs(normAng(+it.ang))-90)>0.05&&Math.abs(Math.abs(normAng(+it.ang))-180)>0.05)?r2(normAng(+it.ang)):undefined,...sanAttrs(it),
     img:(it.type==='image'&&typeof it.img==='string')?it.img.slice(0,64):undefined,
+    mmpx:Number.isFinite(+it.mmpx)&&+it.mmpx>0&&+it.mmpx<1e5?+it.mmpx:undefined, cv:String(it.type).startsWith('cv_')?(sanCv(Object.assign({},it.cv,{k:String(it.type).slice(3)}))):undefined,
     icon:it.type==='icon'?(typeof it.icon==='string'&&ICON_SET[it.icon]?it.icon:'circle-question-mark'):undefined,...sanInk(it),
     family:['mindmap','org'].includes(it.family)?it.family:undefined,
     level:['mindmap','org'].includes(it.family)&&Number.isFinite(+it.level)?clamp(Math.round(+it.level),0,20):undefined};
@@ -2743,7 +3185,7 @@ function migrate(raw){
     return Object.assign({id:pid,name:str(p.name).slice(0,80)||('Page '+(i+1)),items:its},sanPageExtras(p,its),sanComments(p));
   });
   const active=pages.some(p=>p.id===d.activePage)?d.activePage:pages[0].id;
-  return Object.assign({schema:SCHEMA,app:'linework',title:str(d.title).slice(0,200)||'Untitled diagram',pages,activePage:active},sanDocExtras(d),sanDevPics(d));
+  return Object.assign({schema:SCHEMA,app:'linework',title:str(d.title).slice(0,200)||'Untitled diagram',pages,activePage:active},sanDocExtras(d),sanDevPics(d),sanCadPlans(d),Array.isArray(d.cvVendors)&&d.cvVendors.length?{cvVendors:sanCvVendors(d.cvVendors)}:{});
 }
 
 /* ============================== history & persistence ============================== */
@@ -2837,7 +3279,7 @@ function setAngle(s,A){
   const rest=A-base*90; if(Math.abs(rest)<0.05) delete s.ang; else s.ang=r2(rest);
 }
 function portRel(s,side){
-  const X=xf(s), us=(X.rot||X.flip)?unrotSide(X,side):side, G=geom(s.type,X.gw,X.gh,s.style);
+  const X=xf(s), us=(X.rot||X.flip)?unrotSide(X,side):side, G=geom(s.type,X.gw,X.gh,s.style,s);
   let p;
   if(G.ports&&G.ports[us]) p={x:G.ports[us][0],y:G.ports[us][1]};
   else { const ins=portInset(s.type,X.gw,X.gh)||{N:0,E:0,S:0,W:0};
@@ -3178,7 +3620,7 @@ function renderTextBlock(parent,text,box,st){
 }
 const TEXT_PAD=6;
 function textBox(it){
-  const X=xf(it), G=geom(it.type,X.gw,X.gh,it.style);
+  const X=xf(it), G=geom(it.type,X.gw,X.gh,it.style,it);
   if(G.label||devPicOf(it)){ const lh=it.style.fontSize*1.25;
     if((X.rot===90||X.rot===270)!==!!G.labelSide) return {x:it.w+5,y:0,w:110,h:it.h,below:true,side:true};
     return {x:-40,y:it.h+3,w:it.w+80,h:lh*3,below:true}; }
@@ -3201,7 +3643,7 @@ function renderShape(it,o){
   const g=sv('g',o.export?{transform:T}:{'data-id':it.id,class:'item shape',transform:T});
   if(st.opacity<1) g.setAttribute('opacity',st.opacity);
   if(st.shadow) g.setAttribute('filter','url(#lwShadow)');
-  const X=xf(it), G=geom(it.type,X.gw,X.gh,st);
+  const X=xf(it), G=geom(it.type,X.gw,X.gh,st,it);
   const inner=X.m?sv('g',{transform:'matrix('+X.m.join(' ')+')'}):g;
   if(it.type==='image'){
     const a=ASSETS.get(it.img);
@@ -3210,9 +3652,10 @@ function renderShape(it,o){
       inner.appendChild(sv('text',{x:r2(X.gw/2),y:r2(X.gh/2+4),'text-anchor':'middle','font-size':12,'font-family':FONTS.sans,fill:'#6b7280'},'Picture not available')); }
   }
   const bare=it.type==='icon'||it.type==='ink';
-  inner.appendChild(sv('path',{d:G.d,class:o.export?null:'body',fill:bare?(o.export?'none':'transparent'):st.fill,stroke:bare?'none':st.stroke,'stroke-width':st.sw,'stroke-dasharray':dashArr(st.dash,st.sw),'stroke-linecap':st.dash==='dotted'?'round':null,'stroke-linejoin':'round'}));
+  inner.appendChild(sv('path',{d:G.d,class:o.export?null:'body',fill:bare?(o.export?'none':'transparent'):st.fill,stroke:bare?'none':st.stroke,'stroke-width':st.sw,'stroke-dasharray':dashArr(G.dashBody&&st.dash==='solid'?'dashed':st.dash,st.sw),'stroke-linecap':st.dash==='dotted'?'round':null,'stroke-linejoin':'round'}));
   if(it.type==='icon') drawIcon(inner,it,X.gw,X.gh,st); else if(it.type==='ink') drawInk(inner,it,X.gw,X.gh,st);
   const pic0=devPicOf(it);
+  if(G.img){ const a=ASSETS.get(G.img.a); if(a) inner.appendChild(sv('image',{href:o.export?a.data:a.url,x:r2(G.img.x),y:r2(G.img.y),width:r2(G.img.w),height:r2(G.img.h),preserveAspectRatio:'none',transform:G.img.tf||null,class:'cadimg'})); }
   { const pic=pic0; if(pic){ const bx=devPicBox(it,X,G); inner.appendChild(sv('image',{href:o.export?pic.data:pic.url,x:r2(bx.x),y:r2(bx.y),width:r2(bx.w),height:r2(bx.h),preserveAspectRatio:'xMidYMid meet',class:'devpic'})); } }
   if(st.stroke!=='none') for(const dd of decorList(G)) if(!(dd.pg&&pic0)) inner.appendChild(sv('path',{d:dd.d,fill:dd.f==='stroke'?st.stroke:dd.f==='fill'?(st.fill==='none'?'#ffffff':st.fill):'none','fill-opacity':dd.op!=null?dd.op:null,stroke:dd.ns?'none':st.stroke,'stroke-width':st.sw,'stroke-dasharray':dd.dash?dashArr('dashed',st.sw):null,'stroke-linejoin':'round'}));
   if(X.m) g.appendChild(inner);
@@ -3462,6 +3905,8 @@ function addFromLib(key,x,y,rot){
   if(x==null){ const c=viewCenterWorld(), k=(S.addCount++%8)*20; x=c.x+k; y=c.y+k; }
   if(LIB_MAP[key]&&LIB_MAP[key].tpl) return buildSwimlanes(LIB_MAP[key],x,y)[0];
   if(LIB_MAP[key]&&LIB_MAP[key].io) return promptIo(key,x,y,rot);
+  if(LIB_MAP[key]&&LIB_MAP[key].props&&LIB_MAP[key].props.cv) return placeConveyor(key,x,y,rot);
+  if(S.prefs.robotView==='plan'&&RA_DEV[key]&&RA_DEV[key].robot&&!RA_DEV[key].plan){ adoptCad(key); const s0=addShape(key,x,y); setRobotView(s0,'plan'); const t0=Math.round(((rot==null?S.prefs.placeRot:rot)||0)/90); if(t0%4) rotateShapes([s0],t0); commit(); invalidate(); return s0; }
   const s=addShape(key,x,y), turns=Math.round(((rot==null?S.prefs.placeRot:rot)||0)/90);
   if(turns%4){ rotateShapes([s],turns); commit(); invalidate(); }
   return s;
@@ -4082,7 +4527,7 @@ function tilePreview(def){
   const w=def.w, h=def.h, vb=Math.max(w,h)*1.16, min=Math.max(vb,34);
   const st=Object.assign({},DEF_SHAPE_STYLE,def.style||{});
   const s=sv('svg',{viewBox:`${r2((w-min)/2)} ${r2((h-min)/2)} ${r2(min)} ${r2(min)}`,preserveAspectRatio:'xMidYMid meet'});
-  const G=geom(def.type,w,h,st);
+  const G=geom(def.type,w,h,st,def.props||null);
   if(def.type==='text'){
     const t=sv('svg',{viewBox:'0 0 40 40',preserveAspectRatio:'xMidYMid meet'});
     t.appendChild(sv('text',{x:20,y:31,'text-anchor':'middle','font-size':32,'font-family':FONTS.serif,fill:'currentColor'},'T'));
@@ -4160,6 +4605,7 @@ function wireLibrary(){
   $('#libSearch').addEventListener('input',e=>filterLibrary(e.target.value));
   const lv=$('#libView'); lv.value=S.prefs.libView;
   lv.addEventListener('change',()=>{ S.prefs.libView=lv.value; savePrefs(); buildLibrary(); filterLibrary($('#libSearch').value); });
+  const rv=$('#robotView'); rv.value=S.prefs.robotView||'card'; rv.addEventListener('change',()=>{ S.prefs.robotView=rv.value==='plan'?'plan':'card'; savePrefs(); toast(S.prefs.robotView==='plan'?'New robots will be placed as plan views drawn to the page scale.':'New robots will be placed as cards.'); });
   const pr=$('#placeRot'); pr.value=String(S.prefs.placeRot||0);
   pr.addEventListener('change',()=>{ S.prefs.placeRot=[0,90,180,270].includes(+pr.value)?+pr.value:0; savePrefs(); toast(S.prefs.placeRot?'New shapes will be placed rotated '+S.prefs.placeRot+'\u00b0':'New shapes will be placed as drawn'); });
 }
@@ -5283,8 +5729,9 @@ function renderProps(){
       el('p',{class:'muted small',style:{marginTop:'6px'},text:'Source: '+dv.src.doc+'. Section: '+dv.src.sec+'. Quote: "'+dv.src.q+'"'}),
       dv.note?el('p',{class:'muted small',text:dv.note}):null,
       el('p',{class:'muted small',text:'Port placement on the shape is schematic, not the physical faceplate layout.'})));
-    K.splice(2,0,devPicSection(fs));
+    if(dv.plan) K.splice(2,0,robotViewSection(fs)); else { K.splice(2,0,devPicSection(fs)); if(dv.robot) K.splice(2,0,robotViewSection(fs)); }
   }
+  if(fs&&fs.cv&&shapes.length===1) K.splice(1,0,conveyorSection(fs));
   if(fs&&SYMBOL_INFO[fs.type]&&shapes.length===1){
     const info=SYMBOL_INFO[fs.type];
     K.push(section('Symbol',el('div',{class:'soon-row',style:{marginBottom:'6px'}},el('span',{text:info.cat+' library'}),el('span',{class:'soon',style:info.verified?{background:'var(--accent-2)',color:'var(--accent)'}:null,text:info.verified?'Convention verified':'Unverified'})),
@@ -5324,6 +5771,9 @@ function applyProp(prop,v,final){
   if(prop==='picRemember'){ S.prefs.picRemember=!!v; savePrefs(); invalidate({props:true}); return; }
   if(prop==='noPic'){ const sh=unlockedSel().filter(i=>RA_DEV[i.type]); sh.forEach(i=>{ if(v) delete i.noPic; else i.noPic=true; }); commit(); invalidate(); return; }
   if(applyExtraProp(prop,v,final)) return;
+  if(prop==='pageScale'){ if(final) setPageScale(+v); return; }
+  if(applyCvProp(prop,v,final)) return;
+  if(prop==='rbView'){ const sh=unlockedSel().filter(i=>RA_DEV[cardKey(i.type)]&&RA_DEV[cardKey(i.type)].robot); if(v==='plan') sh.forEach(i=>adoptCad(cardKey(i.type))); sh.forEach(i=>setRobotView(i,v)); S.prefs.robotView=v==='plan'?'plan':'card'; savePrefs(); const rv=$('#robotView'); if(rv) rv.value=S.prefs.robotView; commit(); invalidate(); return; }
   if(prop==='docTitle'){ S.doc.title=String(v).slice(0,200)||'Untitled diagram'; if(final) commit(); invalidate({chrome:true}); return; }
   if(prop==='pageName'){ page().name=String(v).slice(0,80)||'Untitled page'; if(final) commit(); invalidate({pages:true}); return; }
   if(prop==='pageSize'){ const pg=page(); if(PAGE_SIZES[v]) pg.size={k:v,o:pg.size?(pg.size.o==='landscape'?'landscape':'portrait'):(PAGE_SIZES[v].u==='in'&&PAGE_SIZES[v].w>=11?'landscape':'portrait')}; else delete pg.size; commit(); invalidate(); return; }
@@ -5636,10 +6086,11 @@ function applyLink(v){
 }
 function changeShape(key){
   const sel=unlockedSel().filter(isShape); const def=LIB_MAP[key]; if(sel.length!==1||!def) return;
-  const s=sel[0], wasCat=RA_DEV[s.type]&&(s.text===RA_DEV[s.type].cat||(LIB_MAP[s.type]&&s.text===LIB_MAP[s.type].text)); s.type=def.type; delete s.rot; delete s.flip;
+  const s=sel[0], wasPlan=String(s.type).startsWith('rbp_'), ot=cardKey(s.type), wasCat=RA_DEV[ot]&&(s.text===RA_DEV[ot].cat||(LIB_MAP[ot]&&s.text===LIB_MAP[ot].text)); s.type=def.type; delete s.rot; delete s.flip;
   if(def.dev){ s.w=def.w; s.h=def.h; if(wasCat||!s.text) s.text=def.text; }
   // A robot swapped for another model takes the new spec fields; fields the user added stay.
   if(RA_DEV[def.type]&&RA_DEV[def.type].robot){ const nd=robotData(RA_DEV[def.type].robot), d=Object.assign({},s.data||{}); for(const k of ROBO_DATA_KEYS) if(k!=='Controller'||!d[k]) d[k]=nd[k]; s.data=d; }
+  if(wasPlan&&RA_DEV[def.type]&&RA_DEV[def.type].robot){ adoptCad(def.type); setRobotView(s,'plan'); }
   if(def.style&&'radius' in def.style) s.style.radius=def.style.radius; else if(def.type!=='rect') s.style.radius=0;
   commit(); buildFtbBar(); renderFtbPop(); invalidate();
 }
@@ -5855,10 +6306,10 @@ function registerAsset(rec){
   try{ if(URL.createObjectURL){ const b=dataUrlToBlob(rec.data); if(b) url=URL.createObjectURL(b); } }catch(e){}
   const a={id:rec.id,type:rec.type,w:rec.w,h:rec.h,data:rec.data,url}; ASSETS.set(rec.id,a); return a;
 }
-function usedAssetIds(){ const u=new Set(); for(const p of S.doc.pages) for(const i of p.items) if(i.type==='image'&&i.img) u.add(i.img); if(S.doc.devPics) for(const k in S.doc.devPics) u.add(S.doc.devPics[k]); return u; }
+function usedAssetIds(){ const u=new Set(); for(const p of S.doc.pages) for(const i of p.items) if(i.type==='image'&&i.img) u.add(i.img); if(S.doc.devPics) for(const k in S.doc.devPics) u.add(S.doc.devPics[k]); if(S.doc.cadPlans) for(const k in S.doc.cadPlans) u.add(S.doc.cadPlans[k].a); return u; }
 async function loadAssets(){
   idb=await idbOpen();
-  const recs=(await idbAll())||[], used=usedAssetIds(); for(const v of Object.values(picLib())) used.add(v);
+  const recs=(await idbAll())||[], used=usedAssetIds(); for(const v of Object.values(picLib())) used.add(v); for(const v of Object.values(cadLib())) if(v&&v.a) used.add(v.a);
   for(const r of recs){ if(!r||!r.id) continue; if(used.has(r.id)||S.history.stack.some(h=>h.includes(r.id))) registerAsset(r); else idbDel(r.id); }
   if(recs.length) invalidate({content:true});
 }
@@ -6201,6 +6652,13 @@ function showHelp(){
     el('p',{text:'Every robot also carries data fields: Manufacturer, Model, Series, Type, Payload (kg), Reach (mm), Axes, Controller and Spec status. Use them in text with {{Payload (kg)}}, in conditional formatting, or export them with the other data to CSV. Change model in the floating toolbar swaps a robot for another model of the same series and updates these fields; fields you added yourself stay.'}),
     el('p',{text:'Values come from the source shown in the right panel. A star after a value on the shape means it came from a secondary or third-party source and is marked Unverified. A question mark, and Not found in the panel, means the value was not in the sources checked; it is never filled in from the model name. Many Yaskawa models show ? ax because the Yaskawa catalog used does not list the number of axes.'}),
     el('p',{text:'Yaskawa robot controllers, FANUC robot controllers and Yaskawa drives and motion work like the Rockwell devices: one pin per port. Controllers have pendant (TP or PP), robot cable (ROB), Ethernet, and where known USB, serial and fieldbus option pins. Drives have the communication option slot, serial and safety pins where the source confirms them, plus generic power and motor pins. Legacy controllers whose ports were not found show only the pendant and robot pins and are marked Unverified. The R-30iB Plus Ethernet port speed is left open because the sources disagree.'}),
+    el('h3',{text:'Drawing scale and plan views'}),
+    el('p',{text:'Page settings has a Drawing scale (1:1 to 1:500). At 1:50, one pixel at 100% zoom is 13.2 mm, the same as on paper. Conveyors and robot plan views are drawn to this scale; placing one on a page with no scale sets 1:50. Changing the scale resizes every to-scale item about its centre, so real sizes stay the same. The right panel shows each to-scale item\'s real size in mm and inches.'}),
+    el('p',{text:'Robots can show as a Card or a Plan view (Robot view in the right panel, or Robots as at the top of the library for new robots). The plan view is a top view at real size: a dashed reach circle labeled with the horizontal reach, crosshairs through the J1 axis, 0 degrees to the right, and the ROB pin at the base. The base and arm drawn inside are a schematic outline, because base size, joint limits and arm widths were not in the sources checked.'}),
+    el('p',{text:'To show the real robot, import the manufacturer\'s 2D plan-view drawing with Import DXF or SVG. Yaskawa and FANUC give these to customers; this app does not include them. DXF lines, polylines (with arcs), circles, arcs, ellipses, splines and blocks are read, in the unit the file states (mm if none). If the drawing contains the point (0,0) it is taken as the robot centre, otherwise the middle of the drawing; switch this and turn the drawing in 90 degree steps to line its J1 axis up with the crosshair. An SVG needs a size in mm or inches, or you are asked for one. The drawing is used for every plan view of that model in the diagram, saved in the file, and remembered in this browser when Remember is on.'}),
+    el('h3',{text:'Conveyors (plan view, to scale)'}),
+    el('p',{text:'The conveyor libraries draw top views at real size: straight belt, belt curve, gravity roller, zoned roller (MDR or live roller, with zone lines and one motor roller per zone), roller curve, angled spur for merges and diverts, right-angle transfer, turntable, activated roller belt (ARB), pallet conveyor, pallet 90 degree corner, lift and locate station, and drag chain. Flow runs left to right as drawn; rotate or flip to change it. Set length, width, curve angle and inside radius, roller centers, zone length and pallet size in the right panel, in mm.'}),
+    el('p',{text:'Vendor and model picks a manufacturer\'s model: Hytrol, Dorner and Intralox are built in, each with its source document and a Verified or Unverified badge. Standard widths, radii and roller centers appear as lists where the source gave them; where it did not, the size is yours to set and the model says so. Manage vendors adds your own vendors and models (widths in mm, or inches with in), saved in the diagram and remembered in this browser.'}),
     el('h3',{text:'Mind maps and org charts'}),el('p',{text:'Drag a Central topic or an org chart box onto the canvas. With it selected, press Tab (or click the blue + button) to add a child and Enter to add a sibling; the new box opens for typing. Tab while typing adds the next level. Children are spaced automatically, and Tidy layout in the right-click menu re-spaces a whole tree. Typing on library placeholder text such as Central topic replaces it.'}),
     el('h3',{text:'Resizing groups'}),el('p',{text:'Select several items (or a group) and drag any of the eight handles on the dashed box to resize them together. Positions and sizes scale with the box; text size stays the same. Hold Shift on a corner to keep proportions.'}),
     el('h3',{text:'Re-routing lines'}),el('p',{text:'Select an elbow line to show a small handle on each segment. Drag a handle to move that segment; the bends stay where you put them when shapes move. Right-click the line and choose Reset line path to go back to automatic routing. Changing the line shape or reconnecting an end also resets it.'}),
@@ -6292,6 +6750,8 @@ function runCmd(name){
   if(name.startsWith('soon:')){ toast(name.slice(5)+' is coming soon.'); return; }
   if(name.startsWith('layer:')){ const p=name.split(':'); layerCmd(p[1],p[2]); return; }
   if(extraCmd(name)) return;
+  if(name.startsWith('cad:')){ cadCmd(name.split(':')); return; }
+  if(name==='cv:vendors'){ showCvVendors(); return; }
   if(name.startsWith('devpic:')){ const p=name.split(':'); if(p[1]==='set') pickDevPic(p[2]); else if(p[1]==='del') clearDevPic(p[2],S.prefs.picRemember!==false); return; }
   const f=CMDS[name]; if(f) f();
 }
@@ -6420,7 +6880,9 @@ window.__app={
     setAngle, totalAngle, rotPt, itemBBox, shapeAt, parseCsv, importCsv, fieldsOf, resolveText, ruleHit, runAction, startPresent, stopPresent, presentGo, exportSVGNode,
     findMatches, findStep, replaceAll, openFind, closeFind, saveVersion, listVersions, restoreVersion, deleteVersion, showVersions, matchSize, extraCmd, portPoint2:portPoint, UML_TYPES,
     layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO,
-    devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf, ROBO_FAMS, robotData, robotSpecLine, robotGeom, changeShape, PORT_KINDS, RA_LINE },
+    devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf, ROBO_FAMS, robotData, robotSpecLine, robotGeom, changeShape, PORT_KINDS, RA_LINE,
+    SCALES, pgScale, mmPerPx, setPageScale, realSize, CV_KINDS, CV_VENDORS_BUILTIN, CV_SRC, cvVendors, cvUserVendors, sanCvVendors, placeConveyor, setCv, cvSizeMm, cvCurvePts, conveyorGeom, showCvVendors,
+    parseDxf, dxfToSvg, svgMm, importCad, cadCmd, cadLib, setRobotView, robotPlanGeom, planRadius, cardKey, planKey, KEY_CVV, KEY_CADLIB },
   LIB, LIB_MAP, KEYS:{doc:KEY_DOC,schema:KEY_SCHEMA,prefs:KEY_PREFS,legacy:LEGACY_KEYS}
 };
 boot();
