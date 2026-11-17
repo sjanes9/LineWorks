@@ -115,6 +115,39 @@ button{cursor:pointer}
 .lib-soon:hover{background:var(--hover)}
 .lib-soon-h{padding:12px 10px 4px;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);border-top:1px solid var(--border);margin-top:6px}
 .lib-empty{padding:12px;color:var(--text-3);font-size:var(--fs-sm)}
+.lib-grp-h{display:flex;align-items:center;gap:6px;width:100%;border:0;border-top:1px solid var(--border);background:transparent;padding:10px 10px 4px;font-size:var(--fs-sm);font-weight:700;color:var(--text);text-align:left}
+.lib-grp-h .lib-n{margin-left:auto;font-weight:400;white-space:nowrap}
+.lib-grp:not(.collapsed) .lib-grp-h .ic{transform:rotate(90deg)}
+.lib-grp.collapsed .lib-grp-b{display:none}
+.lib-grp .lib-cat-h{padding-left:20px}
+.lib-n{font-size:var(--fs-xs);font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0}
+.lib-cat-h .lib-n{margin-left:auto}
+.lib-pinned .lib-cat-h{color:var(--accent)}
+.lib-hint{margin:0 10px 6px;font-size:var(--fs-xs);color:var(--text-3)}
+.lib-tile.fav{position:relative}
+.lib-tile.fav::after{content:'\2605';position:absolute;top:1px;right:3px;font-size:9px;color:#d4a017;pointer-events:none}
+.libman h3{margin:14px 0 6px;font-size:var(--fs-sm)}
+.libman-list{display:flex;flex-direction:column;gap:2px;max-height:220px;overflow:auto}
+.libman-row{display:flex;align-items:center;gap:6px;padding:2px 0}
+.libman-row>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.libman-row [data-lm^="up:"] .ic{transform:rotate(-90deg)}
+.libman-row [data-lm^="down:"] .ic{transform:rotate(90deg)}
+.libman-grp{margin:8px 0;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md)}
+.libman-gh{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.libman-gh b{flex:1}
+.libman-grp .chk{display:flex;padding:2px 0}
+.term-list{display:flex;flex-direction:column;gap:3px;margin:4px 0}
+.vpic-list{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto;margin:8px 0}
+.vpic-row{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;align-items:center;padding:6px;border:1px solid var(--border);border-radius:var(--r-md)}
+.vpic-row img{width:96px;height:72px;object-fit:contain;background:#fff;border-radius:var(--r-sm)}
+.vpic-none{width:96px;height:72px;display:flex;align-items:center;justify-content:center;background:var(--panel-2);color:var(--text-3);font-size:var(--fs-xs);border-radius:var(--r-sm)}
+.vpic-meta{display:flex;flex-direction:column;gap:3px;min-width:0}
+.vpic-meta select{height:28px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel-2);color:var(--text);max-width:100%}
+.term-row{display:grid;grid-template-columns:minmax(0,1fr) 92px 28px 8px;gap:4px;align-items:center}
+.term-row input,.term-row select{min-width:0;width:100%;height:26px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel-2);color:var(--text);padding:0 6px;font-size:var(--fs-sm)}
+.term-row input:focus,.term-row select:focus{outline:none;border-color:var(--accent)}
+.term-dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.term-dot.off{background:transparent;border:1px solid var(--border)}
 
 /* ---------- stage ---------- */
 #stage{grid-area:stage;position:relative;overflow:hidden;background:var(--canvas);touch-action:none;user-select:none;-webkit-user-select:none}
@@ -548,7 +581,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.18.0';
+const APP_VERSION='1.20.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -724,7 +757,11 @@ const CLOUD=[['M',25,58],['C',8,58,2,44,10,36],['C',2,26,12,12,26,16],['C',30,4,
 const GEOM_TYPES=['image','rect','text','terminator','ellipse','diamond','triangle','hexagon','parallelogram','document','cylinder','predefined','manualInput','delay','trapezoid','offpage','note','star','pentagon','octagon','cross','arrow','cloud','callout'];
 
 function geom(type,w,h,st,it){
-  const dvg=devDef(type); if(dvg) return dvg.io?ioGeom(dvg,w,h):dvg.plan?robotPlanGeom(dvg,w,h):dvg.robot?robotGeom(dvg,w,h):raGeom(dvg,w,h);
+  const G=geomBase(type,w,h,st,it);
+  return it&&it.term&&G.pins?applyTerm(G,it.term,w,h):G;
+}
+function geomBase(type,w,h,st,it){
+  const dvg=devDef(type); if(dvg) return dvg.io?ioGeom(dvg,w,h):dvg.plan?robotPlanGeom(dvg,w,h,it):dvg.robot?robotGeom(dvg,w,h):raGeom(dvg,w,h,it);
   if(type.charCodeAt(0)===99&&type.startsWith('cv_')) return conveyorGeom(type,w,h,st,it);
   let d,decor=null,tb={x:0,y:0,w,h};
   switch(type){
@@ -818,11 +855,72 @@ function symPins(type,w,h){
 function pinLabels(pins,fs){
   const out=[];
   for(const p of pins){ if(p.lab==null||p.lab==='') continue;
-    if(p.side==='W') out.push({t:p.lab,x:p.x+3,y:p.y-4.5,s:fs,a:'start'});
-    else if(p.side==='E') out.push({t:p.lab,x:p.x-3,y:p.y-4.5,s:fs,a:'end'});
-    else if(p.side==='N') out.push({t:p.lab,x:p.x+3,y:p.y+5,s:fs,a:'start'});
-    else out.push({t:p.lab,x:p.x+3,y:p.y-4,s:fs,a:'start'}); }
+    if(p.side==='W') out.push({t:p.lab,x:p.x+3,y:p.y-4.5,s:fs,a:'start',pl:1});
+    else if(p.side==='E') out.push({t:p.lab,x:p.x-3,y:p.y-4.5,s:fs,a:'end',pl:1});
+    else if(p.side==='N') out.push({t:p.lab,x:p.x+3,y:p.y+5,s:fs,a:'start',pl:1});
+    else out.push({t:p.lab,x:p.x+3,y:p.y-4,s:fs,a:'start',pl:1}); }
   return out;
+}
+/* Per-shape terminal edits (it.term): e = {pin id: {lab, side, del}}, add = [{id, lab, side}],
+   lp = label placement 'in' (default, as drawn), 'out' (outside the edge, clear of the drawing) or 'off'.
+   Pins moved to another side, and added pins, are spaced evenly along their side together with the
+   pins already on it. */
+const TERM_SIDES={W:'Left',E:'Right',N:'Top',S:'Bottom'};
+function applyTerm(G,T,w,h){
+  const e=T.e||{}, base=G.pins.filter(p=>!(e[p.id]&&e[p.id].del)).map(p=>{ const o=e[p.id]||{}; return Object.assign({},p,{lab:o.lab!=null?o.lab:p.lab,side:o.side&&TERM_SIDES[o.side]?o.side:p.side,moved:!!(o.side&&o.side!==p.side)}); });
+  const pins=base.concat((T.add||[]).map(a=>({id:a.id,lab:a.lab,side:TERM_SIDES[a.side]?a.side:'W',x:0,y:0,moved:true})));
+  for(const sd of Object.keys(TERM_SIDES)){ const on=pins.filter(p=>p.side===sd); if(!on.some(p=>p.moved)) continue;
+    const keep=on.filter(p=>!p.moved).sort((a,b)=>sd==='W'||sd==='E'?a.y-b.y:a.x-b.x), list=keep.concat(on.filter(p=>p.moved));
+    list.forEach((p,i)=>{ const f=(i+1)/(list.length+1); if(sd==='W'){ p.x=0; p.y=h*f; } else if(sd==='E'){ p.x=w; p.y=h*f; } else if(sd==='N'){ p.x=w*f; p.y=0; } else { p.x=w*f; p.y=h; } }); }
+  pins.forEach(p=>delete p.moved);
+  const out=Object.assign({},G,{pins,glyphs:(G.glyphs||[]).filter(g=>!g.pl)});
+  if(T.lp==='off') return out;
+  if(T.lp==='out'){ for(const p of pins){ if(p.lab==null||p.lab==='') continue; const fs=6.5;
+      if(p.side==='W') out.glyphs.push({t:p.lab,x:p.x-5,y:p.y-4,s:fs,a:'end',pl:1});
+      else if(p.side==='E') out.glyphs.push({t:p.lab,x:p.x+5,y:p.y-4,s:fs,a:'start',pl:1});
+      else if(p.side==='N') out.glyphs.push({t:p.lab,x:p.x,y:p.y-7,s:fs,pl:1});
+      else out.glyphs.push({t:p.lab,x:p.x,y:p.y+8,s:fs,pl:1}); }
+    return out; }
+  out.glyphs=out.glyphs.concat(pinLabels(pins,6.5)); return out;
+}
+function sanTerm(t){
+  if(!t||typeof t!=='object') return undefined; const o={}, idOk=v=>typeof v==='string'&&/^[\w+\-.]{1,24}$/.test(v);
+  if(t.e&&typeof t.e==='object'){ const e={}; let n=0; for(const k in t.e){ if(n>=80||!idOk(k)) continue; const v=t.e[k]; if(!v||typeof v!=='object') continue; const q={};
+      if(typeof v.lab==='string') q.lab=v.lab.slice(0,24); if(TERM_SIDES[v.side]) q.side=v.side; if(v.del===true) q.del=true; if(Object.keys(q).length){ e[k]=q; n++; } } if(n) o.e=e; }
+  if(Array.isArray(t.add)){ const a=t.add.slice(0,40).filter(x=>x&&idOk(x.id)).map(x=>({id:x.id,lab:typeof x.lab==='string'?x.lab.slice(0,24):x.id,side:TERM_SIDES[x.side]?x.side:'W'})); if(a.length) o.add=a; }
+  if(t.lp==='out'||t.lp==='off') o.lp=t.lp;
+  return Object.keys(o).length?o:undefined;
+}
+// Terminal edits from the right panel. Deleting a terminal keeps its wires on the same edge, unpinned.
+function termCmd(s,act,id,v){
+  if(!s) return false; const T=s.term?JSON.parse(JSON.stringify(s.term)):{}; T.e=T.e||{};
+  const X=xf(s), cur=geom(s.type,X.gw,X.gh,s.style,s).pins||[], pin=cur.find(p=>p.id===id);
+  if(act==='lab'){ const add=(T.add||[]).find(a=>a.id===id); const lab=String(v).slice(0,24); if(add) add.lab=lab; else (T.e[id]=T.e[id]||{}).lab=lab; }
+  else if(act==='side'){ const add=(T.add||[]).find(a=>a.id===id); if(add) add.side=TERM_SIDES[v]?v:'W'; else { const o=T.e[id]=T.e[id]||{}; if(TERM_SIDES[v]) o.side=v; else delete o.side; } }
+  else if(act==='del'){ const add=(T.add||[]); const i=add.findIndex(a=>a.id===id); if(i>=0) add.splice(i,1); else (T.e[id]=T.e[id]||{}).del=true;
+    for(const L of items()) if(isLine(L)) for(const k of ['from','to']) if(L[k].id===s.id&&L[k].port===id){ const sd=pin?effSide(s,rotSide(X,pin.side)):'auto'; L[k]={id:s.id,side:sd}; } }
+  else if(act==='add'){ const ids=new Set(cur.map(p=>p.id).concat(Object.keys(T.e))); let n=1; while(ids.has('T'+n)) n++; (T.add=T.add||[]).push({id:'T'+n,lab:'T'+n,side:TERM_SIDES[v]?v:'E'}); }
+  else if(act==='lp'){ if(v==='out'||v==='off') T.lp=v; else delete T.lp; }
+  else if(act==='reset'){ for(const L of items()) if(isLine(L)) for(const k of ['from','to']) if(L[k].id===s.id&&L[k].port&&!(geomBase(s.type,X.gw,X.gh,s.style,s).pins||[]).some(p=>p.id===L[k].port)) L[k]={id:s.id,side:'auto'}; delete s.term; return true; }
+  s.term=sanTerm(T); if(!s.term) delete s.term; return true;
+}
+function terminalSection(fs){
+  const used=new Set(); for(const L of items()) if(isLine(L)) for(const k of ['from','to']) if(L[k].id===fs.id&&L[k].port) used.add(L[k].port);
+  const X=xf(fs), pins=geom(fs.type,X.gw,X.gh,fs.style,fs).pins||[], base=geomBase(fs.type,X.gw,X.gh,fs.style,fs).pins||[], T=fs.term||{}, lp=T.lp||'in';
+  const sideOpts=p=>{ const b=base.find(q=>q.id===p.id); return (b?[['','As drawn ('+TERM_SIDES[b.side]+')']]:[]).concat(Object.keys(TERM_SIDES).map(k=>[k,TERM_SIDES[k]])); };
+  const sideVal=p=>{ const b=base.find(q=>q.id===p.id); return b?(T.e&&T.e[p.id]&&T.e[p.id].side||''):p.side; };
+  const nDel=T.e?Object.values(T.e).filter(o=>o.del).length:0;
+  return el('div',null,el('div',{class:'sec-sub',text:'Wire terminals ('+pins.length+')'}),
+    row('Labels',seg('termLp',lp,[{v:'in',l:'Inside',t:'Labels inside the symbol, as drawn'},{v:'out',l:'Outside',t:'Labels outside the edge, clear of the drawing'},{v:'off',l:'Hidden',t:'No terminal labels'}])),
+    el('div',{class:'term-list'},pins.map(p=>el('div',{class:'term-row'+(used.has(p.id)?' used':'')},
+      el('input',{type:'text',value:p.lab==null?'':p.lab,maxlength:24,'data-prop':'term:lab:'+p.id,'aria-label':'Label for terminal '+p.id,placeholder:p.id}),
+      selIn('term:side:'+p.id,sideVal(p),sideOpts(p),'Side for terminal '+p.id),
+      el('button',{type:'button',class:'btn ghost icon','data-cmd':'term:del:'+p.id,title:'Delete terminal '+(p.lab||p.id)+(used.has(p.id)?' (its wire stays on that edge)':''),'aria-label':'Delete terminal '+(p.lab||p.id)},icon('trash',14)),
+      used.has(p.id)?el('span',{class:'term-dot',title:'Connected','aria-label':'Connected'}):el('span',{class:'term-dot off'})))),
+    el('div',{class:'find-row',style:{flexWrap:'wrap',marginTop:'4px'}},el('button',{type:'button',class:'btn','data-cmd':'term:add',text:'Add terminal'}),
+      fs.term?el('button',{type:'button',class:'btn','data-cmd':'term:reset',text:'Reset terminals'}):null),
+    nDel?el('p',{class:'muted small',text:nDel+' terminal'+(nDel>1?'s':'')+' deleted. Reset terminals brings them back.'}):null,
+    el('p',{class:'muted small',style:{marginTop:'6px'},text:'Rename, move or delete terminals for this shape only. A terminal moved to another side, or added, is spaced evenly along that side. Outside puts the labels beyond the edge so wires and the drawing do not cover them. Terminal names are typical, not from a specific product [Unverified]; check the device data sheet.'}));
 }
 function withPins(G,type,w,h){ const P=symPins(type,w,h); if(P){ G.pins=P; G.glyphs=(G.glyphs||[]).concat(pinLabels(P,6.5)); } return G; }
 function symGeom(type,w,h){
@@ -2123,18 +2221,19 @@ function cadOf(cardK){ const c=S.doc&&S.doc.cadPlans&&S.doc.cadPlans[cardK]; ret
 function cadExtent(c){ const xs=[c.bb[0],c.bb[0]+c.bb[2]], ys=[c.bb[1],c.bb[1]+c.bb[3]]; let r=0; for(const x of xs) for(const y of ys) r=Math.max(r,Math.hypot(x-c.ox,y-c.oy)); return r; }
 function planRadius(def){ const R=robotReach(def.robot); if(R) return R; const c=cadOf(def.base); return c?cadExtent(c):1000; }
 function planLayout(def,w,h){ return [{p:def.ports[0],x:w/2,y:h/2+w*0.075,side:'S'}]; }
-function robotPlanGeom(def,w,h){
+function robotPlanGeom(def,w,h,it){
   const R=def.robot, Rmm=planRadius(def), cx=w/2, cy=h/2, r=w/2, k=w/(2*Rmm), decor=[], glyphs=[], D=(d,f,o)=>decor.push(Object.assign({d,f:f||'none',dash:false},o||{}));
   const cad=cadOf(def.base), reach=robotReach(R);
   D(PL([0,cy],[w,cy])+PL([cx,0],[cx,h]),'none',{dash:true});
   if(!cad){ const b=w*0.075, tr=w*0.05;
-    D(`M${r2(cx-b)} ${r2(cy-b)}H${r2(cx+b)}V${r2(cy+b)}H${r2(cx-b)}Z`,'fill',{pg:true}); D(circ(cx,cy,tr),'fill',{pg:true});
-    const aw=w*0.035, ax=cx+r*0.78; D(`M${r2(cx)} ${r2(cy-aw)}H${r2(ax)}V${r2(cy+aw)}H${r2(cx)}Z`,'fill',{pg:true}); D(circ(ax,cy,aw*1.3),'fill',{pg:true}); D(PL([ax+aw*1.3,cy],[ax+aw*3,cy]),'none',{pg:true}); }
+    D(`M${r2(cx-b)} ${r2(cy-b)}H${r2(cx+b)}V${r2(cy+b)}H${r2(cx-b)}Z`,'stroke',{pg:true,op:0.14}); D(circ(cx,cy,tr),'stroke',{pg:true,op:0.14});
+    const aw=w*0.035, ax=cx+r*0.78; D(`M${r2(cx)} ${r2(cy-aw)}H${r2(ax)}V${r2(cy+aw)}H${r2(cx)}Z`,'stroke',{pg:true,op:0.14}); D(circ(ax,cy,aw*1.3),'stroke',{pg:true,op:0.14}); D(PL([ax+aw*1.3,cy],[ax+aw*3,cy]),'none',{pg:true}); }
   const t=0.6, ex=cx+r*Math.cos(t), ey=cy+r*Math.sin(t); D(PL([cx,cy],[ex,ey]));
-  const fs=clamp(w*0.035,6,13);
-  glyphs.push({t:reach?'R '+Math.round(reach):'Reach not found',x:cx+r*0.62*Math.cos(t)+fs*1.2,y:cy+r*0.62*Math.sin(t)+fs*0.2,s:fs});
-  glyphs.push({t:'0°',x:w-fs*1.4,y:cy-fs*0.9,s:fs});
-  const out={d:circ(cx,cy,r),decor,glyphs,tb:{x:w*0.22,y:cy+w*0.12,w:w*0.56,h:Math.max(10,w*0.1)},label:false,hit:false,ports:null,dashBody:true};
+  const fs=clamp(w*0.035,6,13), lp=it&&it.planLbl||'out', rt=reach?'R '+Math.round(reach):'Reach not found';
+  if(lp==='out'){ D(PL([ex,ey],[cx+(r+fs*0.8)*Math.cos(t),cy+(r+fs*0.8)*Math.sin(t)]));
+    glyphs.push({t:rt,x:cx+(r+fs*1.1)*Math.cos(t),y:cy+(r+fs*1.1)*Math.sin(t)+fs*0.3,s:fs,a:'start'}); glyphs.push({t:'0\u00b0',x:w+fs*0.4,y:cy-fs*0.6,s:fs,a:'start'}); }
+  else if(lp==='in'){ glyphs.push({t:rt,x:cx+r*0.62*Math.cos(t)+fs*1.2,y:cy+r*0.62*Math.sin(t)+fs*0.2,s:fs}); glyphs.push({t:'0\u00b0',x:w-fs*1.4,y:cy-fs*0.9,s:fs}); }
+  const out={d:circ(cx,cy,r),decor,glyphs,tb:{x:w*0.22,y:cy+w*0.12,w:w*0.56,h:Math.max(10,w*0.1)},label:true,hit:false,ports:null,dashBody:true};
   if(cad) out.img={a:cad.a,x:cx+(cad.bb[0]-cad.ox)*k,y:cy+(cad.bb[1]-cad.oy)*k,w:cad.bb[2]*k,h:cad.bb[3]*k,tf:cad.rot?'rotate('+cad.rot+' '+r2(cx)+' '+r2(cy)+')':null};
   return out;
 }
@@ -2254,6 +2353,7 @@ function robotViewSection(fs){
   const ck=cardKey(fs.type), plan=fs.type.startsWith('rbp_'), c=S.doc.cadPlans&&S.doc.cadPlans[ck], dv=RA_DEV[ck];
   return section('Robot view',
     row('Show as',seg('rbView',plan?'plan':'card',[{v:'card',l:'Card',t:'Card with specs and pins'},{v:'plan',l:'Plan view',t:'Top view drawn to the page scale'}])),
+    plan?row('Labels',seg('rbLbl',fs.planLbl||'out',[{v:'out',l:'Outside',t:'Reach and 0\u00b0 labels outside the circle; model name below'},{v:'in',l:'Inside',t:'Labels inside the circle'},{v:'off',l:'Hidden',t:'No reach or 0\u00b0 labels'}])):null,
     plan?el('p',{class:'small',style:{margin:'4px 0'},text:'Reach circle '+(robotReach(dv.robot)?'R '+Math.round(robotReach(dv.robot))+' mm':'not found, sized from the drawing')+' at 1:'+(pgScale()||Math.round(fs.mmpx/MM_PX))+'.'}):null,
     plan&&!c?el('p',{class:'muted small',text:'The base and arm are a schematic outline, not the real robot shape: base size, joint limits and arm widths were not in the sources checked. Import the manufacturer\'s 2D plan-view DXF (or an SVG) to show the real drawing. Yaskawa and FANUC provide these to customers; this app does not include them.'}):null,
     plan?el('div',{class:'find-row',style:{flexWrap:'wrap'}},el('button',{type:'button',class:'btn','data-cmd':'cad:set:'+ck,text:c?'Replace drawing...':'Import DXF or SVG...'}),
@@ -2300,18 +2400,19 @@ function raPortGlyph(k,x,y,dn){
   }
   return out;
 }
-function raGeom(def,w,h){
-  const D=(d,f,dash)=>({d,f:f||'none',dash:!!dash}), decor=[], glyphs=[];
+function raGeom(def,w,h,it){
+  const D=(d,f,dash)=>({d,f:f||'none',dash:!!dash}), decor=[], glyphs=[], full=!!(it&&devPicFull(it));
   const lay=raLayout(def,w,h);
   for(const q of lay){
     const dn=q.side==='S'?1:-1;
     for(const g of raPortGlyph(q.p.k,q.x,q.y,dn)) decor.push(D(g.d,g.f,g.dash));
     glyphs.push({t:q.p.id,x:q.x,y:dn>0?h-15.5:15.5,s:7});
   }
-  const top=def.two?22:0, hb=top+14;
+  const top=def.two?22:0, hb=top+14, bot=h-21;
+  // Picture fills the shape: no title bar; the picture takes everything between the port rows.
+  if(full) return {d:roundRect(w,h,3),decor,glyphs,tb:{x:1,y:top+1,w:w-2,h:Math.max(8,bot-top-1)},label:true,hit:false,ports:null};
   glyphs.push({t:def.fam,x:w/2,y:top+8,s:8.5,b:true});
   decor.push(D(PL([0,hb],[w,hb])));
-  const bot=h-21;
   return {d:roundRect(w,h,3),decor,glyphs,tb:{x:2,y:hb,w:w-4,h:Math.max(8,bot-hb)},label:false,hit:false,ports:null};
 }
 // Rotate an unrotated side through a shape's rotation and flip.
@@ -2324,7 +2425,7 @@ function rotSide(X,side){
 function raPorts(s){
   const def=devDef(s.type), X=xf(s); let lay;
   if(def) lay=devLayout(def,X.gw,X.gh).map(q=>({id:q.p.id,k:q.p.k,d:q.p.d,x:q.x,y:q.y,side:q.side}));
-  else { if(!PIN_TYPES.has(s.type)) return []; lay=(geom(s.type,X.gw,X.gh,s.style).pins||[]).map(q=>({id:q.id,k:'wire',d:'Terminal '+(q.lab||q.id),x:q.x,y:q.y,side:q.side})); }
+  else { if(!PIN_TYPES.has(s.type)) return []; lay=(geom(s.type,X.gw,X.gh,s.style,s).pins||[]).map(q=>({id:q.id,k:'wire',d:'Terminal '+(q.lab||q.id),x:q.x,y:q.y,side:q.side})); }
   return lay.map(q=>{ const t=tp(X,q.x,q.y), w=rotPt(s,{x:s.x+t.x,y:s.y+t.y}); return {id:q.id,k:q.k,d:q.d,x:w.x,y:w.y,side:effSide(s,rotSide(X,q.side))}; });
 }
 function raPort(s,pid){ return raPorts(s).find(p=>p.id===pid)||null; }
@@ -2945,7 +3046,7 @@ let V={tx:80,ty:60,z:1};
 
 function defaultPrefs(){
   const narrow=(window.innerWidth||1200)<820;
-  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,minimap:false,picRemember:true,penColor:'#1f2430',penWidth:3,penHl:false,penSmooth:true,userName:'',recent:[],endings:END_DEFAULT.slice(),dragMode:'pan',robotView:'card'};
+  return {theme:'light',grid:true,snap:true,guides:true,left:!narrow,right:!narrow,route:'orthogonal',collapsed:[],opened:[],libView:'auto',placeRot:0,minimap:false,picRemember:true,penColor:'#1f2430',penWidth:3,penHl:false,penSmooth:true,userName:'',recent:[],endings:END_DEFAULT.slice(),dragMode:'pan',robotView:'card',libFav:[],libUse:{},libHidden:[],grpClosed:[]};
 }
 function loadPrefs(){
   const p=defaultPrefs(); const raw=store.get(KEY_PREFS);
@@ -2953,6 +3054,10 @@ function loadPrefs(){
   if(!ROUTES.includes(p.route)) p.route='orthogonal';
   if(!['pan','select'].includes(p.dragMode)) p.dragMode='pan';
   if(!['card','plan'].includes(p.robotView)) p.robotView='card';
+  const strs=(a,n)=>Array.isArray(a)?[...new Set(a.filter(x=>typeof x==='string'&&x&&x.length<200))].slice(0,n):[];
+  p.libFav=strs(p.libFav,60); p.libHidden=strs(p.libHidden,200); p.grpClosed=strs(p.grpClosed,40);
+  { const u={}; const src=p.libUse&&typeof p.libUse==='object'&&!Array.isArray(p.libUse)?p.libUse:{}; let n=0;
+    for(const k in src){ if(n>=300) break; const r=src[k]; if(typeof k==='string'&&k.length<200&&Array.isArray(r)&&Number.isFinite(+r[0])&&+r[0]>0&&Number.isFinite(+r[1])){ u[k]=[Math.min(99999,Math.round(+r[0])),+r[1]]; n++; } } p.libUse=u; }
   if(!Array.isArray(p.endings)) p.endings=END_DEFAULT.slice(); p.endings=p.endings.filter(k=>END_DEFS[k]);
   if(!Array.isArray(p.recent)) p.recent=[]; p.recent=p.recent.filter(c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c)).slice(0,8);
   if(!Array.isArray(p.collapsed)) p.collapsed=[]; p.collapsed=p.collapsed.filter(c=>typeof c==='string').slice(0,40);
@@ -3156,6 +3261,7 @@ function sanitizeItem(it){
     text:str(it.text).slice(0,10000),style:sanStyle(it.style,DEF_SHAPE_STYLE),layer:typeof it.layer==='string'?it.layer.slice(0,64):undefined,groupId:gid,
     rot:[90,180,270].includes(it.rot)?it.rot:undefined,flip:it.flip===true?true:undefined,ang:(Number.isFinite(+it.ang)&&Math.abs(normAng(+it.ang))>0.05&&Math.abs(Math.abs(normAng(+it.ang))-90)>0.05&&Math.abs(Math.abs(normAng(+it.ang))-180)>0.05)?r2(normAng(+it.ang)):undefined,...sanAttrs(it),
     img:(it.type==='image'&&typeof it.img==='string')?it.img.slice(0,64):undefined,
+    term:sanTerm(it.term), planLbl:['in','off'].includes(it.planLbl)?it.planLbl:undefined,
     mmpx:Number.isFinite(+it.mmpx)&&+it.mmpx>0&&+it.mmpx<1e5?+it.mmpx:undefined, cv:String(it.type).startsWith('cv_')?(sanCv(Object.assign({},it.cv,{k:String(it.type).slice(3)}))):undefined,
     icon:it.type==='icon'?(typeof it.icon==='string'&&ICON_SET[it.icon]?it.icon:'circle-question-mark'):undefined,...sanInk(it),
     family:['mindmap','org'].includes(it.family)?it.family:undefined,
@@ -3185,7 +3291,7 @@ function migrate(raw){
     return Object.assign({id:pid,name:str(p.name).slice(0,80)||('Page '+(i+1)),items:its},sanPageExtras(p,its),sanComments(p));
   });
   const active=pages.some(p=>p.id===d.activePage)?d.activePage:pages[0].id;
-  return Object.assign({schema:SCHEMA,app:'linework',title:str(d.title).slice(0,200)||'Untitled diagram',pages,activePage:active},sanDocExtras(d),sanDevPics(d),sanCadPlans(d),Array.isArray(d.cvVendors)&&d.cvVendors.length?{cvVendors:sanCvVendors(d.cvVendors)}:{});
+  return Object.assign({schema:SCHEMA,app:'linework',title:str(d.title).slice(0,200)||'Untitled diagram',pages,activePage:active},sanDocExtras(d),sanDevPics(d),sanPicFill(d),sanCadPlans(d),Array.isArray(d.cvVendors)&&d.cvVendors.length?{cvVendors:sanCvVendors(d.cvVendors)}:{});
 }
 
 /* ============================== history & persistence ============================== */
@@ -4539,33 +4645,166 @@ function tilePreview(def){
   for(const gl of (G.glyphs||[])) s.appendChild(sv('text',{x:r2(gl.x),y:r2(gl.y+gl.s*0.35),'text-anchor':gl.a||'middle','font-size':r2(gl.s),'font-family':FONTS.sans,'font-weight':gl.b?'bold':null,fill:'currentColor'},gl.t));
   return s;
 }
+/* ============================== library organization ==============================
+   Libraries are shown in groups (LIB_GROUPS), generic before vendor and current before legacy.
+   Two pinned libraries sit on top: Favorites (shapes the user starred, in the order added) and
+   Most used (counted only when the user places a shape from the library panel, ranked by count
+   with a 30-day half-life so old habits fade). Libraries can be hidden in Manage libraries; hidden
+   ones still turn up in search results. The LIB array order itself is unchanged. */
+const LIB_GROUPS=[
+  {id:'basic',n:'Basic and flowchart',cats:['Standard','Flowchart','Shapes','Containers and swimlanes']},
+  {id:'diag',n:'Business and software diagrams',cats:['Mind map','Org chart','Entity relationship','UML','BPMN']},
+  {id:'it',n:'Network, cloud and buildings',cats:['Network','Cloud architecture','Building architecture']},
+  {id:'elec',n:'Electrical and process',cats:['Electrical','Electrical safety devices','Electrical, IEC 60617 style','P&ID','P&ID signal lines']},
+  {id:'ra',n:'Rockwell Automation',cats:['Rockwell controllers','Rockwell I/O modules (generic)','Rockwell comm modules and adapters','Rockwell Stratix switches','Rockwell drives and motion','Rockwell HMIs','Gateways and safety I/O']},
+  {id:'robot',n:'Robots and motion',cats:['Yaskawa Motoman robots','FANUC robots','Yaskawa robot controllers','FANUC robot controllers','Yaskawa drives and motion','Yaskawa Motoman robots (legacy)','FANUC robots (legacy)']},
+  {id:'mh',n:'Conveyors and material handling',cats:['Conveyors (plan view, to scale)','Conveyors: Hytrol','Conveyors: Dorner','Conveyors: Intralox']},
+  {id:'icons',n:'Icons',cats:['Icons: industrial and power','Icons: computers and network','Icons: people and places','Icons: arrows and marks','Icons: business']}
+];
+const LIB_FAV_MAX=60, LIB_USE_MAX=300, LIB_MOST_N=12, LIB_HALF_DAYS=30;
+// Groups with their library objects; anything not listed lands in Other so new libraries never vanish.
+function libGroups(){
+  const seen=new Set(), out=LIB_GROUPS.map(g=>({id:g.id,n:g.n,cats:g.cats.map(n=>{ const c=LIB.find(x=>x.cat===n); if(c) seen.add(n); return c; }).filter(Boolean)}));
+  const rest=LIB.filter(c=>!seen.has(c.cat)); if(rest.length) out.push({id:'other',n:'Other',cats:rest});
+  return out.filter(g=>g.cats.length);
+}
+function libFavs(){ return (S.prefs.libFav||[]).filter(k=>LIB_MAP[k]); }
+function libScore(r,now){ return r[0]*Math.pow(0.5,Math.max(0,(now-r[1]))/(LIB_HALF_DAYS*864e5)); }
+function libMostUsed(n){ const u=S.prefs.libUse||{}, now=Date.now(); return Object.keys(u).filter(k=>LIB_MAP[k]).sort((a,b)=>libScore(u[b],now)-libScore(u[a],now)||a.localeCompare(b)).slice(0,n||LIB_MOST_N); }
+// Count a placement the user made from the library panel. Internal adds never call this.
+function libUse(key){
+  if(!LIB_MAP[key]) return; const u=S.prefs.libUse||(S.prefs.libUse={}), r=u[key]||[0,0]; u[key]=[Math.min(99999,r[0]+1),Date.now()];
+  const ks=Object.keys(u); if(ks.length>LIB_USE_MAX){ const now=Date.now(); ks.sort((a,b)=>libScore(u[a],now)-libScore(u[b],now)).slice(0,ks.length-LIB_USE_MAX).forEach(k=>delete u[k]); }
+  savePrefs(); refreshPinned();
+}
+function libPlace(key,x,y,rot){ libUse(key); return LIB_MAP[key].line?addLineFromLib(key,x,y):addFromLib(key,x,y,rot); }
+function libFavToggle(key,on){
+  if(!LIB_MAP[key]) return; const f=libFavs().filter(k=>k!==key); if(on===undefined) on=!(S.prefs.libFav||[]).includes(key);
+  if(on){ if(f.length>=LIB_FAV_MAX){ toast('Favorites holds '+LIB_FAV_MAX+' shapes. Remove one first.'); return; } f.push(key); }
+  S.prefs.libFav=f; savePrefs(); refreshPinned(); toast((on?'Added to':'Removed from')+' Favorites: '+LIB_MAP[key].name);
+}
+function libFavMove(key,d){ const f=libFavs(), i=f.indexOf(key), j=i+d; if(i<0||j<0||j>=f.length) return; f.splice(j,0,f.splice(i,1)[0]); S.prefs.libFav=f; savePrefs(); refreshPinned(); }
+// Library key for a shape already on the canvas, so it can be starred from the canvas too.
+function libKeyOf(it){
+  if(!it||!isShape(it)) return null; const t=String(it.type);
+  if(it.cv){ const k='cvm_'+it.cv.v+'_'+it.cv.m; return LIB_MAP[k]?k:(LIB_MAP['cv_'+it.cv.k]?'cv_'+it.cv.k:null); }
+  if(t.startsWith('rbp_')) return LIB_MAP[cardKey(t)]?cardKey(t):null;
+  const io=ioParse(t); if(io) return LIB_MAP['io_'+io.fam]?'io_'+io.fam:null;
+  if(LIB_MAP[t]&&!LIB_MAP[t].line) return t;
+  for(const c of LIB) for(const i of c.items) if(i.type===t&&!i.line&&!i.tpl&&(t!=='icon'||(i.props&&i.props.icon===it.icon))) return i.key;
+  return null;
+}
+function libTile(i,c,mode,lazy){
+  const fav=(S.prefs.libFav||[]).includes(i.key), pic=mode!=='names';
+  return el('button',{class:'lib-tile'+(i.dev?' dev':'')+(fav?' fav':''),'data-lib':i.key,'data-lazy':lazy?'1':null,'data-name':(i.name+' '+c.cat).toLowerCase(),title:i.name+(i.basis?'\n'+(i.verified?'':'[Unverified] ')+i.basis:'')+(i.std?'\n[Unverified] '+i.std:'')+(i.dev?'\n'+RA_DEV[i.key].ports.length+' ports'+(RA_DEV[i.key].v?'':' [Unverified]'):''),'aria-label':'Add '+i.name},pic&&!lazy?tilePreview(i):null,i.dev?el('span',{class:'lib-cap',text:i.cap}):null,
+        el('span',{class:'lib-name'},i.name,i.dev&&mode==='names'?el('small',{text:RA_DEV[i.key].ports.length+' ports'+(RA_DEV[i.key].v?'':', unverified')}):null));
+}
+function libCatBlock(c,opts){
+  opts=opts||{}; const closed=opts.closed!=null?opts.closed:(c.closed?!S.prefs.opened.includes(c.cat):S.prefs.collapsed.includes(c.cat));
+  const mode=opts.mode||(S.prefs.libView==='auto'?(c.closed&&!c.pics?'names':'icons'):S.prefs.libView), pic=mode!=='names', lazy=pic&&closed&&c.closed;
+  return el('div',{class:'lib-cat'+(closed?' collapsed':'')+(opts.pinned?' lib-pinned':''),'data-catwrap':c.cat,'data-pin':opts.pinned||null},
+    el('button',{class:'lib-cat-h','data-cat':c.cat,'aria-expanded':String(!closed)},icon('chevron',12),opts.label||c.cat,opts.count!=null?el('span',{class:'lib-n',text:String(opts.count)}):null),
+    opts.empty?el('p',{class:'lib-hint',text:opts.empty}):null,
+    el('div',{class:'lib-grid mode-'+mode},c.items.map(i=>libTile(i,c,mode,lazy))));
+}
+function pinnedBlocks(){
+  const pm=S.prefs.libView==='auto'?'labeled':S.prefs.libView, fav=libFavs(), most=libMostUsed();
+  return [libCatBlock({cat:'Favorites',items:fav.map(k=>LIB_MAP[k])},{pinned:'fav',mode:pm,label:'Favorites',count:fav.length,closed:S.prefs.collapsed.includes('Favorites'),
+      empty:fav.length?null:'Right-click a shape here (long-press on touch) and choose Add to Favorites. You can also right-click a shape on the canvas.'}),
+    libCatBlock({cat:'Most used',items:most.map(k=>LIB_MAP[k])},{pinned:'most',mode:pm,label:'Most used',count:most.length,closed:S.prefs.collapsed.includes('Most used'),
+      empty:most.length?null:'Shapes you place from the library show up here, most used first.'})];
+}
+// Targeted update: only the two pinned libraries are rebuilt when favorites or counts change.
+function refreshPinned(){
+  const list=$('#libList'); if(!list) return; const old=list.querySelectorAll('[data-pin]'); const nb=pinnedBlocks(), fs=new Set(S.prefs.libFav||[]);
+  list.querySelectorAll('.lib-tile').forEach(t=>t.classList.toggle('fav',fs.has(t.getAttribute('data-lib'))));
+  if(old.length===2){ old[0].replaceWith(nb[0]); old[1].replaceWith(nb[1]); } else { buildLibrary(); return; }
+  const q=$('#libSearch'); if(q&&q.value.trim()) filterLibrary(q.value); else nb.forEach(b=>{ if(!b.classList.contains('collapsed')) fillTiles(b); });
+}
 function buildLibrary(){
-  const list=$('#libList'), kids=[];
-  for(const c of LIB){
-    const closed=c.closed?!S.prefs.opened.includes(c.cat):S.prefs.collapsed.includes(c.cat);
-    const mode=S.prefs.libView==='auto'?(c.closed&&!c.pics?'names':'icons'):S.prefs.libView, pic=mode!=='names', lazy=pic&&closed&&c.closed;
-    kids.push(el('div',{class:'lib-cat'+(closed?' collapsed':''),'data-catwrap':c.cat},
-      el('button',{class:'lib-cat-h','data-cat':c.cat,'aria-expanded':String(!closed)},icon('chevron',12),c.cat),
-      el('div',{class:'lib-grid mode-'+mode},c.items.map(i=>el('button',{class:'lib-tile'+(i.dev?' dev':''),'data-lib':i.key,'data-lazy':lazy?'1':null,'data-name':(i.name+' '+c.cat).toLowerCase(),title:i.name+(i.basis?'\n'+(i.verified?'':'[Unverified] ')+i.basis:'')+(i.std?'\n[Unverified] '+i.std:'')+(i.dev?'\n'+RA_DEV[i.key].ports.length+' ports'+(RA_DEV[i.key].v?'':' [Unverified]'):''),'aria-label':'Add '+i.name},pic&&!lazy?tilePreview(i):null,i.dev?el('span',{class:'lib-cap',text:i.cap}):null,
-        el('span',{class:'lib-name'},i.name,i.dev&&mode==='names'?el('small',{text:RA_DEV[i.key].ports.length+' ports'+(RA_DEV[i.key].v?'':', unverified')}):null))))));
+  const list=$('#libList'), kids=[], hidden=new Set(S.prefs.libHidden||[]), hid=[];
+  kids.push(...pinnedBlocks());
+  for(const g of libGroups()){
+    const cats=g.cats.filter(c=>!hidden.has(c.cat)); g.cats.filter(c=>hidden.has(c.cat)).forEach(c=>hid.push(c)); if(!cats.length) continue;
+    const closed=(S.prefs.grpClosed||[]).includes(g.id), n=cats.reduce((a,c)=>a+c.items.length,0);
+    kids.push(el('div',{class:'lib-grp'+(closed?' collapsed':''),'data-grpwrap':g.id},
+      el('button',{class:'lib-grp-h','data-grp':g.id,'aria-expanded':String(!closed)},icon('chevron',12),el('span',{text:g.n}),el('span',{class:'lib-n',title:cats.length+(cats.length>1?' libraries, ':' library, ')+n+' shapes',text:n+' shapes'})),
+      el('div',{class:'lib-grp-b'},cats.map(c=>libCatBlock(c)))));
   }
+  if(hid.length) kids.push(el('div',{class:'lib-grp','data-grpwrap':'hidden',hidden:true},
+    el('div',{class:'lib-grp-h',style:{cursor:'default'}},el('span',{text:'In hidden libraries'})),
+    el('div',{class:'lib-grp-b'},hid.map(c=>libCatBlock(c,{closed:true})))));
+  kids.push(el('div',{style:{padding:'8px 8px 2px'}},el('button',{class:'btn',style:{width:'100%',justifyContent:'center'},'data-cmd':'lib:manage'},icon('grid',16),'Manage libraries')),
+    el('p',{class:'muted small',style:{margin:'4px 10px 0'},text:(hid.length?hid.length+' hidden. ':'')+'Show or hide libraries and edit Favorites.'}));
   kids.push(el('div',{class:'lib-cat-h',style:{cursor:'default'},text:'Pictures'}));
   kids.push(el('div',{style:{padding:'0 8px 6px'}},el('button',{class:'btn',style:{width:'100%',justifyContent:'center'},'data-cmd':'insertImage'},icon('image',16),'Upload picture'),
     el('p',{class:'muted small',style:{margin:'6px 2px 0'},text:'Or drag a picture onto the canvas, or paste one.'})));
-  kids.push(el('div',{class:'lib-soon-h',text:'More libraries'}));
-  for(const n of SOON_LIBS) kids.push(el('button',{class:'lib-soon','data-cmd':'soon:'+n+' shape library'},el('span',{text:n}),el('span',{class:'soon',text:'Coming Soon'})));
+  if(SOON_LIBS.length){ kids.push(el('div',{class:'lib-soon-h',text:'More libraries'}));
+    for(const n of SOON_LIBS) kids.push(el('button',{class:'lib-soon','data-cmd':'soon:'+n+' shape library'},el('span',{text:n}),el('span',{class:'soon',text:'Coming Soon'}))); }
   kids.push(el('div',{class:'lib-empty',id:'libEmpty',hidden:true,text:'No shapes match your search.'}));
   list.replaceChildren(...kids);
+  list.querySelectorAll('[data-pin]').forEach(b=>{ if(!b.classList.contains('collapsed')) fillTiles(b); });
+}
+function libCtxShow(key,x,y){
+  hideCtx(); const fav=(S.prefs.libFav||[]).includes(key), used=!!(S.prefs.libUse||{})[key], c=LIB.find(q=>q.items.some(i=>i.key===key));
+  const list=[[fav?'Remove from Favorites':'Add to Favorites','lib:'+(fav?'unfav':'fav')+':'+key],used?['Remove from Most used','lib:unuse:'+key]:null,'-',
+    c?['Hide the '+c.cat+' library','lib:hide:'+encodeURIComponent(c.cat)]:null,['Manage libraries...','lib:manage']].filter(Boolean);
+  ctxEl=buildMenu(list); ctxEl.classList.add('ctx'); document.body.appendChild(ctxEl);
+  const w=ctxEl.offsetWidth||230, h=ctxEl.offsetHeight||140;
+  ctxEl.style.left=r2(Math.min(x,(window.innerWidth||1200)-w-6))+'px'; ctxEl.style.top=r2(Math.min(y,(window.innerHeight||800)-h-6))+'px';
+}
+function libCmd(name){
+  const p=name.split(':'), key=p.slice(2).join(':');
+  if(p[1]==='fav') libFavToggle(key,true); else if(p[1]==='unfav') libFavToggle(key,false);
+  else if(p[1]==='unuse'){ if(S.prefs.libUse) delete S.prefs.libUse[key]; savePrefs(); refreshPinned(); }
+  else if(p[1]==='hide'){ const c=decodeURIComponent(key); S.prefs.libHidden=[...new Set((S.prefs.libHidden||[]).concat(c))]; savePrefs(); buildLibrary(); filterLibrary($('#libSearch').value); toast('Hid the '+c+' library. Its shapes still show up in search; Manage libraries brings it back.'); }
+  else if(p[1]==='manage') showLibManager();
+  else if(p[1]==='resetUse'){ S.prefs.libUse={}; savePrefs(); refreshPinned(); toast('Most used was cleared.'); }
+  else if(p[1]==='favSel'){ const k=libKeyOf(selItems()[0]); if(k) libFavToggle(k,true); else toast('That shape is not from a library, so it cannot be a favorite.'); }
+}
+function showLibManager(){
+  const body=el('div',{class:'libman'});
+  const draw=()=>{
+    const hidden=new Set(S.prefs.libHidden||[]), fav=libFavs(), most=libMostUsed(), u=S.prefs.libUse||{};
+    body.replaceChildren(
+      el('h3',{text:'Favorites ('+fav.length+')'}),
+      fav.length?el('div',{class:'libman-list'},fav.map((k,i)=>el('div',{class:'libman-row'},el('span',{text:LIB_MAP[k].name}),
+        el('button',{type:'button',class:'btn ghost icon','data-lm':'up:'+k,'aria-label':'Move '+LIB_MAP[k].name+' up',disabled:i===0},icon('chevron',12)),
+        el('button',{type:'button',class:'btn ghost icon','data-lm':'down:'+k,'aria-label':'Move '+LIB_MAP[k].name+' down',disabled:i===fav.length-1},icon('chevron',12)),
+        el('button',{type:'button',class:'btn','data-lm':'unfav:'+k,text:'Remove'})))):el('p',{class:'muted small',text:'No favorites yet. Right-click a shape in the library or on the canvas and choose Add to Favorites.'}),
+      el('h3',{text:'Most used'}),
+      most.length?el('div',{class:'libman-list'},most.map(k=>el('div',{class:'libman-row'},el('span',{text:LIB_MAP[k].name}),el('span',{class:'muted small',text:'placed '+u[k][0]+(u[k][0]===1?' time':' times')})))):el('p',{class:'muted small',text:'Nothing yet.'}),
+      most.length?el('div',{class:'find-row'},el('button',{type:'button',class:'btn','data-lm':'resetUse',text:'Clear most used'})):null,
+      el('p',{class:'muted small',text:'Ranked by how often you placed each shape from the library, with older use counting half as much every '+LIB_HALF_DAYS+' days. Kept in this browser only.'}),
+      el('h3',{text:'Libraries'}),
+      el('p',{class:'muted small',text:'Unchecked libraries leave the panel but still show up in search results.'}),
+      ...libGroups().map(g=>el('div',{class:'libman-grp'},el('div',{class:'libman-gh'},el('b',{text:g.n}),
+          el('button',{type:'button',class:'btn ghost','data-lm':'gall:'+g.id,text:'Show all'}),el('button',{type:'button',class:'btn ghost','data-lm':'gnone:'+g.id,text:'Hide all'})),
+        g.cats.map(c=>el('label',{class:'chk'},el('input',{type:'checkbox','data-lmc':c.cat,checked:!hidden.has(c.cat)}),c.cat+' ('+c.items.length+')')))));
+  };
+  const apply=()=>{ savePrefs(); buildLibrary(); filterLibrary($('#libSearch').value); };
+  draw();
+  openModal('Manage libraries',body,el('div',{class:'modal-actions'},el('button',{type:'button',class:'btn primary','data-close':'btn',text:'Done'})));
+  body.addEventListener('change',e=>{ const c=e.target.getAttribute('data-lmc'); if(c==null) return; const h=new Set(S.prefs.libHidden||[]); if(e.target.checked) h.delete(c); else h.add(c); S.prefs.libHidden=[...h]; apply(); });
+  body.addEventListener('click',e=>{ const b=e.target.closest('[data-lm]'); if(!b) return; const [a,...r]=b.getAttribute('data-lm').split(':'), k=r.join(':');
+    if(a==='up') libFavMove(k,-1); else if(a==='down') libFavMove(k,1); else if(a==='unfav') libFavToggle(k,false); else if(a==='resetUse') libCmd('lib:resetUse');
+    else if(a==='gall'||a==='gnone'){ const g=libGroups().find(x=>x.id===k), h=new Set(S.prefs.libHidden||[]); for(const c of g.cats){ if(a==='gall') h.delete(c.cat); else h.add(c.cat); } S.prefs.libHidden=[...h]; apply(); }
+    draw(); });
 }
 // Large device libraries start closed and draw their tile pictures only when shown.
 function fillTiles(root){ root.querySelectorAll('[data-lazy]').forEach(t=>{ if(t.hidden) return; t.insertBefore(tilePreview(LIB_MAP[t.getAttribute('data-lib')]),t.firstChild); t.removeAttribute('data-lazy'); }); }
 function filterLibrary(q){
-  q=q.trim().toLowerCase(); let any=false;
+  q=String(q||'').trim().toLowerCase(); let any=false;
   document.querySelectorAll('[data-catwrap]').forEach(w=>{
     let n=0;
     w.querySelectorAll('[data-lib]').forEach(t=>{ const ok=!q||t.getAttribute('data-name').includes(q); t.hidden=!ok; if(ok) n++; });
-    w.hidden=n===0; if(n) any=true; if(q){ w.classList.remove('collapsed'); if(n) fillTiles(w); }
+    const pinEmpty=!q&&w.hasAttribute('data-pin');
+    w.hidden=n===0&&!pinEmpty; if(n) any=true; if(q){ w.classList.remove('collapsed'); if(n) fillTiles(w); }
   });
+  document.querySelectorAll('[data-grpwrap]').forEach(g=>{ const id=g.getAttribute('data-grpwrap');
+    if(id==='hidden'){ g.hidden=!q||!g.querySelector('[data-catwrap]:not([hidden])'); return; }
+    g.hidden=!!q&&!g.querySelector('[data-catwrap]:not([hidden])');
+    g.classList.toggle('collapsed',!q&&(S.prefs.grpClosed||[]).includes(id)); });
   $('#libEmpty').hidden=any;
 }
 function overStage(ev){ const r=stage.getBoundingClientRect(); return ev.clientX>=r.left&&ev.clientX<=r.right&&ev.clientY>=r.top&&ev.clientY<=r.bottom; }
@@ -4589,19 +4828,22 @@ function wireLibrary(){
     const up=ev=>{
       if(ev.pointerId!==st.pid) return;
       window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up); window.removeEventListener('keydown',keyR,true);
-      if(st.ghost){ st.ghost.remove(); if(ev.type==='pointerup'&&overStage(ev)){ const w=toWorld(ev); if(LIB_MAP[key].line) addLineFromLib(key,w.x,w.y); else addFromLib(key,w.x,w.y,st.rot); } }
-      else if(ev.type==='pointerup'){ if(LIB_MAP[key].line) addLineFromLib(key); else addFromLib(key); }
+      if(st.ghost){ st.ghost.remove(); if(ev.type==='pointerup'&&overStage(ev)){ const w=toWorld(ev); libPlace(key,w.x,w.y,st.rot); } }
+      else if(ev.type==='pointerup'){ libPlace(key); }
     };
     window.addEventListener('pointermove',move); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up); window.addEventListener('keydown',keyR,true);
   });
   left.addEventListener('click',e=>{
-    const tile=e.target.closest('[data-lib]'); if(tile&&e.detail===0){ const k=tile.getAttribute('data-lib'); if(LIB_MAP[k].line) addLineFromLib(k); else addFromLib(k); return; }
+    const tile=e.target.closest('[data-lib]'); if(tile&&e.detail===0){ libPlace(tile.getAttribute('data-lib')); return; }
+    const gh=e.target.closest('[data-grp]'); if(gh){ const w=gh.parentElement, id=gh.getAttribute('data-grp'); w.classList.toggle('collapsed'); const closed=w.classList.contains('collapsed'); gh.setAttribute('aria-expanded',String(!closed));
+      S.prefs.grpClosed=(S.prefs.grpClosed||[]).filter(x=>x!==id); if(closed) S.prefs.grpClosed.push(id); else w.querySelectorAll('.lib-cat:not(.collapsed)').forEach(fillTiles); savePrefs(); return; }
     const h=e.target.closest('[data-cat]'); if(h){ const w=h.parentElement, cat=h.getAttribute('data-cat'); w.classList.toggle('collapsed'); const closed=w.classList.contains('collapsed'); h.setAttribute('aria-expanded',String(!closed));
       const lc=LIB.find(c=>c.cat===cat); if(!closed) fillTiles(w);
       if(lc&&lc.closed){ S.prefs.opened=S.prefs.opened.filter(c=>c!==cat); if(!closed) S.prefs.opened.push(cat); }
       else { S.prefs.collapsed=S.prefs.collapsed.filter(c=>c!==cat); if(closed) S.prefs.collapsed.push(cat); }
       savePrefs(); }
   });
+  left.addEventListener('contextmenu',e=>{ const tile=e.target.closest('[data-lib]'); if(!tile) return; e.preventDefault(); libCtxShow(tile.getAttribute('data-lib'),e.clientX,e.clientY); });
   $('#libSearch').addEventListener('input',e=>filterLibrary(e.target.value));
   const lv=$('#libView'); lv.value=S.prefs.libView;
   lv.addEventListener('change',()=>{ S.prefs.libView=lv.value; savePrefs(); buildLibrary(); filterLibrary($('#libSearch').value); });
@@ -5084,6 +5326,76 @@ function impType(name){
 const hexOk=v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v.trim())?v.trim().toLowerCase():null;
 // Visio: pages.xml lists pages, each pageN.xml holds Shape elements with ShapeSheet cells in inches, y up.
 // Cells a shape leaves out come from its master. Built against real .vsdx files; see Help for what is not carried over.
+/* Device pictures from a Visio file: every picture placed on a page (or held by a master used on a
+   page) is listed with its shape or master name. Names that match a catalog number (CMS20DP ->
+   1783-CMS20DP) are picked automatically; the rest are chosen in the dialog. EMF and WMF pictures
+   cannot be shown in a browser and are listed as skipped. */
+const VPIC_MIME={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',bmp:'image/bmp'};
+async function visioPictures(zip){
+  const parse=t=>new DOMParser().parseFromString(t,'application/xml'), kids=(e,n)=>e?[...e.children].filter(c=>c.localName===n):[];
+  const rid=e=>{ const r=kids(e,'Rel')[0]; return r?(r.getAttribute('r:id')||r.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id')):null; };
+  const rels=async path=>{ const t=await zip.text(path); const m=new Map(); if(t) for(const r of parse(t).getElementsByTagName('Relationship')) m.set(r.getAttribute('Id'),r.getAttribute('Target')); return m; };
+  const norm=(base,t)=>{ const parts=(base+'/'+t).split('/'), out=[]; for(const q of parts){ if(q==='..') out.pop(); else if(q&&q!=='.') out.push(q); } return out.join('/'); };
+  const masters=new Map(), mt=await zip.text('visio/masters/masters.xml');
+  if(mt){ const mr=await rels('visio/masters/_rels/masters.xml.rels');
+    for(const m of parse(mt).getElementsByTagName('Master')){ const f=mr.get(rid(m)); let img=null;
+      if(f){ const file=f.replace(/^.*\//,''), r=await rels('visio/masters/_rels/'+file+'.rels'); const t=[...r.values()].find(v=>/media\//.test(v)); if(t) img=norm('visio/masters',t); }
+      masters.set(m.getAttribute('ID'),{name:(m.getAttribute('NameU')||m.getAttribute('Name')||'').trim(),img}); } }
+  const out=new Map(), pt=await zip.text('visio/pages/pages.xml'); if(!pt) throw new Error('No pages found in that Visio file.');
+  const pr=await rels('visio/pages/_rels/pages.xml.rels');
+  for(const pg of parse(pt).getElementsByTagName('Page')){
+    const f=pr.get(rid(pg)); if(!f) continue; const file=f.replace(/^.*\//,''), xml=await zip.text('visio/pages/'+file); if(!xml) continue;
+    const r=await rels('visio/pages/_rels/'+file+'.rels'), pname=pg.getAttribute('Name')||pg.getAttribute('NameU')||'Page';
+    for(const sh of parse(xml).getElementsByTagName('Shape')){
+      if(sh.getAttribute('Type')!=='Foreign') continue; const ms=masters.get(sh.getAttribute('Master'));
+      const fd=kids(sh,'ForeignData')[0], own=fd&&rid(fd)?r.get(rid(fd)):null, path=own?norm('visio/pages',own):(ms&&ms.img);
+      if(!path||out.has(path)||!/\.(png|jpe?g|gif|bmp|emf|wmf|tiff?)$/i.test(path)) continue;
+      const nm=(ms&&ms.name)||(sh.getAttribute('NameU')||'').replace(/\.\d+$/,'');
+      out.set(path,{path,name:nm.replace(/\.\d+$/,'').trim(),page:pname,ext:(path.split('.').pop()||'').toLowerCase()}); } }
+  return [...out.values()];
+}
+function guessDevice(name){
+  const n=String(name||'').toUpperCase().replace(/\s+/g,''); if(n.length<3) return '';
+  for(const k in RA_DEV){ const d=RA_DEV[k]; if(d.plan) continue; const c=d.cat.toUpperCase().replace(/\s+/g,''), tail=c.replace(/^[0-9A-Z]+-/,'');
+    if(c===n||tail===n) return k; }
+  return '';
+}
+function pickVisioPics(){ const f=el('input',{type:'file',accept:'.vsdx,.vssx'}); f.addEventListener('change',()=>{ const x=f.files&&f.files[0]; if(x) importVisioPics(x); }); f.click(); }
+async function importVisioPics(file,opts){
+  opts=opts||{};
+  let zip, list; try{ zip=zipOpen(new Uint8Array(await file.arrayBuffer())); list=await visioPictures(zip); }catch(e){ toast(e.message||'Could not read that Visio file.'); return null; }
+  if(!list.length){ toast('No pictures were found on the pages of that Visio file.'); return null; }
+  const rows=[];
+  for(const it of list){ const mime=VPIC_MIME[it.ext]; let data=null, sz={w:0,h:0};
+    if(mime){ const b=await zip.get(it.path); if(b){ let bin=''; for(let i=0;i<b.length;i+=0x8000) bin+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); data='data:'+mime+';base64,'+btoa(bin); sz=await imageSize(data); } }
+    rows.push(Object.assign({},it,{mime,data,w:sz.w,h:sz.h,pick:mime?guessDevice(it.name):''})); }
+  if(opts.auto) return applyVisioPics(rows,opts);
+  const groups={}; for(const k in RA_DEV){ const d=RA_DEV[k]; if(d.plan) continue; (groups[d.fam]=groups[d.fam]||[]).push(k); }
+  const fams=Object.keys(groups);
+  const sel=r=>{ const s0=el('select',{'aria-label':'Device for this picture'},el('option',{value:'',text:'Skip'}),fams.map(f=>el('optgroup',{label:f},groups[f].map(k=>el('option',{value:k,text:RA_DEV[k].cat}))))); s0.value=r.pick; s0.addEventListener('change',()=>{ r.pick=s0.value; }); return s0; };
+  const fill=el('input',{type:'checkbox',checked:true}), fam=el('input',{type:'checkbox'});
+  const auto=rows.filter(r=>r.pick).length, skipped=rows.filter(r=>!r.mime).length;
+  openModal('Import device pictures from Visio',
+    el('p',{class:'muted small',text:rows.length+' picture'+(rows.length>1?'s':'')+' found. '+(auto?auto+' matched a catalog number by name. ':'')+'Pick the device each picture should stand for, or leave Skip. '+(skipped?skipped+' EMF or WMF picture'+(skipped>1?'s':'')+' cannot be shown in a browser and will be skipped.':'')}),
+    el('div',{class:'vpic-list'},rows.map(r=>el('div',{class:'vpic-row'},r.data?el('img',{src:r.data,alt:r.name||'Picture'}):el('div',{class:'vpic-none',text:r.ext.toUpperCase()}),
+      el('div',{class:'vpic-meta'},el('b',{text:r.name||'(no name)'}),el('span',{class:'muted small',text:r.page+', '+r.path.replace(/^.*\//,'')+(r.w?', '+r.w+' x '+r.h+' px':'')}),r.mime?sel(r):el('span',{class:'muted small',text:'Skipped: format not shown by browsers'}))))),
+    el('label',{class:'chk'},fill,'Pictures fill the device shape (no title bar)'),
+    el('label',{class:'chk'},fam,'Also use each picture for other catalogs in the same family that have no picture'),
+    el('p',{class:'muted small',text:'Pictures are saved in this diagram and, with Remember on, used for new diagrams in this browser. Use drawings you have the right to use, such as manufacturer stencils for your own documentation.'}),
+    el('div',{class:'modal-actions'},el('button',{type:'button',class:'btn','data-close':'btn',text:'Cancel'}),el('button',{type:'button',class:'btn primary','data-vpic':'go',text:'Use pictures'})));
+  return new Promise(res=>{ modalEl.querySelector('[data-vpic]').addEventListener('click',async()=>{ closeModal(); res(await applyVisioPics(rows,{fill:fill.checked,family:fam.checked})); }); });
+}
+async function applyVisioPics(rows,opts){
+  const remember=S.prefs.picRemember!==false, done=[]; const lib=picLib();
+  for(const r of rows){ if(!r.pick||!r.data||!RA_DEV[r.pick]) continue;
+    const rec={id:uid(),type:r.mime,w:r.w||300,h:r.h||200,data:r.data}; registerAsset(rec); try{ await idbPut(rec); }catch(e){}
+    const types=[r.pick]; if(opts.family){ const fam=RA_DEV[r.pick].fam; for(const k in RA_DEV) if(k!==r.pick&&!RA_DEV[k].plan&&RA_DEV[k].fam===fam&&!(S.doc.devPics&&S.doc.devPics[k])&&!rows.some(q=>q.pick===k)) types.push(k); }
+    for(const t of types){ (S.doc.devPics||(S.doc.devPics={}))[t]=rec.id; if(remember) lib[t]=rec.id; if(opts.fill!==false) setPicFill(t,true,remember); else for(const pg of S.doc.pages) for(const it of pg.items) if(it.type===t&&it.h<PIC_H){ it.y=r2(it.y-(PIC_H-it.h)/2); it.h=PIC_H; } done.push(t); } }
+  if(remember) savePicLib(lib);
+  commit(); invalidate(); buildLibrary(); filterLibrary($('#libSearch')?$('#libSearch').value:'');
+  toast(done.length?'Pictures set for '+done.length+' device'+(done.length>1?'s':'')+'.':'No pictures were assigned.');
+  return done;
+}
 async function vsdxToDoc(zip,fname){
   const parse=t=>new DOMParser().parseFromString(t,'application/xml');
   const kids=(e,n)=>e?[...e.children].filter(c=>c.localName===n):[];
@@ -5294,9 +5606,25 @@ function sanDevPics(d){ if(!d.devPics||typeof d.devPics!=='object') return {}; c
 function devPicOf(it){ if(!it||it.noPic||!RA_DEV[it.type]||!S.doc||!S.doc.devPics) return null; const id=S.doc.devPics[it.type]; const a=id&&ASSETS.get(id); return a||null; }
 // The picture fills the area between the model header and the port row.
 function devPicBox(it,X,G){ const t=G.picBox||G.tb; return {x:t.x+2,y:t.y+2,w:Math.max(4,t.w-4),h:Math.max(4,t.h-4)}; }
+const KEY_PICFILL='linework.devpicfill';
+function picFillLib(){ try{ const o=JSON.parse(store.get(KEY_PICFILL)||'{}'); return o&&typeof o==='object'?o:{}; }catch(e){ return {}; } }
+function devPicFull(it){ return !!(S.doc&&S.doc.devPicFill&&S.doc.devPicFill[it.type]&&devPicOf(it)); }
+// Size a shape to its picture: height at least PIC_H, width from the picture's shape, never narrower than its ports need.
+function fitPicShape(s){
+  const a=devPicOf(s), def=RA_DEV[s.type]; if(!a||!def||!a.w||!a.h) return; const n=def.ports.length, m=def.two?Math.ceil(n/2):n, strip=(def.two?22:0)+22, asp=a.w/a.h;
+  const wmin=Math.max(70,m*RA_PITCH+16), h=Math.max(PIC_H,Math.ceil(wmin/asp)+strip), w=Math.max(wmin,Math.round((h-strip)*asp));
+  const turned=!!(s.rot%180), cx=s.x+s.w/2, cy=s.y+s.h/2; if(turned){ s.w=h; s.h=w; } else { s.w=w; s.h=h; } s.x=r2(cx-s.w/2); s.y=r2(cy-s.h/2);
+}
+function setPicFill(type,on,remember){
+  if(on) (S.doc.devPicFill||(S.doc.devPicFill={}))[type]=true; else if(S.doc.devPicFill){ delete S.doc.devPicFill[type]; if(!Object.keys(S.doc.devPicFill).length) delete S.doc.devPicFill; }
+  if(remember!==false){ const L=picFillLib(); if(on) L[type]=true; else delete L[type]; store.set(KEY_PICFILL,JSON.stringify(L)); }
+  for(const pg of S.doc.pages) for(const it of pg.items) if(it.type===type){ if(on) fitPicShape(it); else { const cx=it.x+it.w/2, cy=it.y+it.h/2, def=LIB_MAP[type]; if(def&&!(it.rot%180)){ it.w=def.w; it.h=Math.max(def.h,PIC_H); it.x=r2(cx-it.w/2); it.y=r2(cy-it.h/2); } } }
+}
+function sanPicFill(d){ if(!d.devPicFill||typeof d.devPicFill!=='object') return {}; const o={}; let n=0; for(const k in d.devPicFill){ if(n>=500) break; if(RA_DEV[k]&&d.devPicFill[k]===true){ o[k]=true; n++; } } return n?{devPicFill:o}:{}; }
 function adoptLibPic(s){
   if(!RA_DEV[s.type]) return; const lib=picLib(), id=lib[s.type];
-  if(id&&!(S.doc.devPics&&S.doc.devPics[s.type])&&ASSETS.get(id)) (S.doc.devPics||(S.doc.devPics={}))[s.type]=id;
+  if(id&&!(S.doc.devPics&&S.doc.devPics[s.type])&&ASSETS.get(id)){ (S.doc.devPics||(S.doc.devPics={}))[s.type]=id; if(picFillLib()[s.type]) (S.doc.devPicFill||(S.doc.devPicFill={}))[s.type]=true; }
+  if(devPicFull(s)){ fitPicShape(s); return; }
   if(S.doc.devPics&&S.doc.devPics[s.type]&&ASSETS.get(S.doc.devPics[s.type])&&s.h<PIC_H&&!(s.rot%180)){ s.y=r2(s.y-(PIC_H-s.h)/2); s.h=PIC_H; }
 }
 async function setDevPic(type,file,remember){
@@ -5311,6 +5639,7 @@ async function setDevPic(type,file,remember){
   commit(); invalidate(); toast('Picture set for '+RA_DEV[type].cat+(n>1?' ('+n+' shapes)':'')+'.'); return true;
 }
 function clearDevPic(type,forget){
+  if(S.doc.devPicFill){ delete S.doc.devPicFill[type]; if(!Object.keys(S.doc.devPicFill).length) delete S.doc.devPicFill; } if(forget){ const L=picFillLib(); delete L[type]; store.set(KEY_PICFILL,JSON.stringify(L)); }
   if(S.doc.devPics){ delete S.doc.devPics[type]; if(!Object.keys(S.doc.devPics).length) delete S.doc.devPics; }
   if(forget){ const lib=picLib(); delete lib[type]; savePicLib(lib); }
   commit(); invalidate(); toast('Picture removed from '+RA_DEV[type].cat+'.');
@@ -5323,6 +5652,8 @@ function devPicSection(fs){
     el('div',{class:'find-row',style:{flexWrap:'wrap'}},el('button',{type:'button',class:'btn','data-cmd':'devpic:set:'+fs.type,text:a?'Replace picture...':'Add picture...'}),
       a?el('button',{type:'button',class:'btn','data-cmd':'devpic:del:'+fs.type,text:'Remove'}):null),
     a?row('This shape',chk('noPic',!fs.noPic,'Show the picture')):null,
+    a?row('Picture',chk('picFill',!!(S.doc.devPicFill&&S.doc.devPicFill[fs.type]),'Fills the shape (no title bar)')):null,
+    el('div',{class:'find-row',style:{flexWrap:'wrap',marginTop:'4px'}},el('button',{type:'button',class:'btn','data-cmd':'devpic:visio',text:'Import pictures from Visio...'})),
     el('label',{class:'chk',style:{marginTop:'4px'}},el('input',{type:'checkbox','data-prop':'picRemember',checked:S.prefs.picRemember!==false}),'Remember for new diagrams in this browser'+(inLib?' (saved)':'')),
     el('p',{class:'muted small',style:{marginTop:'6px'},text:'The picture shows on every '+RA_DEV[fs.type].cat+' in this diagram, with the port pins still on the edges, and is saved in the diagram file. You can also drop a picture file onto the device. Use a photo or drawing you have the right to use, for example one you took or one from the manufacturer for internal documentation.'}));
 }
@@ -5736,11 +6067,7 @@ function renderProps(){
     const info=SYMBOL_INFO[fs.type];
     K.push(section('Symbol',el('div',{class:'soon-row',style:{marginBottom:'6px'}},el('span',{text:info.cat+' library'}),el('span',{class:'soon',style:info.verified?{background:'var(--accent-2)',color:'var(--accent)'}:null,text:info.verified?'Convention verified':'Unverified'})),
       el('p',{class:'muted small',text:info.basis}),
-      PIN_TYPES.has(fs.type)?(()=>{ const used=new Set(); for(const L of items()) if(isLine(L)) for(const k of ['from','to']) if(L[k].id===fs.id&&L[k].port) used.add(L[k].port);
-        const X=xf(fs), pins=geom(fs.type,X.gw,X.gh,fs.style).pins||[];
-        return el('div',null,el('div',{class:'sec-sub',text:'Wire terminals ('+pins.length+')'}),
-          el('div',{class:'dev-ports'},pins.map(q=>el('div',{class:'dev-port'+(used.has(q.id)?' used':'')},el('b',{text:q.lab||q.id}),el('span',{text:used.has(q.id)?'connected':'free'})))),
-          el('p',{class:'muted small',style:{marginTop:'6px'},text:'Hover the symbol to see its terminals and drag a line from one. Terminal names are typical, not from a specific product [Unverified]; check the device data sheet.'})); })():null));
+      PIN_TYPES.has(fs.type)?terminalSection(fs):null));
   }
   const arr=[el('div',{class:'btn-grid'},
     shapes.length?el('button',{class:'btn','data-cmd':'rotate',text:'Rotate 90\u00b0'}):null,shapes.length?el('button',{class:'btn','data-cmd':'flipH',text:'Flip horizontal'}):null,
@@ -5769,8 +6096,12 @@ function renderProps(){
 function parseVal(v){ if(v==='true') return true; if(v==='false') return false; return v; }
 function applyProp(prop,v,final){
   if(prop==='picRemember'){ S.prefs.picRemember=!!v; savePrefs(); invalidate({props:true}); return; }
+  if(prop==='picFill'){ const sh=unlockedSel().filter(i=>RA_DEV[i.type]); [...new Set(sh.map(i=>i.type))].forEach(t=>setPicFill(t,!!v,S.prefs.picRemember!==false)); commit(); invalidate(); return; }
   if(prop==='noPic'){ const sh=unlockedSel().filter(i=>RA_DEV[i.type]); sh.forEach(i=>{ if(v) delete i.noPic; else i.noPic=true; }); commit(); invalidate(); return; }
   if(applyExtraProp(prop,v,final)) return;
+  if(prop.startsWith('term:')||prop==='termLp'){ if(!final&&prop!=='termLp') return; const s0=unlockedSel().filter(isShape)[0]; if(!s0||!PIN_TYPES.has(s0.type)) return; const q=prop==='termLp'?['term','lp','']:prop.split(':');
+    if(termCmd(s0,q[1],q.slice(2).join(':'),v)){ commit(); invalidate(); } return; }
+  if(prop==='rbLbl'){ unlockedSel().filter(i=>String(i.type).startsWith('rbp_')).forEach(i=>{ if(v==='out') delete i.planLbl; else i.planLbl=v; }); commit(); invalidate(); return; }
   if(prop==='pageScale'){ if(final) setPageScale(+v); return; }
   if(applyCvProp(prop,v,final)) return;
   if(prop==='rbView'){ const sh=unlockedSel().filter(i=>RA_DEV[cardKey(i.type)]&&RA_DEV[cardKey(i.type)].robot); if(v==='plan') sh.forEach(i=>adoptCad(cardKey(i.type))); sh.forEach(i=>setRobotView(i,v)); S.prefs.robotView=v==='plan'?'plan':'card'; savePrefs(); const rv=$('#robotView'); if(rv) rv.value=S.prefs.robotView; commit(); invalidate(); return; }
@@ -6435,11 +6766,11 @@ async function exportPdf(all){
 
 /* ============================== menus & context menu ============================== */
 const MENUS={
-  file:[['New diagram','newDoc'],['New from template...','templates'],['Duplicate page','duplicatePage'],['Open...','openJson','Ctrl+O'],['Save','save','Ctrl+S'],['Save as...','saveAs','Ctrl+Shift+S'],['Import Visio or Lucid file...','openJson'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import CSV data...','importData'],['Version history...','versions']],
+  file:[['New diagram','newDoc'],['New from template...','templates'],['Duplicate page','duplicatePage'],['Open...','openJson','Ctrl+O'],['Save','save','Ctrl+S'],['Save as...','saveAs','Ctrl+Shift+S'],['Import Visio or Lucid file...','openJson'],['Import device pictures from Visio...','devpic:visio'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import CSV data...','importData'],['Version history...','versions']],
   edit:[['Undo','undo','Ctrl+Z'],['Redo','redo','Ctrl+Shift+Z'],'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',['Select all','selectAll','Ctrl+A'],['Select all shapes','selectShapes'],['Select all lines','selectLines'],['Select same fill color','selectSameFill'],'-',['Edit text','editText','Enter'],['Add text to line','addLineText'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],'-',['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],'-',['Find and replace','find','Ctrl+F']],
   insert:[['Template pages...','templates'],['Picture...','insertImage'],['Text box','insertText'],['Sticky note','insertNote'],['Page','addPage'],'-',['Icons...','showIcons'],['Freehand drawing (pen)','pen']],
   arrange:[['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',['Group','group','Ctrl+G'],['Ungroup','ungroup','Ctrl+Shift+G'],'-',['Align left','alignL'],['Align center','alignC'],['Align right','alignR'],['Align top','alignT'],['Align middle','alignM'],['Align bottom','alignB'],'-',['Distribute horizontally','distH'],['Distribute vertically','distV'],'-',['Rotate 90\u00b0 clockwise','rotate','Alt+R'],['Rotate 90\u00b0 counterclockwise','rotateCcw','Alt+Shift+R'],['Flip horizontal','flipH'],['Flip vertical','flipV'],'-',['Match width','matchW'],['Match height','matchH'],['Match size','matchSize'],'-',['Lock / unlock','toggleLock','Ctrl+Shift+L'],['Swap line endpoints','swapEnds']],
-  view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','toggleMinimap',null,false,()=>S.prefs.minimap],'-',['Fold all branches','foldAll'],['Unfold all branches','unfoldAll'],['Present','present','F5'],['Comments','comments','Ctrl+Alt+M',false,()=>CMT.open]],
+  view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Manage libraries...','lib:manage'],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','toggleMinimap',null,false,()=>S.prefs.minimap],'-',['Fold all branches','foldAll'],['Unfold all branches','unfoldAll'],['Present','present','F5'],['Comments','comments','Ctrl+Alt+M',false,()=>CMT.open]],
   help:[['Getting started and shortcuts','help','F1'],['About Linework','about']]
 };
 let openMenu=null;
@@ -6474,7 +6805,7 @@ function showCtx(x,y){
       oneLine?['Swap endpoints','swapEnds']:null,oneLine&&si[0].waypoints?['Reset line path','resetPath']:null,'-',
       S.sel.size>1?['Group','group','Ctrl+G']:null,si.some(i=>i.groupId)?['Ungroup','ungroup','Ctrl+Shift+G']:null,
       S.sel.size>1?['Align left','alignL']:null,S.sel.size>1?['Align center','alignC']:null,S.sel.size>1?['Align top','alignT']:null,'-',
-      ['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions']].filter(Boolean)
+      ['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],si.length===1&&libKeyOf(si[0])?((S.prefs.libFav||[]).includes(libKeyOf(si[0]))?['Remove from Favorites','lib:unfav:'+libKeyOf(si[0])]:['Add to Favorites','lib:fav:'+libKeyOf(si[0])]):null].filter(Boolean)
     :[['Paste','paste','Ctrl+V'],['Select all','selectAll','Ctrl+A'],'-',['Zoom to fit','zoomFit'],['Add page','addPage']];
   if(has) list.push('-',['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],['Lock / unlock','toggleLock','Ctrl+Shift+L']);
   for(let i=list.length-1;i>0;i--) if(list[i]==='-'&&list[i-1]==='-') list.splice(i,1);
@@ -6652,6 +6983,15 @@ function showHelp(){
     el('p',{text:'Every robot also carries data fields: Manufacturer, Model, Series, Type, Payload (kg), Reach (mm), Axes, Controller and Spec status. Use them in text with {{Payload (kg)}}, in conditional formatting, or export them with the other data to CSV. Change model in the floating toolbar swaps a robot for another model of the same series and updates these fields; fields you added yourself stay.'}),
     el('p',{text:'Values come from the source shown in the right panel. A star after a value on the shape means it came from a secondary or third-party source and is marked Unverified. A question mark, and Not found in the panel, means the value was not in the sources checked; it is never filled in from the model name. Many Yaskawa models show ? ax because the Yaskawa catalog used does not list the number of axes.'}),
     el('p',{text:'Yaskawa robot controllers, FANUC robot controllers and Yaskawa drives and motion work like the Rockwell devices: one pin per port. Controllers have pendant (TP or PP), robot cable (ROB), Ethernet, and where known USB, serial and fieldbus option pins. Drives have the communication option slot, serial and safety pins where the source confirms them, plus generic power and motor pins. Legacy controllers whose ports were not found show only the pendant and robot pins and are marked Unverified. The R-30iB Plus Ethernet port speed is left open because the sources disagree.'}),
+    el('h3',{text:'Device pictures from a Visio file'}),
+    el('p',{text:'File, Import device pictures from Visio (or the button under Device picture) reads the pictures in a .vsdx file, such as a page of Rockwell stencil drawings, and lists each one with its shape or master name. A name that matches a catalog number, like CMS20DP for 1783-CMS20DP, is picked for you; pick the device for the others or leave them on Skip. EMF and WMF pictures cannot be shown in a browser and are skipped. With Pictures fill the device shape on, the drawing becomes the whole device shape (no title bar), sized to the drawing, with the port pins still along the edges and the catalog number below. Turn this on or off per device under Device picture. The pictures are saved in the diagram and, with Remember on, used for new diagrams in this browser.'}),
+    el('h3',{text:'Editing wire terminals'}),
+    el('p',{text:'Select a symbol with wire terminals (light curtains, safety relays, contactors, drives and the rest) and use Wire terminals in the right panel. Rename a terminal, move it to another side, delete it with the bin button, or Add terminal. Changes apply to that one shape. A moved or added terminal is spaced evenly along its side with the others there. Deleting a terminal that has a wire keeps the wire on the same edge, no longer pinned. Labels: Inside draws them as the symbol was drawn, Outside puts them beyond the edge so the drawing and wires do not cover them, and Hidden leaves them off. Reset terminals goes back to the drawing defaults.'}),
+    el('p',{text:'Robot plan views put the reach and 0 degree labels outside the circle and the model name below it, so conveyors and other equipment drawn inside the reach do not cover them. Robot view, Labels switches them inside or hides them.'}),
+    el('h3',{text:'Organizing the shape library'}),
+    el('p',{text:'Libraries are grouped by kind of work: Basic and flowchart; Business and software diagrams; Network, cloud and buildings; Electrical and process; Rockwell Automation; Robots and motion; Conveyors and material handling; and Icons. Inside each group, general libraries come before vendor ones and current products before legacy. Click a group name to fold it; the panel remembers what you folded.'}),
+    el('p',{text:'Favorites and Most used sit at the top. Right-click a shape in the library (long-press on touch), or a shape on the canvas, and choose Add to Favorites; a small star marks favorite tiles. Most used fills itself: each time you click or drag a shape out of the library it counts, older use counts half as much every 30 days, and the top 12 are shown. Shapes added by templates, paste or undo do not count.'}),
+    el('p',{text:'Manage libraries (bottom of the library panel, or View menu) reorders and removes favorites, clears Most used, and shows or hides any library or whole group. Hidden libraries still show up in search results, under In hidden libraries. All of this is kept in this browser, not in the diagram file.'}),
     el('h3',{text:'Drawing scale and plan views'}),
     el('p',{text:'Page settings has a Drawing scale (1:1 to 1:500). At 1:50, one pixel at 100% zoom is 13.2 mm, the same as on paper. Conveyors and robot plan views are drawn to this scale; placing one on a page with no scale sets 1:50. Changing the scale resizes every to-scale item about its centre, so real sizes stay the same. The right panel shows each to-scale item\'s real size in mm and inches.'}),
     el('p',{text:'Robots can show as a Card or a Plan view (Robot view in the right panel, or Robots as at the top of the library for new robots). The plan view is a top view at real size: a dashed reach circle labeled with the horizontal reach, crosshairs through the J1 axis, 0 degrees to the right, and the ROB pin at the base. The base and arm drawn inside are a schematic outline, because base size, joint limits and arm widths were not in the sources checked.'}),
@@ -6750,8 +7090,11 @@ function runCmd(name){
   if(name.startsWith('soon:')){ toast(name.slice(5)+' is coming soon.'); return; }
   if(name.startsWith('layer:')){ const p=name.split(':'); layerCmd(p[1],p[2]); return; }
   if(extraCmd(name)) return;
+  if(name.startsWith('lib:')){ libCmd(name); return; }
+  if(name.startsWith('term:')){ const s0=unlockedSel().filter(isShape)[0]; if(s0&&PIN_TYPES.has(s0.type)){ const q=name.split(':'); if(termCmd(s0,q[1],q.slice(2).join(':'))){ commit(); invalidate(); } } return; }
   if(name.startsWith('cad:')){ cadCmd(name.split(':')); return; }
   if(name==='cv:vendors'){ showCvVendors(); return; }
+  if(name==='devpic:visio'){ pickVisioPics(); return; }
   if(name.startsWith('devpic:')){ const p=name.split(':'); if(p[1]==='set') pickDevPic(p[2]); else if(p[1]==='del') clearDevPic(p[2],S.prefs.picRemember!==false); return; }
   const f=CMDS[name]; if(f) f();
 }
@@ -6882,6 +7225,8 @@ window.__app={
     layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO,
     devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf, ROBO_FAMS, robotData, robotSpecLine, robotGeom, changeShape, PORT_KINDS, RA_LINE,
     SCALES, pgScale, mmPerPx, setPageScale, realSize, CV_KINDS, CV_VENDORS_BUILTIN, CV_SRC, cvVendors, cvUserVendors, sanCvVendors, placeConveyor, setCv, cvSizeMm, cvCurvePts, conveyorGeom, showCvVendors,
+    visioPictures, guessDevice, importVisioPics, applyVisioPics, setPicFill, devPicFull, fitPicShape, picFillLib, KEY_PICFILL,
+    applyTerm, sanTerm, termCmd, terminalSection, geomBase, loadPrefs, LIB_GROUPS, libGroups, libFavs, libMostUsed, libUse, libPlace, libFavToggle, libFavMove, libKeyOf, libCmd, showLibManager, buildLibrary, refreshPinned, libCtxShow, libScore,
     parseDxf, dxfToSvg, svgMm, importCad, cadCmd, cadLib, setRobotView, robotPlanGeom, planRadius, cardKey, planKey, KEY_CVV, KEY_CADLIB },
   LIB, LIB_MAP, KEYS:{doc:KEY_DOC,schema:KEY_SCHEMA,prefs:KEY_PREFS,legacy:LEGACY_KEYS}
 };
