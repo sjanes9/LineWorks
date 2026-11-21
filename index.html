@@ -207,7 +207,7 @@ button{cursor:pointer}
 .empty-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .empty-hint div{max-width:360px;text-align:center;color:#8a93a3;font-size:var(--fs-md);line-height:1.6;padding:20px;border:1.5px dashed #d3d8e0;border-radius:var(--r-lg);background:rgba(255,255,255,.7)}
 .empty-hint b{color:#4c5566}
-.text-editor{position:absolute;z-index:5;border:1.5px solid var(--accent);background:rgba(255,255,255,.92);border-radius:2px;resize:none;outline:none;padding:0 2px;margin:0;overflow:hidden;line-height:1.25;box-shadow:0 0 0 3px rgba(47,111,237,.15);user-select:text;-webkit-user-select:text}
+.text-editor{position:absolute;z-index:5;border:1.5px solid var(--accent);background:#fff;border-radius:2px;resize:none;outline:none;padding:0 2px;margin:0;overflow:hidden;line-height:1.25;box-shadow:0 0 0 3px rgba(47,111,237,.15);user-select:text;-webkit-user-select:text}
 
 /* ---------- right props ---------- */
 #right{grid-area:right;background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
@@ -581,7 +581,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.20.0';
+const APP_VERSION='1.21.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -3261,11 +3261,14 @@ function sanitizeItem(it){
     text:str(it.text).slice(0,10000),style:sanStyle(it.style,DEF_SHAPE_STYLE),layer:typeof it.layer==='string'?it.layer.slice(0,64):undefined,groupId:gid,
     rot:[90,180,270].includes(it.rot)?it.rot:undefined,flip:it.flip===true?true:undefined,ang:(Number.isFinite(+it.ang)&&Math.abs(normAng(+it.ang))>0.05&&Math.abs(Math.abs(normAng(+it.ang))-90)>0.05&&Math.abs(Math.abs(normAng(+it.ang))-180)>0.05)?r2(normAng(+it.ang)):undefined,...sanAttrs(it),
     img:(it.type==='image'&&typeof it.img==='string')?it.img.slice(0,64):undefined,
+    fit:it.fit===true||it.fit===false?it.fit:undefined,
     term:sanTerm(it.term), planLbl:['in','off'].includes(it.planLbl)?it.planLbl:undefined,
     mmpx:Number.isFinite(+it.mmpx)&&+it.mmpx>0&&+it.mmpx<1e5?+it.mmpx:undefined, cv:String(it.type).startsWith('cv_')?(sanCv(Object.assign({},it.cv,{k:String(it.type).slice(3)}))):undefined,
     icon:it.type==='icon'?(typeof it.icon==='string'&&ICON_SET[it.icon]?it.icon:'circle-question-mark'):undefined,...sanInk(it),
     family:['mindmap','org'].includes(it.family)?it.family:undefined,
-    level:['mindmap','org'].includes(it.family)&&Number.isFinite(+it.level)?clamp(Math.round(+it.level),0,20):undefined};
+    level:['mindmap','org'].includes(it.family)&&Number.isFinite(+it.level)?clamp(Math.round(+it.level),0,20):undefined,
+    fitMin:it.fitMin&&Number.isFinite(+it.fitMin.w)&&Number.isFinite(+it.fitMin.h)&&+it.fitMin.w>=4&&+it.fitMin.h>=4?{w:+it.fitMin.w,h:+it.fitMin.h}:undefined,
+    foldAt:it.collapsed&&it.foldAt&&Number.isFinite(+it.foldAt.x)&&Number.isFinite(+it.foldAt.y)?{x:+it.foldAt.x,y:+it.foldAt.y}:undefined};
 }
 // Accepts current files, older schema-0 shapes, or a JSON string. Throws a readable error.
 function migrate(raw){
@@ -3885,7 +3888,7 @@ function renderOverlay(){
       sv('path',{d:ICONS.rotate,transform:`translate(${r2(cx-12*k)} ${r2(cy-12*k)}) scale(${k})`,fill:'none','stroke-width':2.2})));
   }
   if(sel.length===1&&isShape(sel[0])&&sel[0].family&&!sel[0].locked&&!S.editing&&!(op&&op.type!=='pan')){
-    const s=sel[0], mm=s.family==='mindmap', cx=mm?s.x+s.w+40/z:s.x+s.w/2, cy=mm?s.y+s.h/2:s.y+s.h+40/z, r=9/z;
+    const s=sel[0], mm=s.family==='mindmap', p=addKidPos(s,z), cx=p.x, cy=p.y, r=9/z;
     out.push(sv('g',{class:'ov-add','data-addchild':s.id},sv('title',null,mm?'Add topic (Tab)':'Add report (Tab)'),sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(r)}),
       sv('path',{d:`M${r2(cx-r*0.5)} ${r2(cy)}H${r2(cx+r*0.5)}M${r2(cx)} ${r2(cy-r*0.5)}V${r2(cy+r*0.5)}`,'stroke-width':r2(2/z)})));
   }
@@ -4186,7 +4189,7 @@ function startEdit(id,initial,labelId,caret){
   ta.value=initial!=null?(isShape(it)&&isPlaceholder(it.text)?initial:existing+initial):existing;
   ta.addEventListener('keydown',ev=>{ ev.stopPropagation(); if(ev.key==='Escape'||(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey))){ ev.preventDefault(); finishEdit(); }
     else if(ev.key==='Tab'&&isShape(it)&&it.family){ ev.preventDefault(); finishEdit(); const cur=byId(id); if(cur) addFamilyChild(cur,ev.shiftKey); } });
-  ta.addEventListener('input',positionEditor);
+  ta.addEventListener('input',()=>{ const cur=byId(id); if(cur&&isShape(cur)&&fitText(cur,ta.value)) invalidate({content:true,overlay:true}); positionEditor(); });
   // The pointer press that opened the editor can steal focus right after (browser default action).
   // A blur in the first moments is that, not the user leaving: take focus back instead of closing.
   const t0=(window.performance?performance.now():Date.now());
@@ -4204,6 +4207,29 @@ function startEdit(id,initial,labelId,caret){
   const place=()=>{ try{ ta.focus(); if(ta._all) ta.select(); else ta.setSelectionRange(c,c); }catch(e){} };
   place();
   setTimeout(()=>{ if(S.editorEl===ta&&document.activeElement!==ta) place(); },0);
+}
+const FIT_MAX_W=280, FIT_MIN_W=60;
+function fitsText(it){ return isShape(it)&&!it.rot&&!it.ang&&it.type!=='image'&&it.type!=='icon'&&it.type!=='ink'&&!devDef(it.type)&&(it.fit===true||(it.family&&it.fit!==false)); }
+// Resize a shape to its text. Mind map topics keep the edge that faces their parent; others keep their centre.
+function fitText(it,text){
+  if(!fitsText(it)) return false; text=text==null?it.text:text; const st=it.style, fs=st.fontSize||14, lh=fs*1.25;
+  const lines=String(text||' ').split('\n'), nat=Math.max(...lines.map(l=>textWidth(l||' ',st))), padX=TEXT_PAD*2+14, padY=TEXT_PAD*2+6;
+  const def=LIB_MAP[it.family==='mindmap'?(it.level===0?'mm_central':it.level===1?'mm_main':'mm_sub'):(it.type==='org_role'?'org_role':'org_card')];
+  // Never smaller than the size the shape was given (its template, or a manual resize); grow past it for longer text.
+  if(!it.fitMin) it.fitMin={w:r2(it.w),h:r2(it.h)};
+  const minH=Math.max(24,it.fitMin.h), maxW=Math.max(FIT_MAX_W,it.fitMin.w);
+  const w=clamp(Math.ceil(nat+padX),Math.max(FIT_MIN_W,it.fitMin.w),maxW), n=wrapText(String(text||' '),w-padX+2,st).length, h=Math.max(minH,Math.ceil(n*lh+padY));
+  if(Math.abs(w-it.w)<0.5&&Math.abs(h-it.h)<0.5) return false;
+  const par=it.family?familyParent(it):null, dir=par&&it.family==='mindmap'?(it.x+it.w/2<par.x+par.w/2?'L':'R'):null;
+  const cy=it.y+it.h/2, cx=it.x+it.w/2, right=it.x+it.w, ow=it.w, oh=it.h, ox=it.x, oy=it.y;
+  if(dir==='R') it.x=r2(it.x); else if(dir==='L') it.x=r2(right-w); else it.x=r2(cx-w/2);
+  if(it.family==='org') it.y=r2(it.y); else it.y=r2(cy-h/2);
+  it.w=w; it.h=h;
+  // Children keep their distance: a topic that grows toward its branch pushes the branch along.
+  if(it.family){ const ks=familyKids(it);
+    if(it.family==='mindmap'){ const dr=(it.x+it.w)-(ox+ow), dl=it.x-ox; for(const k of ks){ const kr=k.x+k.w/2>ox+ow/2; shiftTree(k,kr?dr:dl,0); } }
+    else { const db=(it.y+it.h)-(oy+oh); for(const k of ks) shiftTree(k,0,db); } }
+  return true;
 }
 function isPlaceholder(t){
   if(!isPlaceholder.set){ isPlaceholder.set=new Set(['Main topic','Subtopic','Name\nTitle','Role\nName']); LIB.forEach(c=>c.items.forEach(i=>{ if(i.text) isPlaceholder.set.add(i.text); })); }
@@ -4226,12 +4252,22 @@ function caretFromPoint(it,w){
   for(let k=0;k<=ln.length;k++){ const d=Math.abs(x0+textWidth(ln.slice(0,k),st)-lx); if(d<bd){ bd=d; best=k; } }
   return starts[li]+best;
 }
+// Editor colours: the shape's own fill behind the text, or the page/canvas colour for unfilled shapes,
+// with the same text colour the drawing shows (light text on a dark canvas). Falls back to a readable pair.
+function editorInk(it){
+  const st=it.style||{}, filled=isShape(it)&&st.fill&&st.fill!=='none'&&st.fill!=='transparent'&&COLOR_RE.test(st.fill);
+  const dark=darkCanvas(), pgbg=page().bg, bg=filled?st.fill:(pgbg||(dark?'#1b1f26':'#ffffff'));
+  let fg=st.fontColor&&st.fontColor!=='none'?st.fontColor:'#1f2430'; if(!filled&&dark&&!isLine(it)) fg=lightInk(fg,true); if(isLine(it)&&dark) fg=lightInk(fg,true);
+  if(Math.abs(lum(fg)-lum(bg))<70) fg=lum(bg)<128?'#f2f4f7':'#1f2430';
+  return {bg,fg};
+}
 function positionEditor(){
   const ta=S.editorEl; if(!ta) return;
   const it=byId(S.editing); if(!it) return;
   const z=V.z, st=it.style, fs=st.fontSize*z, s=ta.style;
   s.fontSize=fs+'px'; s.fontFamily=FONTS[st.font]||FONTS.sans; s.color=st.fontColor==='none'?'#1f2430':st.fontColor;
   s.fontWeight=st.bold?'bold':'normal'; s.fontStyle=st.italic?'italic':'normal';
+  { const ink=editorInk(it); s.background=ink.bg; s.color=ink.fg; s.caretColor=ink.fg; }
   if(isShape(it)){
     const b=textBox(it), ts=textStyle(it,b), w=Math.max(40,b.w*z), h=Math.max(fs*1.4,b.h*z);
     if(b.turn||it.ang){ let c=b.turn?tp(turnXf(it),b.x+b.w/2,b.y+b.h/2):{x:b.x+b.w/2,y:b.y+b.h/2}; c=rotPt(it,{x:it.x+c.x,y:it.y+c.y});
@@ -4268,7 +4304,7 @@ function finishEdit(silent){
   if(silent){ if(it&&isLine(it)&&it.labels) it.labels=it.labels.filter(l=>l.text); invalidate(); return; }
   if(it){
     if(isShape(it)){
-      it.text=val; fitEntity(it);
+      it.text=val; fitEntity(it); fitText(it);
       if(it.type==='text'&&!val.trim()){ page().items=items().filter(i=>i!==it); S.sel.delete(id); }
     } else {
       const lab=(it.labels||[]).find(l=>l.id===labId); if(lab) lab.text=val;
@@ -4466,7 +4502,7 @@ function onPointerDown(e){
   if(itemEl){
     const id=itemEl.getAttribute('data-id'), now=(window.performance?performance.now():0);
     const modClick=e.shiftKey||e.ctrlKey||e.metaKey;
-    if(!modClick&&S.lastTap&&S.lastTap.id===id&&now-S.lastTap.t<400){ S.lastTap=null; S.op=null; e.preventDefault(); if(isLine(byId(id))) addLineText(id,w); else startEdit(id,null,null,caretFromPoint(byId(id),w)); return; }
+    if(!modClick&&S.lastTap&&S.lastTap.id===id&&now-S.lastTap.t<400){ S.lastTap=null; S.op=null; e.preventDefault(); if(isLine(byId(id))) addLineText(id,w); else startEdit(id,null,null,-1); return; }
     S.lastTap=modClick?null:{id,t:now};
     const grp=expandGroups([id]);
     if(e.shiftKey||e.metaKey||e.ctrlKey){
@@ -4567,7 +4603,7 @@ function onPointerUp(e){
       if(op.moved) commit();
       if(!op.moved) showFtb();
       invalidate({overlay:true,props:true}); break;
-    case 'resize': if(op.moved) commit(); invalidate({overlay:true,props:true}); break;
+    case 'resize': if(op.moved){ const ri=byId(op.id); if(ri&&fitsText(ri)) ri.fitMin={w:r2(ri.w),h:r2(ri.h)}; commit(); } invalidate({overlay:true,props:true}); break;
     case 'ink': finishInk(op); invalidate({overlay:true}); break;
     case 'rotate': if(op.moved){ commit(); invalidate(); } else rotateSel(op.shift); break;
     case 'marquee': invalidate({overlay:true,props:true,chrome:true}); break;
@@ -5908,6 +5944,12 @@ function tweenEnd(){
   if(w.done) w.done();
 }
 // Folds or unfolds a branch. mode: 'toggle' | 'open' | 'close'. Returns the new collapsed state.
+// Unfold without moving anything the user arranged. If the topic was moved while folded, its hidden
+// branch moves by the same amount so it comes back beside the topic, laid out as it was.
+function unfoldInPlace(s){
+  const at=s.foldAt; delete s.collapsed; delete s.foldAt;
+  if(at&&(at.x!==s.x||at.y!==s.y)){ const dx=s.x-at.x, dy=s.y-at.y; for(const k of familyKids(s)) shiftTree(k,dx,dy); }
+}
 function setFold(id,mode,opts){
   opts=opts||{}; const s=byId(id); if(!s||!s.family) return null;
   const want=mode==='toggle'?!s.collapsed:mode==='close';
@@ -5915,8 +5957,7 @@ function setFold(id,mode,opts){
   if(want&&!hasKids(s)) return false;
   if(TW) tweenEnd();
   const pg=page(), before=new Map(pg.items.filter(isShape).map(i=>[i.id,{x:i.x,y:i.y}])), hid0=foldedIds(pg)||new Set();
-  if(want) s.collapsed=true; else delete s.collapsed;
-  const root=familyRoot(s); if(!root.locked) layoutTree(root);
+  if(want){ s.collapsed=true; s.foldAt={x:s.x,y:s.y}; } else unfoldInPlace(s);
   const hid1=foldedIds(pg)||new Set();
   if(hid1.size) S.sel=new Set([...S.sel].filter(x=>!hid1.has(x)));
   if(!opts.present) commit();
@@ -5949,8 +5990,7 @@ function setFold(id,mode,opts){
 // Fold or unfold every branch under the selected tree (or every tree on the page).
 function foldAll(close){
   const sel=selItems().filter(i=>i.family), roots=new Set((sel.length?sel:items().filter(i=>i.family)).map(familyRoot)); if(!roots.size){ toast('No mind map or org chart on this page.'); return; }
-  let n=0; for(const r of roots) for(const id of subtreeIds(r)){ const s=byId(id); if(!s||!hasKids(s)) continue; if(close&&id===r.id) continue; if(close&&!s.collapsed){ s.collapsed=true; n++; } if(!close&&s.collapsed){ delete s.collapsed; n++; } }
-  for(const r of roots) if(!r.locked) layoutTree(r);
+  let n=0; for(const r of roots) for(const id of subtreeIds(r)){ const s=byId(id); if(!s||!hasKids(s)) continue; if(close&&id===r.id) continue; if(close&&!s.collapsed){ s.collapsed=true; s.foldAt={x:s.x,y:s.y}; n++; } if(!close&&s.collapsed){ unfoldInPlace(s); n++; } }
   const hid=foldedIds(); if(hid) S.sel=new Set([...S.sel].filter(x=>!hid.has(x)));
   commit(); invalidate(); fitView(); toast(close?'Branches folded to the first level':'All branches unfolded');
 }
@@ -5961,13 +6001,13 @@ function foldLayerOut(parent){ const L=FOLD_LAYER; FOLD_LAYER=null; if(!L||!L.le
 function twWrap(n,it){ if(!TW) return n; const o=isShape(it)?twOpacity(it.id):lineOpacity(it); if(o>=0.999) return n; const g=sv('g',{opacity:r2(Math.max(0,o))}); g.appendChild(n); return g; }
 function foldButton(it,present){
   if(!it.family||!hasKids(it)) return null;
-  const mm=it.family==='mindmap', r=present?8:7, cx=mm?it.w+r+4:it.w/2, cy=mm?it.h/2:it.h+r+4, open=!it.collapsed, n=familyKids(it).length;
+  const mm=it.family==='mindmap', r=present?8:7, left=mm&&famDir(it)==='L', cx=mm?(left?-r-4:it.w+r+4):it.w/2, cy=mm?it.h/2:it.h+r+4, open=!it.collapsed, n=familyKids(it).length;
   // Mind maps point right when folded and left when open; org charts point down when folded, up when open.
   const d=mm?(open?`M${r2(cx+2)} ${r2(cy-3.5)}L${r2(cx-1.5)} ${r2(cy)}L${r2(cx+2)} ${r2(cy+3.5)}`:`M${r2(cx-2)} ${r2(cy-3.5)}L${r2(cx+1.5)} ${r2(cy)}L${r2(cx-2)} ${r2(cy+3.5)}`)
                 :(open?`M${r2(cx-3.5)} ${r2(cy+2)}L${r2(cx)} ${r2(cy-1.5)}L${r2(cx+3.5)} ${r2(cy+2)}`:`M${r2(cx-3.5)} ${r2(cy-2)}L${r2(cx)} ${r2(cy+1.5)}L${r2(cx+3.5)} ${r2(cy-2)}`);
   return sv('g',{class:'fold-btn'+(open?'':' shut'),'data-fold':it.id,role:'button','aria-label':(open?'Fold ':'Unfold ')+n+' item'+(n>1?'s':'')+' under '+(String(it.text||'this topic').split('\n')[0])},
     sv('title',null,open?'Fold this branch':'Show '+n+' hidden item'+(n>1?'s':'')),sv('circle',{cx:r2(cx),cy:r2(cy),r:r+4,class:'fold-pad'}),sv('circle',{cx:r2(cx),cy:r2(cy),r}),sv('path',{d,fill:'none','stroke-width':1.6,'stroke-linecap':'round','stroke-linejoin':'round'}),
-    !open?sv('text',{x:r2(mm?cx+r+3:cx+r+3),y:r2(cy+3.5),'font-size':9,class:'fold-n'},String(n)):null);
+    !open?sv('text',{x:r2(left?cx-r-3:cx+r+3),y:r2(cy+3.5),'font-size':9,class:'fold-n','text-anchor':left?'end':null},String(n)):null);
 }
 function soonSection(names){ return section('Coming soon',el('div',{class:'soon-list'},names.map(n=>el('div',{class:'soon-row'},el('span',{text:n}),el('span',{class:'soon',text:'Coming Soon'}))))); }
 function renderProps(){
@@ -6016,6 +6056,7 @@ function renderProps(){
     fs?row('List',selIn('list',fs.style.list||'none',[['none','None'],['bullet','Bulleted'],['number','Numbered']],'List style')):null,
     fs?row('Align',seg('align',fs.style.align,[{v:'left',i:'tLeft',t:'Align left'},{v:'center',i:'tCenter',t:'Align center'},{v:'right',i:'tRight',t:'Align right'}])):null,
     fs?row('Vertical',seg('valign',fs.style.valign,[{v:'top',i:'vTop',t:'Top'},{v:'middle',i:'vMid',t:'Middle'},{v:'bottom',i:'vBot',t:'Bottom'}])):null,
+    fs&&isShape(fs)&&!devDef(fs.type)&&!['image','icon','ink'].includes(fs.type)?row('Size',chk('fitText',fs.fit===true||(fs.family&&fs.fit!==false),'Resize to fit text')):null,
     fs?row('When rotated',seg('textLevel',String(!!fs.style.textLevel),[{v:false,l:'Turn',t:'Text turns with the shape'},{v:true,l:'Stay level',t:'Text stays level when the shape is rotated'}])):null));
   // reflect pressed state for B/I/U toggles
   if(shapes.length===1&&sel.length===1){
@@ -6101,6 +6142,7 @@ function applyProp(prop,v,final){
   if(applyExtraProp(prop,v,final)) return;
   if(prop.startsWith('term:')||prop==='termLp'){ if(!final&&prop!=='termLp') return; const s0=unlockedSel().filter(isShape)[0]; if(!s0||!PIN_TYPES.has(s0.type)) return; const q=prop==='termLp'?['term','lp','']:prop.split(':');
     if(termCmd(s0,q[1],q.slice(2).join(':'),v)){ commit(); invalidate(); } return; }
+  if(prop==='fitText'){ unlockedSel().filter(isShape).forEach(i=>{ if(i.family){ if(v) delete i.fit; else i.fit=false; } else { if(v) i.fit=true; else delete i.fit; } if(v) fitText(i); }); commit(); invalidate(); return; }
   if(prop==='rbLbl'){ unlockedSel().filter(i=>String(i.type).startsWith('rbp_')).forEach(i=>{ if(v==='out') delete i.planLbl; else i.planLbl=v; }); commit(); invalidate(); return; }
   if(prop==='pageScale'){ if(final) setPageScale(+v); return; }
   if(applyCvProp(prop,v,final)) return;
@@ -6538,28 +6580,53 @@ function layoutKids(p){
 function familyRoot(c){ let r=c, guard=0, p; while((p=familyParent(r))&&guard++<50) r=p; return r; }
 function layoutTree(r,seen){ seen=seen||new Set(); if(seen.has(r.id)) return; seen.add(r.id); familyKids(r).forEach(k=>layoutTree(k,seen)); layoutKids(r); }
 // Tab adds a child; Enter adds a sibling. The new box opens for typing with its placeholder selected.
+// Which way a topic's children grow: R or L for mind maps (from existing children, else from where
+// the topic sits beside its parent), D for org charts.
+function famDir(it){
+  if(it.family!=='mindmap') return 'D'; const ks=familyKids(it), cx=it.x+it.w/2;
+  if(ks.length){ const m=ks.reduce((a,k)=>a+k.x+k.w/2,0)/ks.length; return m<cx?'L':'R'; }
+  const p=familyParent(it); return p&&cx<p.x+p.w/2?'L':'R';
+}
+// Where the + button goes: just past the fold button on the side the children grow (outside the fold
+// button when the topic has children, short of where the children start), in world units with a fixed screen gap.
+function addKidPos(it,z){
+  const dir=famDir(it), has=hasKids(it), fr=7, g=14/z, r=9/z;
+  if(dir==='D') return {x:it.x+it.w/2+(has?fr+4+r+g/2:0),y:it.y+it.h+(has?fr+4:r+g)};
+  const ox=has?2*fr+8+r:r+g; return {x:dir==='R'?it.x+it.w+ox:it.x-ox,y:it.y+it.h/2};
+}
 function addFamilyChild(s,asSibling,opts){
   opts=opts||{};
   if(!s||!s.family){ toast('Select a mind map topic or org chart box first.'); return null; }
   const parent=asSibling?familyParent(s):s;
   if(!parent){ toast(s.family==='mindmap'?'The central topic has no siblings. Press Tab to add a topic.':'The top box has no siblings. Press Tab to add a report.'); return null; }
   if(parent.locked){ toast('Locked. Unlock to edit.'); return null; }
-  if(parent.collapsed){ if(TW) tweenEnd(); delete parent.collapsed; }
-  const fam=parent.family, level=(parent.level||0)+1, kids=familyKids(parent);
-  let key;
-  if(fam==='mindmap') key=level<=1?'mm_main':'mm_sub';
-  else key=parent.type==='org_role'?'org_role':'org_card';
+  if(parent.collapsed){ if(TW) tweenEnd(); unfoldInPlace(parent); }
+  const fam=parent.family, level=(parent.level||0)+1, kids=familyKids(parent), mm=fam==='mindmap';
+  // Model: the sibling it is added after (Enter), else the last child, else a cousin at the same level, else the library template.
+  const cousins=items().filter(i=>isShape(i)&&i.family===fam&&(i.level||0)===level&&i.id!==parent.id&&familyRoot(i)===familyRoot(parent));
+  const model=asSibling?s:(kids.length?kids.slice().sort((a,b)=>mm?a.y-b.y:a.x-b.x).pop():cousins[0]||null);
+  let key; if(mm) key=level<=1?'mm_main':'mm_sub'; else key=parent.type==='org_role'?'org_role':'org_card';
   const c=makeShape(key,0,0); c.family=fam; c.level=level;
-  c.text=fam==='mindmap'?(level<=1?'Main topic':'Subtopic'):(key==='org_role'?'Role\nName':'Name\nTitle');
-  if(fam==='org'&&parent.type===c.type) c.style.stroke=parent.style.stroke;
-  if(fam==='mindmap'){ c.x=parent.x+parent.w+70; c.y=asSibling?s.y+0.5:(kids.length?Math.max(...kids.map(k=>k.y))+1:parent.y); }
-  else { c.y=parent.y+parent.h+60; c.x=asSibling?s.x+0.5:(kids.length?Math.max(...kids.map(k=>k.x))+1:parent.x); }
+  c.text=mm?(level<=1?'Main topic':'Subtopic'):(key==='org_role'?'Role\nName':'Name\nTitle');
+  if(model){ c.type=model.type; c.w=model.fitMin?model.fitMin.w:model.w; c.h=model.fitMin?model.fitMin.h:model.h; c.style=JSON.parse(JSON.stringify(model.style)); if(model.fit!=null) c.fit=model.fit; if(model.layer) c.layer=model.layer; }
+  else if(fam==='org'&&parent.type===c.type) c.style.stroke=parent.style.stroke;
+  c.fitMin={w:c.w,h:c.h};
+  const dir=famDir(parent), G=FAM_GAP[fam];
+  // Connector: copy the one from the parent to the model child, so the look matches.
+  const mline=model?items().find(L=>isLine(L)&&L.to.id===model.id&&L.from.id===familyParent(model)?.id):null;
+  if(mm){ const below=model&&!asSibling?model:asSibling?s:null;
+    c.x=dir==='L'?(below?below.x+below.w-c.w:parent.x-G.level-c.w):(below?below.x:parent.x+parent.w+G.level);
+    c.y=below?below.y+below.h+G.sib:parent.y+parent.h/2-c.h/2; }
+  else { const right=model&&!asSibling?model:asSibling?s:null; c.y=right?right.y:parent.y+parent.h+G.level; c.x=right?right.x+right.w+G.sib:parent.x+parent.w/2-c.w/2; }
   items().push(c);
-  const stroke=fam==='mindmap'?(parent.style.stroke&&parent.style.stroke!=='none'?parent.style.stroke:'#3a7bec'):'#6b7280';
-  items().push(fam==='mindmap'
-    ?makeLine({id:parent.id,side:'E'},{id:c.id,side:'W'},{route:'curved',endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{stroke,sw:2})})
-    :makeLine({id:parent.id,side:'S'},{id:c.id,side:'N'},{route:'orthogonal',endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{stroke})}));
-  layoutTree(familyRoot(parent));
+  const sideA=mm?(dir==='L'?'W':'E'):'S', sideB=mm?(dir==='L'?'E':'W'):'N';
+  let L;
+  if(mline){ L=makeLine({id:parent.id,side:sideA},{id:c.id,side:sideB},{route:mline.route,startArrow:mline.startArrow,endArrow:mline.endArrow,style:JSON.parse(JSON.stringify(mline.style))}); if(mline.layer) L.layer=mline.layer; }
+  else { const stroke=mm?(parent.style.stroke&&parent.style.stroke!=='none'?parent.style.stroke:'#3a7bec'):'#6b7280';
+    L=mm?makeLine({id:parent.id,side:sideA},{id:c.id,side:sideB},{route:'curved',endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{stroke,sw:2})})
+       :makeLine({id:parent.id,side:sideA},{id:c.id,side:sideB},{route:'orthogonal',endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{stroke})}); }
+  items().push(L);
+  if(opts.tidy) layoutTree(familyRoot(parent));
   if(!opts.noCommit){ setSel([c.id]); commit(); invalidate(); }
   if(!opts.noEdit) startEdit(c.id,null,null,-1);
   return c;
@@ -6983,6 +7050,10 @@ function showHelp(){
     el('p',{text:'Every robot also carries data fields: Manufacturer, Model, Series, Type, Payload (kg), Reach (mm), Axes, Controller and Spec status. Use them in text with {{Payload (kg)}}, in conditional formatting, or export them with the other data to CSV. Change model in the floating toolbar swaps a robot for another model of the same series and updates these fields; fields you added yourself stay.'}),
     el('p',{text:'Values come from the source shown in the right panel. A star after a value on the shape means it came from a secondary or third-party source and is marked Unverified. A question mark, and Not found in the panel, means the value was not in the sources checked; it is never filled in from the model name. Many Yaskawa models show ? ax because the Yaskawa catalog used does not list the number of axes.'}),
     el('p',{text:'Yaskawa robot controllers, FANUC robot controllers and Yaskawa drives and motion work like the Rockwell devices: one pin per port. Controllers have pendant (TP or PP), robot cable (ROB), Ethernet, and where known USB, serial and fieldbus option pins. Drives have the communication option slot, serial and safety pins where the source confirms them, plus generic power and motor pins. Legacy controllers whose ports were not found show only the pendant and robot pins and are marked Unverified. The R-30iB Plus Ethernet port speed is left open because the sources disagree.'}),
+    el('h3',{text:'Mind maps: editing and growing'}),
+    el('p',{text:'Double-click a topic to edit it; all of its text is selected, so typing replaces it. The edit box takes the topic\'s own colours, so light text on a dark topic stays readable. Mind map topics and org chart boxes grow with their text as you type, up to 280 px wide, then wrap and grow taller; they never shrink below the size they were given (resize one by hand to set a new size). A topic that grows toward its branch pushes the branch along. Turn this off, or on for any other shape, with Resize to fit text in the Text section.'}),
+    el('p',{text:'Select a topic to see a blue + beside it: it adds a child that copies the topic\'s other children (shape, size, colours and connector), or the first child at that level elsewhere in the map, and opens it for typing. Tab and Enter do the same for a child and a sibling. Adding a topic no longer rearranges the map; use Tidy layout when you want it rearranged.'}),
+    el('p',{text:'Folding and unfolding a branch keeps your arrangement: the branch comes back exactly where it was. If you move a folded topic, its hidden branch moves with it.'}),
     el('h3',{text:'Device pictures from a Visio file'}),
     el('p',{text:'File, Import device pictures from Visio (or the button under Device picture) reads the pictures in a .vsdx file, such as a page of Rockwell stencil drawings, and lists each one with its shape or master name. A name that matches a catalog number, like CMS20DP for 1783-CMS20DP, is picked for you; pick the device for the others or leave them on Skip. EMF and WMF pictures cannot be shown in a browser and are skipped. With Pictures fill the device shape on, the drawing becomes the whole device shape (no title bar), sized to the drawing, with the port pins still along the edges and the catalog number below. Turn this on or off per device under Device picture. The pictures are saved in the diagram and, with Remember on, used for new diagrams in this browser.'}),
     el('h3',{text:'Editing wire terminals'}),
@@ -7225,7 +7296,7 @@ window.__app={
     layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO,
     devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf, ROBO_FAMS, robotData, robotSpecLine, robotGeom, changeShape, PORT_KINDS, RA_LINE,
     SCALES, pgScale, mmPerPx, setPageScale, realSize, CV_KINDS, CV_VENDORS_BUILTIN, CV_SRC, cvVendors, cvUserVendors, sanCvVendors, placeConveyor, setCv, cvSizeMm, cvCurvePts, conveyorGeom, showCvVendors,
-    visioPictures, guessDevice, importVisioPics, applyVisioPics, setPicFill, devPicFull, fitPicShape, picFillLib, KEY_PICFILL,
+    fitText, fitsText, editorInk, famDir, addKidPos, unfoldInPlace, addFamilyChild, setFold, visioPictures, guessDevice, importVisioPics, applyVisioPics, setPicFill, devPicFull, fitPicShape, picFillLib, KEY_PICFILL,
     applyTerm, sanTerm, termCmd, terminalSection, geomBase, loadPrefs, LIB_GROUPS, libGroups, libFavs, libMostUsed, libUse, libPlace, libFavToggle, libFavMove, libKeyOf, libCmd, showLibManager, buildLibrary, refreshPinned, libCtxShow, libScore,
     parseDxf, dxfToSvg, svgMm, importCad, cadCmd, cadLib, setRobotView, robotPlanGeom, planRadius, cardKey, planKey, KEY_CVV, KEY_CADLIB },
   LIB, LIB_MAP, KEYS:{doc:KEY_DOC,schema:KEY_SCHEMA,prefs:KEY_PREFS,legacy:LEGACY_KEYS}
