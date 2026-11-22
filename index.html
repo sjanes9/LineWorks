@@ -207,6 +207,8 @@ button{cursor:pointer}
 .empty-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .empty-hint div{max-width:360px;text-align:center;color:#8a93a3;font-size:var(--fs-md);line-height:1.6;padding:20px;border:1.5px dashed #d3d8e0;border-radius:var(--r-lg);background:rgba(255,255,255,.7)}
 .empty-hint b{color:#4c5566}
+.painting #svg,.painting #svg *{cursor:copy !important}
+#painterBtn.on,[data-cmd="formatPainter"].on{background:var(--accent-2);color:var(--accent)}
 .text-editor{position:absolute;z-index:5;border:1.5px solid var(--accent);background:#fff;border-radius:2px;resize:none;outline:none;padding:0 2px;margin:0;overflow:hidden;line-height:1.25;box-shadow:0 0 0 3px rgba(47,111,237,.15);user-select:text;-webkit-user-select:text}
 
 /* ---------- right props ---------- */
@@ -527,6 +529,8 @@ button{cursor:pointer}
     <button class="ph-hide btn ghost icon" data-cmd="toggleGrid" data-icon="grid" title="Show grid" aria-label="Show grid"></button>
     <button class="ph-hide btn ghost icon" data-cmd="toggleSnap" data-icon="magnet" title="Snap to grid" aria-label="Snap to grid"></button>
     <span class="tb-sep"></span>
+    <button class="btn ghost" data-cmd="formatPainter" data-icon="brush" id="painterBtn" title="Format painter: click to copy the selected look to one item, double-click to paint several (Esc stops)" aria-pressed="false"><span class="ph-hide">Format</span></button>
+    <span class="tb-sep"></span>
     <button class="ph-hide btn ghost" data-cmd="front" title="Bring to front (Ctrl+Shift+])">Front</button>
     <button class="ph-hide btn ghost" data-cmd="back" title="Send to back (Ctrl+Shift+[)">Back</button>
     <button class="ph-hide btn ghost" data-cmd="group" title="Group (Ctrl+G)">Group</button>
@@ -581,7 +585,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.21.0';
+const APP_VERSION='1.22.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -686,6 +690,7 @@ const store={
 const ICONS={
   undo:'M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3',
   pen:'M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z',
+  brush:'M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z',
   redo:'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3',
   zoomIn:'M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4M11 8v6M8 11h6',
   zoomOut:'M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4M8 11h6',
@@ -2931,7 +2936,7 @@ function sanInk(it){ if(it.type!=='ink') return {}; const P=(Array.isArray(it.pt
    In dark mode the canvas and grid go dark. Dark strokes and text that sit directly on the canvas
    (lines, symbols and shapes with no fill) are shown light so they stay readable. This is display only:
    saved colors, exports and Present are unchanged. A page with its own background color keeps it. */
-function darkCanvas(){ return S.prefs.theme==='dark'&&!page().bg; }
+function darkCanvas(){ const bg=page().bg; return bg?lum(bg)<90:S.prefs.theme==='dark'; }
 function lum(c){ const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c||''); return m?(0.299*parseInt(m[1],16)+0.587*parseInt(m[2],16)+0.114*parseInt(m[3],16)):255; }
 function lightInk(c,text){ return c&&c!=='none'&&lum(c)<90?(text?'#e5e7eb':'#c9ced6'):c; }
 function darkInkShape(st){ if(st.fill&&st.fill!=='none'&&!(st.fill==='transparent')) return st; return Object.assign({},st,{stroke:lightInk(st.stroke),fontColor:lightInk(st.fontColor,true)}); }
@@ -4471,6 +4476,7 @@ function onPointerDown(e){
   if(react){ const it=byId(react.closest('[data-id]').getAttribute('data-id')); if(it&&it.reactions){ it.reactions=it.reactions.filter(x=>x!==react.getAttribute('data-react')); if(!it.reactions.length) delete it.reactions; commit(); invalidate(); } return; }
   const port=t&&t.closest('[data-port]'), handle=t&&t.closest('[data-handle]'), itemEl=t&&t.closest('[data-id]'), labEl=t&&t.closest('[data-label]'), segEl=t&&t.closest('[data-seg]');
   const addEl=t&&t.closest('[data-addchild]');
+  if(S.painter&&e.button===0){ e.preventDefault(); const pid=itemEl&&itemEl.getAttribute('data-id'), pit=pid&&byId(pid); if(pit&&pid!==S.painter.from){ applyPainter(pit); setSel([pid]); if(!S.painter.sticky) endPainter(); } else if(!pit) endPainter(); return; }
   const foldEl=t&&t.closest('[data-fold]'); if(foldEl&&!e.button){ e.preventDefault(); setFold(foldEl.getAttribute('data-fold'),'toggle'); return; }
   const pinEl=t&&t.closest('[data-cmtpin]'); if(pinEl){ e.preventDefault(); openComments(pinEl.getAttribute('data-cmtpin')); return; }
   const actEl=t&&t.closest('[data-act]'); if(actEl){ e.preventDefault(); runAction(byId(actEl.getAttribute('data-act'))); return; }
@@ -6128,7 +6134,7 @@ function renderProps(){
     row('Reactions',el('span',{class:'react-list'},(f.reactions||[]).map(e=>el('span',{class:'react-chip',text:e}))),el('button',{class:'btn','data-cmd':'openReactions',text:(f.reactions||[]).length?'Edit':'Add'})),
     row('Link',el('input',{type:'url','data-prop':'link',value:f.link||'',placeholder:'https://','aria-label':'Link address'})),
     row('Lock',el('button',{class:'btn','data-cmd':'toggleLock',text:sel.every(i=>i.locked)?'Unlock':'Lock'})),
-    row('Style',el('button',{class:'btn','data-cmd':'copyStyle',text:'Copy'}),el('button',{class:'btn','data-cmd':'pasteStyle',text:'Paste',disabled:!S.styleClip}))));
+    row('Style',el('button',{class:'btn','data-cmd':'formatPainter',text:'Format painter'}),el('button',{class:'btn','data-cmd':'copyStyle',text:'Copy'}),el('button',{class:'btn','data-cmd':'pasteStyle',text:'Paste',disabled:!S.styleClip}))));
   K.push(...extrasSections(sel,shapes));
   root.replaceChildren(...K);
   // B/I/U: mark pressed state from the actual style
@@ -6582,6 +6588,11 @@ function layoutTree(r,seen){ seen=seen||new Set(); if(seen.has(r.id)) return; se
 // Tab adds a child; Enter adds a sibling. The new box opens for typing with its placeholder selected.
 // Which way a topic's children grow: R or L for mind maps (from existing children, else from where
 // the topic sits beside its parent), D for org charts.
+// True when a topic still has the look of a mind map or org chart library box (so a new level uses the library style).
+function famStock(it){ const st=Object.assign({},DEF_SHAPE_STYLE); return Object.keys(LIB_MAP).some(k=>{ if(!/^(mm_|org_)/.test(k)) return false; const d=LIB_MAP[k], ds=Object.assign({},st,d.style||{});
+  return d.type===it.type&&['fill','stroke','fontColor'].every(p=>String(ds[p]).toLowerCase()===String(it.style[p]).toLowerCase()); }); }
+// Depth along the lines from the central topic (0 for the root).
+function famDepth(it){ let d=0, c=it, p; while((p=familyParent(c))&&d<50){ d++; c=p; } return d; }
 function famDir(it){
   if(it.family!=='mindmap') return 'D'; const ks=familyKids(it), cx=it.x+it.w/2;
   if(ks.length){ const m=ks.reduce((a,k)=>a+k.x+k.w/2,0)/ks.length; return m<cx?'L':'R'; }
@@ -6601,10 +6612,14 @@ function addFamilyChild(s,asSibling,opts){
   if(!parent){ toast(s.family==='mindmap'?'The central topic has no siblings. Press Tab to add a topic.':'The top box has no siblings. Press Tab to add a report.'); return null; }
   if(parent.locked){ toast('Locked. Unlock to edit.'); return null; }
   if(parent.collapsed){ if(TW) tweenEnd(); unfoldInPlace(parent); }
-  const fam=parent.family, level=(parent.level||0)+1, kids=familyKids(parent), mm=fam==='mindmap';
-  // Model: the sibling it is added after (Enter), else the last child, else a cousin at the same level, else the library template.
-  const cousins=items().filter(i=>isShape(i)&&i.family===fam&&(i.level||0)===level&&i.id!==parent.id&&familyRoot(i)===familyRoot(parent));
-  const model=asSibling?s:(kids.length?kids.slice().sort((a,b)=>mm?a.y-b.y:a.x-b.x).pop():cousins[0]||null);
+  const fam=parent.family, depth=famDepth(parent)+1, level=depth, kids=familyKids(parent), mm=fam==='mindmap';
+  // Model, in order: the sibling it is added after (Enter); the last child; the nearest topic at the same depth in
+  // this map (depth counted along the lines, not the stored level, which templates do not always set); the parent
+  // itself when it is a box you restyled (not the central topic and not a library topic); the library template.
+  let model=asSibling?s:(kids.length?kids.slice().sort((a,b)=>mm?a.y-b.y:a.x-b.x).pop():null);
+  if(!model){ const root=familyRoot(parent), pc={x:parent.x+parent.w/2,y:parent.y+parent.h/2};
+    const same=[...subtreeIds(root)].map(byId).filter(i=>i&&isShape(i)&&i.id!==parent.id&&famDepth(i)===depth);
+    same.sort((a,b)=>Math.hypot(a.x-pc.x,a.y-pc.y)-Math.hypot(b.x-pc.x,b.y-pc.y)); model=same[0]||(famDepth(parent)>=1&&!famStock(parent)?parent:null); }
   let key; if(mm) key=level<=1?'mm_main':'mm_sub'; else key=parent.type==='org_role'?'org_role':'org_card';
   const c=makeShape(key,0,0); c.family=fam; c.level=level;
   c.text=mm?(level<=1?'Main topic':'Subtopic'):(key==='org_role'?'Role\nName':'Name\nTitle');
@@ -6614,10 +6629,11 @@ function addFamilyChild(s,asSibling,opts){
   const dir=famDir(parent), G=FAM_GAP[fam];
   // Connector: copy the one from the parent to the model child, so the look matches.
   const mline=model?items().find(L=>isLine(L)&&L.to.id===model.id&&L.from.id===familyParent(model)?.id):null;
-  if(mm){ const below=model&&!asSibling?model:asSibling?s:null;
+  const lastKid=kids.length?kids.slice().sort((a,b)=>mm?a.y-b.y:a.x-b.x).pop():null;
+  if(mm){ const below=asSibling?s:lastKid;
     c.x=dir==='L'?(below?below.x+below.w-c.w:parent.x-G.level-c.w):(below?below.x:parent.x+parent.w+G.level);
     c.y=below?below.y+below.h+G.sib:parent.y+parent.h/2-c.h/2; }
-  else { const right=model&&!asSibling?model:asSibling?s:null; c.y=right?right.y:parent.y+parent.h+G.level; c.x=right?right.x+right.w+G.sib:parent.x+parent.w/2-c.w/2; }
+  else { const right=asSibling?s:lastKid; c.y=right?right.y:parent.y+parent.h+G.level; c.x=right?right.x+right.w+G.sib:parent.x+parent.w/2-c.w/2; }
   items().push(c);
   const sideA=mm?(dir==='L'?'W':'E'):'S', sideB=mm?(dir==='L'?'E':'W'):'N';
   let L;
@@ -6661,6 +6677,33 @@ function pasteStyle(){
     else STYLE_SHARED.forEach(k=>{ if(k in c.style) it.style[k]=c.style[k]; });
   }
   commit(); invalidate(); toast('Style pasted');
+}
+/* Format painter: pick up the look of the selected item, then click other items to give them that look.
+   One click on the button paints once; double-click keeps it on until Esc or a click on empty canvas.
+   Shapes take colours, line, text formatting and corner; a basic shape also takes the outline (rectangle,
+   rounded, ellipse and so on); mind map and org boxes also take the size. Lines take colour, width,
+   pattern, routing and arrowheads. */
+const PAINT_BASIC=new Set(['rect','text','terminator','ellipse','diamond','triangle','hexagon','parallelogram','document','cylinder','predefined','manualInput','delay','trapezoid','offpage','note','star','pentagon','octagon','cross','arrow','cloud','callout','mm_sub']);
+function painterSnap(f){ return {kind:f.kind,type:f.type,style:JSON.parse(JSON.stringify(f.style)),route:f.route,startArrow:f.startArrow,endArrow:f.endArrow,signal:f.signal,
+  family:f.family,w:f.fitMin?f.fitMin.w:f.w,h:f.fitMin?f.fitMin.h:f.h,fit:f.fit}; }
+function startPainter(sticky){
+  const f=selItems()[0]; if(!f||S.sel.size!==1){ toast('Select one shape or line to copy its look, then choose Format painter.'); return false; }
+  if(S.editing) finishEdit(); S.painter={src:painterSnap(f),sticky:!!sticky,from:f.id,t:Date.now()}; stage.classList.add('painting'); syncPainterBtn();
+  toast(sticky?'Format painter on: click shapes or lines to paint them. Esc or a click on empty canvas stops.':'Click a shape or line to give it this look. Double-click Format painter to paint several.'); return true;
+}
+function endPainter(){ if(!S.painter) return; S.painter=null; stage.classList.remove('painting'); syncPainterBtn(); }
+function syncPainterBtn(){ document.querySelectorAll('[data-cmd="formatPainter"]').forEach(b=>{ b.classList.toggle('on',!!S.painter); b.setAttribute('aria-pressed',String(!!S.painter)); }); }
+function applyPainter(it){
+  const c=S.painter&&S.painter.src; if(!c||!it||it.locked) return false;
+  if(isLine(it)){ if(c.kind==='line'){ Object.assign(it.style,JSON.parse(JSON.stringify(c.style))); it.route=c.route; it.startArrow=c.startArrow; it.endArrow=c.endArrow; if(c.signal) it.signal=c.signal; else delete it.signal; }
+    else STYLE_SHARED.forEach(k=>{ if(k in c.style) it.style[k]=c.style[k]; }); }
+  else if(c.kind==='shape'){ Object.assign(it.style,JSON.parse(JSON.stringify(c.style)));
+    if(PAINT_BASIC.has(c.type)&&PAINT_BASIC.has(it.type)&&!it.family===!c.family) it.type=c.type;
+    if(it.family&&c.family===it.family){ const cx=it.x+it.w/2, cy=it.y+it.h/2, par=familyParent(it), left=par&&it.family==='mindmap'&&cx<par.x+par.w/2;
+      const right=it.x+it.w; it.w=c.w; it.h=c.h; it.fitMin={w:c.w,h:c.h}; if(c.fit===false) it.fit=false; else delete it.fit;
+      it.x=r2(par&&it.family==='mindmap'?(left?right-it.w:it.x):cx-it.w/2); it.y=r2(it.family==='org'?it.y:cy-it.h/2); fitText(it); } }
+  else STYLE_SHARED.forEach(k=>{ if(k in c.style) it.style[k]=c.style[k]; });
+  commit(); invalidate(); return true;
 }
 function selectWhere(fn,label){ const ids=pickList().filter(fn).map(i=>i.id); setSel(ids); toast(ids.length+' '+label+' selected'); }
 function selectSameFill(){ const f=selItems().find(isShape); if(!f){ toast('Select a shape first.'); return; } selectWhere(i=>isShape(i)&&i.style.fill===f.style.fill,'shapes with that fill'); }
@@ -6874,7 +6917,7 @@ function showCtx(x,y){
       S.sel.size>1?['Align left','alignL']:null,S.sel.size>1?['Align center','alignC']:null,S.sel.size>1?['Align top','alignT']:null,'-',
       ['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],si.length===1&&libKeyOf(si[0])?((S.prefs.libFav||[]).includes(libKeyOf(si[0]))?['Remove from Favorites','lib:unfav:'+libKeyOf(si[0])]:['Add to Favorites','lib:fav:'+libKeyOf(si[0])]):null].filter(Boolean)
     :[['Paste','paste','Ctrl+V'],['Select all','selectAll','Ctrl+A'],'-',['Zoom to fit','zoomFit'],['Add page','addPage']];
-  if(has) list.push('-',['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],['Lock / unlock','toggleLock','Ctrl+Shift+L']);
+  if(has) list.push('-',['Format painter','formatPainter'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],['Lock / unlock','toggleLock','Ctrl+Shift+L']);
   for(let i=list.length-1;i>0;i--) if(list[i]==='-'&&list[i-1]==='-') list.splice(i,1);
   if(list[0]==='-') list.shift(); if(list[list.length-1]==='-') list.pop();
   ctxEl=buildMenu(list); ctxEl.classList.add('ctx'); document.body.appendChild(ctxEl);
@@ -7052,8 +7095,9 @@ function showHelp(){
     el('p',{text:'Yaskawa robot controllers, FANUC robot controllers and Yaskawa drives and motion work like the Rockwell devices: one pin per port. Controllers have pendant (TP or PP), robot cable (ROB), Ethernet, and where known USB, serial and fieldbus option pins. Drives have the communication option slot, serial and safety pins where the source confirms them, plus generic power and motor pins. Legacy controllers whose ports were not found show only the pendant and robot pins and are marked Unverified. The R-30iB Plus Ethernet port speed is left open because the sources disagree.'}),
     el('h3',{text:'Mind maps: editing and growing'}),
     el('p',{text:'Double-click a topic to edit it; all of its text is selected, so typing replaces it. The edit box takes the topic\'s own colours, so light text on a dark topic stays readable. Mind map topics and org chart boxes grow with their text as you type, up to 280 px wide, then wrap and grow taller; they never shrink below the size they were given (resize one by hand to set a new size). A topic that grows toward its branch pushes the branch along. Turn this off, or on for any other shape, with Resize to fit text in the Text section.'}),
-    el('p',{text:'Select a topic to see a blue + beside it: it adds a child that copies the topic\'s other children (shape, size, colours and connector), or the first child at that level elsewhere in the map, and opens it for typing. Tab and Enter do the same for a child and a sibling. Adding a topic no longer rearranges the map; use Tidy layout when you want it rearranged.'}),
+    el('p',{text:'Select a topic to see a blue + beside it: it adds a child that copies the topic\'s other children (shape, size, colours and connector). If the topic has no children yet, the new one copies the nearest topic at the same depth in the map (counted along the lines from the central topic), and failing that the topic itself, then opens it for typing. On a page with a dark background colour, text that has no colour of its own is shown light so it stays readable. Tab and Enter do the same for a child and a sibling. Adding a topic no longer rearranges the map; use Tidy layout when you want it rearranged.'}),
     el('p',{text:'Folding and unfolding a branch keeps your arrangement: the branch comes back exactly where it was. If you move a folded topic, its hidden branch moves with it.'}),
+    el('h3',{text:'Format painter'}),el('p',{text:'Select the shape or line whose look you want, then click Format painter on the toolbar (also in the right-click menu and the Arrange panel). The cursor changes; click another shape or line to give it the same look. Click the button twice quickly, or double-click it, to keep painting several items; press Esc or click empty canvas to stop. Shapes take fill, border, text formatting and corners; a basic shape also takes the outline (rectangle, rounded, ellipse and so on); mind map and org boxes also take the size. Lines take colour, width, pattern, routing and arrowheads. Ctrl+Alt+C and Ctrl+Alt+V still copy and paste a style.'}),
     el('h3',{text:'Device pictures from a Visio file'}),
     el('p',{text:'File, Import device pictures from Visio (or the button under Device picture) reads the pictures in a .vsdx file, such as a page of Rockwell stencil drawings, and lists each one with its shape or master name. A name that matches a catalog number, like CMS20DP for 1783-CMS20DP, is picked for you; pick the device for the others or leave them on Skip. EMF and WMF pictures cannot be shown in a browser and are skipped. With Pictures fill the device shape on, the drawing becomes the whole device shape (no title bar), sized to the drawing, with the port pins still along the edges and the catalog number below. Turn this on or off per device under Device picture. The pictures are saved in the diagram and, with Remember on, used for new diagrams in this browser.'}),
     el('h3',{text:'Editing wire terminals'}),
@@ -7119,7 +7163,7 @@ const CMDS={
   duplicate, delete:deleteSel, selectAll:()=>setSel(pickList().map(i=>i.id)),
   editText:()=>{ const s=selItems(); if(s.length===1) startEdit(s[0].id); },
   front:()=>reorder('front'), back:()=>reorder('back'), forward:()=>reorder('forward'), backward:()=>reorder('backward'),
-  toggleLock, copyStyle, pasteStyle, swapEnds, present:startPresent, find:openFind, versions:showVersions,
+  toggleLock, copyStyle, pasteStyle, formatPainter:()=>{ if(S.painter){ if(!S.painter.sticky&&Date.now()-S.painter.t<450){ S.painter.sticky=true; toast('Format painter stays on: click shapes or lines to paint them. Esc or a click on empty canvas stops.'); return; } endPainter(); } else startPainter(false); }, swapEnds, present:startPresent, find:openFind, versions:showVersions,
   matchW:()=>matchSize('w'), matchH:()=>matchSize('h'), matchSize:()=>matchSize('wh'),
   addChild:()=>{ const s=selItems()[0]; addFamilyChild(s,false); }, addSibling:()=>{ const s=selItems()[0]; addFamilyChild(s,true); }, tidyFamily, loadSample3:loadFamilySample,
   modePan:()=>{ S.prefs.dragMode='pan'; savePrefs(); invalidate({chrome:true}); toast('Drag empty canvas to pan. Shift+drag draws a selection box.'); },
@@ -7228,6 +7272,7 @@ function wireKeys(){
     const typing=tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||(t&&t.isContentEditable);
     if(e.key==='Escape'){ if(modalEl){ closeModal(); return; }
       if(S.pen&&!typing){ e.preventDefault(); setPen(false); return; }
+      if(S.painter){ e.preventDefault(); endPainter(); toast('Format painter off'); return; }
       if(ctxEl||openMenu){ hideCtx(); closeMenus(); return; }
       if(ftb.open&&!typing){ if(ftb.kind){ ftb.kind=null; buildFtbBar(); renderFtbPop(); invalidate({ftb:true}); } else hideFtb(); return; } closeMenus(); hideCtx(); closeQuick(); if(!typing&&S.sel.size) setSel([]); return; }
     if(typing||modalEl) return;
@@ -7296,7 +7341,7 @@ window.__app={
     layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO,
     devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf, ROBO_FAMS, robotData, robotSpecLine, robotGeom, changeShape, PORT_KINDS, RA_LINE,
     SCALES, pgScale, mmPerPx, setPageScale, realSize, CV_KINDS, CV_VENDORS_BUILTIN, CV_SRC, cvVendors, cvUserVendors, sanCvVendors, placeConveyor, setCv, cvSizeMm, cvCurvePts, conveyorGeom, showCvVendors,
-    fitText, fitsText, editorInk, famDir, addKidPos, unfoldInPlace, addFamilyChild, setFold, visioPictures, guessDevice, importVisioPics, applyVisioPics, setPicFill, devPicFull, fitPicShape, picFillLib, KEY_PICFILL,
+    famDepth, famStock, startPainter, endPainter, applyPainter, painterSnap, fitText, fitsText, editorInk, famDir, addKidPos, unfoldInPlace, addFamilyChild, setFold, visioPictures, guessDevice, importVisioPics, applyVisioPics, setPicFill, devPicFull, fitPicShape, picFillLib, KEY_PICFILL,
     applyTerm, sanTerm, termCmd, terminalSection, geomBase, loadPrefs, LIB_GROUPS, libGroups, libFavs, libMostUsed, libUse, libPlace, libFavToggle, libFavMove, libKeyOf, libCmd, showLibManager, buildLibrary, refreshPinned, libCtxShow, libScore,
     parseDxf, dxfToSvg, svgMm, importCad, cadCmd, cadLib, setRobotView, robotPlanGeom, planRadius, cardKey, planKey, KEY_CVV, KEY_CADLIB },
   LIB, LIB_MAP, KEYS:{doc:KEY_DOC,schema:KEY_SCHEMA,prefs:KEY_PREFS,legacy:LEGACY_KEYS}
