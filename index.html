@@ -585,7 +585,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.22.0';
+const APP_VERSION='1.22.1';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -5944,7 +5944,7 @@ function tweenStep(now){
 }
 function tweenEnd(){
   if(!TW) return; const w=TW; TW=null;
-  for(const [id,r] of w.items){ const it=byId(id)||(w.pg&&w.pg.items.find(i=>i.id===id)); if(it){ it.x=r.x1; it.y=r.y1; } }
+  for(const [id,r] of w.items){ const it=byId(id)||(w.pg&&w.pg.items.find(i=>i.id===id)); if(it){ it.x=r.xr!=null?r.xr:r.x1; it.y=r.yr!=null?r.yr:r.y1; } }
   if(w.view){ V.tx=w.view.tx1; V.ty=w.view.ty1; V.z=w.view.z1; }
   if(w.present) presentRender(); else invalidate();
   if(w.done) w.done();
@@ -5955,6 +5955,21 @@ function tweenEnd(){
 function unfoldInPlace(s){
   const at=s.foldAt; delete s.collapsed; delete s.foldAt;
   if(at&&(at.x!==s.x||at.y!==s.y)){ const dx=s.x-at.x, dy=s.y-at.y; for(const k of familyKids(s)) shiftTree(k,dx,dy); }
+  unstackKids(s);
+}
+// Versions before 1.22.1 left a folded branch sitting on top of its parent once the fold animation ended.
+// A child centred on its parent is put back beside it, below its other children, with its own branch.
+function unstackKids(s){
+  if(!s||!s.family) return 0; const cx=s.x+s.w/2, cy=s.y+s.h/2, ks=familyKids(s);
+  const stuck=ks.filter(k=>Math.abs(k.x+k.w/2-cx)<1.5&&Math.abs(k.y+k.h/2-cy)<1.5); if(!stuck.length) return 0;
+  const ok=ks.filter(k=>!stuck.includes(k)), G=FAM_GAP[s.family], mm=s.family==='mindmap', par=familyParent(s);
+  let dir; if(!mm) dir='D'; else if(ok.length) dir=ok.reduce((a,k)=>a+k.x+k.w/2,0)/ok.length<cx?'L':'R'; else dir=par&&cx<par.x+par.w/2?'L':'R';
+  let last=ok.length?ok.slice().sort((a,b)=>mm?a.y-b.y:a.x-b.x).pop():null;
+  for(const k of stuck){ let x,y;
+    if(mm){ x=dir==='L'?(last?last.x+last.w-k.w:s.x-G.level-k.w):(last?last.x:s.x+s.w+G.level); y=last?last.y+last.h+G.sib:cy-k.h/2; }
+    else { y=last?last.y:s.y+s.h+G.level; x=last?last.x+last.w+G.sib:cx-k.w/2; }
+    shiftTree(k,r2(x)-k.x,r2(y)-k.y); last=k; }
+  return stuck.length;
 }
 function setFold(id,mode,opts){
   opts=opts||{}; const s=byId(id); if(!s||!s.family) return null;
@@ -5973,7 +5988,7 @@ function setFold(id,mode,opts){
       const wasHid=hid0.has(it.id), isHid=hid1.has(it.id);
       if(wasHid&&isHid) continue;
       if(wasHid&&!isHid){ const par=familyParent(it)||s; items2.set(it.id,{x0:r2(par.x+par.w/2-it.w/2),y0:r2(par.y+par.h/2-it.h/2),x1:it.x,y1:it.y,o0:0,o1:1}); }
-      else if(!wasHid&&isHid){ items2.set(it.id,{x0:b.x,y0:b.y,x1:r2(s.x+s.w/2-it.w/2),y1:r2(s.y+s.h/2-it.h/2),o0:1,o1:0}); }
+      else if(!wasHid&&isHid){ items2.set(it.id,{x0:b.x,y0:b.y,x1:r2(s.x+s.w/2-it.w/2),y1:r2(s.y+s.h/2-it.h/2),o0:1,o1:0,xr:b.x,yr:b.y}); }
       else if(b.x!==it.x||b.y!==it.y) items2.set(it.id,{x0:b.x,y0:b.y,x1:it.x,y1:it.y,o0:1,o1:1});
     }
   }
@@ -7096,7 +7111,7 @@ function showHelp(){
     el('h3',{text:'Mind maps: editing and growing'}),
     el('p',{text:'Double-click a topic to edit it; all of its text is selected, so typing replaces it. The edit box takes the topic\'s own colours, so light text on a dark topic stays readable. Mind map topics and org chart boxes grow with their text as you type, up to 280 px wide, then wrap and grow taller; they never shrink below the size they were given (resize one by hand to set a new size). A topic that grows toward its branch pushes the branch along. Turn this off, or on for any other shape, with Resize to fit text in the Text section.'}),
     el('p',{text:'Select a topic to see a blue + beside it: it adds a child that copies the topic\'s other children (shape, size, colours and connector). If the topic has no children yet, the new one copies the nearest topic at the same depth in the map (counted along the lines from the central topic), and failing that the topic itself, then opens it for typing. On a page with a dark background colour, text that has no colour of its own is shown light so it stays readable. Tab and Enter do the same for a child and a sibling. Adding a topic no longer rearranges the map; use Tidy layout when you want it rearranged.'}),
-    el('p',{text:'Folding and unfolding a branch keeps your arrangement: the branch comes back exactly where it was. If you move a folded topic, its hidden branch moves with it.'}),
+    el('p',{text:'Folding and unfolding a branch keeps your arrangement: the branch comes back exactly where it was. If you move a folded topic, its hidden branch moves with it. A branch that an older version left sitting on top of its topic is put back beside it the next time you open that topic.'}),
     el('h3',{text:'Format painter'}),el('p',{text:'Select the shape or line whose look you want, then click Format painter on the toolbar (also in the right-click menu and the Arrange panel). The cursor changes; click another shape or line to give it the same look. Click the button twice quickly, or double-click it, to keep painting several items; press Esc or click empty canvas to stop. Shapes take fill, border, text formatting and corners; a basic shape also takes the outline (rectangle, rounded, ellipse and so on); mind map and org boxes also take the size. Lines take colour, width, pattern, routing and arrowheads. Ctrl+Alt+C and Ctrl+Alt+V still copy and paste a style.'}),
     el('h3',{text:'Device pictures from a Visio file'}),
     el('p',{text:'File, Import device pictures from Visio (or the button under Device picture) reads the pictures in a .vsdx file, such as a page of Rockwell stencil drawings, and lists each one with its shape or master name. A name that matches a catalog number, like CMS20DP for 1783-CMS20DP, is picked for you; pick the device for the others or leave them on Skip. EMF and WMF pictures cannot be shown in a browser and are skipped. With Pictures fill the device shape on, the drawing becomes the whole device shape (no title bar), sized to the drawing, with the port pins still along the edges and the catalog number below. Turn this on or off per device under Device picture. The pictures are saved in the diagram and, with Remember on, used for new diagrams in this browser.'}),
@@ -7341,7 +7356,7 @@ window.__app={
     layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO,
     devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf, ROBO_FAMS, robotData, robotSpecLine, robotGeom, changeShape, PORT_KINDS, RA_LINE,
     SCALES, pgScale, mmPerPx, setPageScale, realSize, CV_KINDS, CV_VENDORS_BUILTIN, CV_SRC, cvVendors, cvUserVendors, sanCvVendors, placeConveyor, setCv, cvSizeMm, cvCurvePts, conveyorGeom, showCvVendors,
-    famDepth, famStock, startPainter, endPainter, applyPainter, painterSnap, fitText, fitsText, editorInk, famDir, addKidPos, unfoldInPlace, addFamilyChild, setFold, visioPictures, guessDevice, importVisioPics, applyVisioPics, setPicFill, devPicFull, fitPicShape, picFillLib, KEY_PICFILL,
+    famDepth, famStock, unstackKids, startPainter, endPainter, applyPainter, painterSnap, fitText, fitsText, editorInk, famDir, addKidPos, unfoldInPlace, addFamilyChild, setFold, visioPictures, guessDevice, importVisioPics, applyVisioPics, setPicFill, devPicFull, fitPicShape, picFillLib, KEY_PICFILL,
     applyTerm, sanTerm, termCmd, terminalSection, geomBase, loadPrefs, LIB_GROUPS, libGroups, libFavs, libMostUsed, libUse, libPlace, libFavToggle, libFavMove, libKeyOf, libCmd, showLibManager, buildLibrary, refreshPinned, libCtxShow, libScore,
     parseDxf, dxfToSvg, svgMm, importCad, cadCmd, cadLib, setRobotView, robotPlanGeom, planRadius, cardKey, planKey, KEY_CVV, KEY_CADLIB },
   LIB, LIB_MAP, KEYS:{doc:KEY_DOC,schema:KEY_SCHEMA,prefs:KEY_PREFS,legacy:LEGACY_KEYS}
