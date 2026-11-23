@@ -585,7 +585,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.22.2';
+const APP_VERSION='1.22.3';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -4187,7 +4187,7 @@ function startEdit(id,initial,labelId,caret){
     S.editLabel=lab.id;
   } else S.editLabel=null;
   hideFtb();
-  S.sel=new Set([id]); S.editing=id; S.hover=null;
+  S.sel=new Set([id]); S.editing=id; S.hover=null; { const e0=byId(id); S.editSize=e0&&isShape(e0)?{w:e0.w,h:e0.h}:null; }
   const ta=el('textarea',{class:'text-editor',spellcheck:'false','aria-label':'Edit text'});
   const existing=isShape(it)?it.text:lab.text;
   // Library placeholder text ("Central topic", "Name / Title", "Text") is replaced by typing; real text is added to.
@@ -4309,7 +4309,8 @@ function finishEdit(silent){
   if(silent){ if(it&&isLine(it)&&it.labels) it.labels=it.labels.filter(l=>l.text); invalidate(); return; }
   if(it){
     if(isShape(it)){
-      it.text=val; fitEntity(it); fitText(it);
+      const ow=S.editSize?S.editSize.w:it.w, oh=S.editSize?S.editSize.h:it.h; it.text=val; fitEntity(it); fitText(it);
+      if(it.family&&(it.w>ow+0.5||it.h>oh+0.5)) famMakeRoom(it);
       if(it.type==='text'&&!val.trim()){ page().items=items().filter(i=>i!==it); S.sel.delete(id); }
     } else {
       const lab=(it.labels||[]).find(l=>l.id===labId); if(lab) lab.text=val;
@@ -6624,18 +6625,39 @@ function famClear(c,way,skip){
   for(let n=0;n<400;n++){ const hit=others.find(o=>c.x<o.x+o.w+m&&c.x+c.w>o.x-m&&c.y<o.y+o.h+m&&c.y+c.h>o.y-m); if(!hit) return;
     if(way==='down') c.y=r2(hit.y+hit.h+FAM_GAP[c.family||'mindmap'].sib); else c.x=r2(hit.x+hit.w+FAM_GAP[c.family||'mindmap'].sib); }
 }
-// Make room for a new topic: if it lands on another box, the branches below it move down (mind maps) or the
-// branches to its right move over (org charts), by just enough. Nothing above it or before it moves.
-function famMakeRoom(c){
-  const mm=c.family==='mindmap', G=FAM_GAP[c.family], hid=foldedIds()||new Set(), m=4, chain=new Set(); let x=c, g=0; while(x&&g++<60){ chain.add(x.id); x=familyParent(x); }
-  const hitOf=()=>items().find(o=>isShape(o)&&!chain.has(o.id)&&!hid.has(o.id)&&c.x<o.x+o.w+m&&c.x+c.w>o.x-m&&c.y<o.y+o.h+m&&c.y+c.h>o.y-m);
-  for(let n=0;n<60;n++){ const hit=hitOf(); if(!hit) return;
-    const d=mm?r2(c.y+c.h+G.sib-hit.y):r2(c.x+c.w+G.sib-hit.x), hx=hit.x, hy=hit.y;
-    let a=c; g=0; while(g++<60){ const P=familyParent(a); if(!P) break; const side=a.x+a.w/2<P.x+P.w/2;
-      for(const k of familyKids(P)){ if(k.id===a.id) continue; if(mm){ if((k.x+k.w/2<P.x+P.w/2)===side&&k.y>a.y-0.5) shiftTree(k,0,d); } else if(k.x>a.x-0.5) shiftTree(k,d,0); }
-      a=P; }
-    if(hit.x===hx&&hit.y===hy){ famClear(c,mm?'down':'right'); return; }
+// Make room for a topic that lands on (or grows into) another box. Mind maps move branches down, org charts
+// move them right, by just enough:
+//  - the box hit belongs to a branch after this one: that branch and everything after it moves on;
+//  - the box hit belongs to a branch before this one (a long branch hanging past its own topic): this topic's
+//    branch and everything after it moves on, past the box.
+// The same happens at every level up to the central topic, so the whole map stays in order. A box that is not
+// part of the map moves the new topic instead (only when opts.mayMoveSelf).
+function famMakeRoom(c,opts){
+  opts=opts||{}; if(!c||!c.family) return 0; const mm=c.family==='mindmap', G=FAM_GAP[c.family], m=4; let moves=0;
+  const chain=new Set(); let x=c, g=0; while(x&&g++<60){ chain.add(x.id); x=familyParent(x); }
+  const own=subtreeIds(c);
+  const pos=k=>mm?k.y:k.x, end=k=>mm?k.y+k.h:k.x+k.w;
+  const shift=(k,d)=>mm?shiftTree(k,0,d):shiftTree(k,d,0);
+  // Move every branch after `a` (on the same side of its parent), at every level up the chain.
+  const pushAfter=(a,d)=>{ let n=0; while(n++<60){ const P=familyParent(a); if(!P) break; const side=a.x+a.w/2<P.x+P.w/2;
+      for(const k of familyKids(P)){ if(k.id===a.id) continue; if(mm&&(k.x+k.w/2<P.x+P.w/2)!==side) continue; if(pos(k)>pos(a)-0.5) shift(k,d); }
+      a=P; } };
+  for(let n=0;n<80;n++){
+    const hid=foldedIds()||new Set();
+    const boxes=[...own].map(byId).filter(b=>b&&isShape(b)&&!hid.has(b.id));
+    let hit=null, mine=null;
+    for(const o of items()){ if(!isShape(o)||chain.has(o.id)||own.has(o.id)||hid.has(o.id)) continue;
+      const b=boxes.find(b=>b.x<o.x+o.w+m&&b.x+b.w>o.x-m&&b.y<o.y+o.h+m&&b.y+b.h>o.y-m); if(b){ hit=o; mine=b; break; } }
+    if(!hit) return moves;
+    // Which level does the hit box belong to?
+    let a=c, sib=null, k=0; while(k++<60){ const P=familyParent(a); if(!P) break; sib=familyKids(P).find(q=>q.id!==a.id&&subtreeIds(q).has(hit.id)); if(sib) break; a=P; }
+    if(sib&&pos(sib)>pos(a)-0.5){ pushAfter(a,r2(end(mine)+G.sib-pos(hit))); }
+    else if(sib){ const d=r2(end(hit)+G.sib-pos(mine)); shift(a,d); pushAfter(a,d); }
+    else if(opts.mayMoveSelf){ famClear(c,mm?'down':'right'); return moves+1; }
+    else return moves;
+    moves++;
   }
+  return moves;
 }
 // Depth along the lines from the central topic (0 for the root).
 function famDepth(it){ let d=0, c=it, p; while((p=familyParent(c))&&d<50){ d++; c=p; } return d; }
@@ -6686,7 +6708,7 @@ function addFamilyChild(s,asSibling,opts){
     L=mm?makeLine({id:parent.id,side:sideA},{id:c.id,side:sideB},{route:'curved',endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{stroke,sw:2})})
        :makeLine({id:parent.id,side:sideA},{id:c.id,side:sideB},{route:'orthogonal',endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{stroke})}); }
   items().push(L);
-  fitText(c); famMakeRoom(c);
+  fitText(c); famMakeRoom(c,{mayMoveSelf:true});
   if(opts.tidy) layoutTree(familyRoot(parent));
   if(!opts.noCommit){ setSel([c.id]); commit(); invalidate(); }
   if(!opts.noEdit) startEdit(c.id,null,null,-1);
@@ -7140,7 +7162,7 @@ function showHelp(){
     el('p',{text:'Yaskawa robot controllers, FANUC robot controllers and Yaskawa drives and motion work like the Rockwell devices: one pin per port. Controllers have pendant (TP or PP), robot cable (ROB), Ethernet, and where known USB, serial and fieldbus option pins. Drives have the communication option slot, serial and safety pins where the source confirms them, plus generic power and motor pins. Legacy controllers whose ports were not found show only the pendant and robot pins and are marked Unverified. The R-30iB Plus Ethernet port speed is left open because the sources disagree.'}),
     el('h3',{text:'Mind maps: editing and growing'}),
     el('p',{text:'Double-click a topic to edit it; all of its text is selected, so typing replaces it. The edit box takes the topic\'s own colours, so light text on a dark topic stays readable. Mind map topics and org chart boxes grow with their text as you type, up to 280 px wide, then wrap and grow taller; they never shrink below the size they were given (resize one by hand to set a new size). A topic that grows toward its branch pushes the branch along. Turn this off, or on for any other shape, with Resize to fit text in the Text section.'}),
-    el('p',{text:'Select a topic to see a blue + beside it: it adds a child that copies the topic\'s other children (shape, size, colours and connector). If the topic has no children yet, the new one copies the closest relatives at the same depth (counted along the lines from the central topic): cousins in the same branch first, even folded ones, then topics in other branches, and failing that the topic itself. It starts at the smallest size of the topics it copies and fits its own text, the same as the topics already there. If it would land on another box, the branches below move down just enough to make room. It then opens for typing. On a page with a dark background colour, text that has no colour of its own is shown light so it stays readable. Tab and Enter do the same for a child and a sibling. Adding a topic no longer rearranges the map; use Tidy layout when you want it rearranged.'}),
+    el('p',{text:'Select a topic to see a blue + beside it: it adds a child that copies the topic\'s other children (shape, size, colours and connector). If the topic has no children yet, the new one copies the closest relatives at the same depth (counted along the lines from the central topic): cousins in the same branch first, even folded ones, then topics in other branches, and failing that the topic itself. It starts at the smallest size of the topics it copies and fits its own text, the same as the topics already there. If it would land on another box, the map makes room: branches after it move down just enough, and if a long branch above hangs past its own topic, the new topic and everything after it move down below that branch. The same happens when a topic grows as you type. It then opens for typing. On a page with a dark background colour, text that has no colour of its own is shown light so it stays readable. Tab and Enter do the same for a child and a sibling. Adding a topic no longer rearranges the map; use Tidy layout when you want it rearranged.'}),
     el('p',{text:'Folding and unfolding a branch keeps your arrangement: the branch comes back exactly where it was. If you move a folded topic, its hidden branch moves with it. A branch that an older version left sitting on top of its topic is put back beside it the next time you open that topic.'}),
     el('h3',{text:'Format painter'}),el('p',{text:'Select the shape or line whose look you want, then click Format painter on the toolbar (also in the right-click menu and the Arrange panel). The cursor changes; click another shape or line to give it the same look. Click the button twice quickly, or double-click it, to keep painting several items; press Esc or click empty canvas to stop. Shapes take fill, border, text formatting and corners; a basic shape also takes the outline (rectangle, rounded, ellipse and so on); mind map and org boxes also take the size. Lines take colour, width, pattern, routing and arrowheads. Ctrl+Alt+C and Ctrl+Alt+V still copy and paste a style.'}),
     el('h3',{text:'Device pictures from a Visio file'}),
