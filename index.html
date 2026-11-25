@@ -207,7 +207,10 @@ button{cursor:pointer}
 .empty-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .empty-hint div{max-width:360px;text-align:center;color:#8a93a3;font-size:var(--fs-md);line-height:1.6;padding:20px;border:1.5px dashed #d3d8e0;border-radius:var(--r-lg);background:rgba(255,255,255,.7)}
 .empty-hint b{color:#4c5566}
-.painting #svg,.painting #svg *{cursor:copy !important}
+.painting #svg,.painting #svg *{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='%23ffffff' stroke='%23111111' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08'/%3E%3Cpath d='M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z'/%3E%3C/svg%3E") 2 21,copy !important}
+.ov-marquee.paint{stroke-dasharray:4 3}
+.ov-bend rect{fill:#fff;stroke:var(--accent);cursor:move}
+.ov-bend:hover rect{fill:var(--accent)}
 #painterBtn.on,[data-cmd="formatPainter"].on{background:var(--accent-2);color:var(--accent)}
 .text-editor{position:absolute;z-index:5;border:1.5px solid var(--accent);background:#fff;border-radius:2px;resize:none;outline:none;padding:0 2px;margin:0;overflow:hidden;line-height:1.25;box-shadow:0 0 0 3px rgba(47,111,237,.15);user-select:text;-webkit-user-select:text}
 
@@ -585,7 +588,7 @@ button{cursor:pointer}
 
 /* ============================== constants ============================== */
 const SVGNS='http://www.w3.org/2000/svg';
-const APP_VERSION='1.22.3';
+const APP_VERSION='1.23.0';
 const SCHEMA=1;
 const KEY_DOC='linework.doc', KEY_SCHEMA='linework.schema', KEY_PREFS='linework.prefs';
 const LEGACY_KEYS=['linework.diagram']; // older key names migrate forward on load
@@ -3172,6 +3175,7 @@ function pageSection(){
     row('Size',selIn('pageSize',k,[['','Infinite canvas'],...Object.keys(PAGE_SIZES).map(x=>[x,PAGE_SIZES[x].n])],'Page size')),
     k?row('Orientation',seg('pageOrient',sz.o==='landscape'?'landscape':'portrait',[{v:'portrait',l:'Portrait',t:'Portrait'},{v:'landscape',l:'Landscape',t:'Landscape'}])):null,
     row('Background',colorIn('pageBg',pg.bg||'#ffffff','Page background color'),chk('pageBgNone',!pg.bg,'Default')),
+    pg.lineDef?row('New lines',el('span',{class:'small',text:'Page default set'}),el('button',{class:'btn','data-cmd':'clearDefaultLine',text:'Clear'})):null,
     row('Drawing scale',selIn('pageScale',String(pgScale(pg)),[['0','None (not to scale)']].concat(SCALES.map(n=>[String(n),'1:'+n])),'Drawing scale')),
     pgScale(pg)?el('p',{class:'muted small',style:{marginTop:'2px'},text:'1:'+pgScale(pg)+': 1 grid square (20 px) is '+Math.round(20*mmPerPx(pg))+' mm at 100% zoom. Conveyors and robot plan views are drawn to this scale.'}):null,
     row('Grid',chk('pref:grid',S.prefs.grid,'Show')),
@@ -3184,6 +3188,7 @@ function sanPageExtras(p,its){
   if(p.size&&typeof p.size==='object'&&PAGE_SIZES[p.size.k]) o.size={k:p.size.k,o:p.size.o==='landscape'?'landscape':'portrait'};
   if(typeof p.bg==='string'&&COLOR_RE.test(p.bg)) o.bg=p.bg;
   if(SCALES.includes(+p.scale)) o.scale=+p.scale;
+  if(p.lineDef&&typeof p.lineDef==='object'){ const d=p.lineDef; o.lineDef={route:ROUTES.includes(d.route)?d.route:'orthogonal',startArrow:ARROWS.includes(d.startArrow)?d.startArrow:'none',endArrow:ARROWS.includes(d.endArrow)?d.endArrow:'arrow',style:sanStyle(d.style,DEF_LINE_STYLE)}; if(SIGNALS[d.signal]) o.lineDef.signal=d.signal; }
   const seen=new Set();
   o.layers=(Array.isArray(p.layers)?p.layers:[]).filter(l=>l&&typeof l==='object').slice(0,50).map(l=>{
     let id=(typeof l.id==='string'&&l.id)?l.id.slice(0,64):uid(); if(seen.has(id)) id=uid(); seen.add(id);
@@ -3259,6 +3264,7 @@ function sanitizeItem(it){
       startArrow:ARROWS.includes(it.startArrow)?it.startArrow:'none',
       endArrow:ARROWS.includes(it.endArrow)?it.endArrow:'arrow',
       labels:sanLabels(it),style:sanStyle(it.style,DEF_LINE_STYLE),layer:typeof it.layer==='string'?it.layer.slice(0,64):undefined,groupId:gid,...sanAttrs(it),signal:SIGNALS[it.signal]?it.signal:undefined,
+      bend:(it.route==='straight'||it.route==='curved')&&it.bend&&Number.isFinite(+it.bend.dx)&&Number.isFinite(+it.bend.dy)&&(+it.bend.dx||+it.bend.dy)?{dx:clamp(+it.bend.dx,-1e5,1e5),dy:clamp(+it.bend.dy,-1e5,1e5)}:undefined,
       waypoints:(Array.isArray(it.waypoints)&&it.waypoints.length&&it.route!=='straight'&&it.route!=='curved')?it.waypoints.slice(0,60).filter(q=>q&&Number.isFinite(+q.x)&&Number.isFinite(+q.y)).map(q=>({x:num(q.x,0),y:num(q.y,0)})):undefined};
   }
   return {id,kind:'shape',type:(GEOM_TYPES.includes(it.type)||IO_RE.test(String(it.type)))?it.type:'rect',
@@ -3486,12 +3492,14 @@ function routeLine(L){
     if(B.side==='auto'){ if(route==='straight') p2=boundaryPoint(B.s,refA); else { const sd=autoSide(B.s,refA); p2=portPoint(B.s,sd); d2=sideDir(B.s,sd); } }
     else { p2=portPoint(B.s,B.side,B.pos); d2=sideDir(B.s,B.side); }
   } else p2=B.pt;
-  if(route==='straight') return {kind:'poly',pts:[p1,p2]};
+  const bd=(route==='straight'||route==='curved')&&L.bend&&Number.isFinite(L.bend.dx)&&Number.isFinite(L.bend.dy)?L.bend:null;
+  if(route==='straight') return bd?{kind:'poly',pts:[p1,{x:(p1.x+p2.x)/2+bd.dx,y:(p1.y+p2.y)/2+bd.dy},p2]}:{kind:'poly',pts:[p1,p2]};
   if(!d1) d1=inferDir(p1,p2);
   if(!d2) d2=inferDir(p2,p1);
   if(route==='curved'){
-    const k=Math.max(30,dist(p1,p2)*0.4);
-    return {kind:'curve',pts:[p1,{x:p1.x+d1.x*k,y:p1.y+d1.y*k},{x:p2.x+d2.x*k,y:p2.y+d2.y*k},p2]};
+    const k=Math.max(30,dist(p1,p2)*0.4), v=bd?{x:bd.dx*4/3,y:bd.dy*4/3}:{x:0,y:0};
+    // A bend moves the middle of the curve by (dx, dy): both control points move by 4/3 of that.
+    return {kind:'curve',pts:[p1,{x:p1.x+d1.x*k+v.x,y:p1.y+d1.y*k+v.y},{x:p2.x+d2.x*k+v.x,y:p2.y+d2.y*k+v.y},p2]};
   }
   if(Array.isArray(L.waypoints)&&L.waypoints.length) return {kind:'poly',pts:manualRoute(p1,d1,p2,L.waypoints,A.s?d1:null,B.s?d2:null),manual:true};
   return {kind:'poly',pts:ortho(p1,d1,p2,d2,A.s?STUB:0,B.s?STUB:0)};
@@ -3525,6 +3533,10 @@ function segDragBase(pts,i){
   if(k+1===P.length-1){ const t=stub(P[P.length-1],P[P.length-2]); P.splice(P.length-1,0,{...t},{...t}); }
   return {P,k,horiz:Math.abs(P[k].y-P[k+1].y)<0.5};
 }
+// The middle of a straight or curved line, with or without its bend.
+function lineMid(L,noBend){ const R=routeLine(noBend?Object.assign({},L,{bend:undefined}):L), P=R.pts;
+  if(R.kind==='curve'){ const [a,b,c,d]=P; return {x:(a.x+3*b.x+3*c.x+d.x)/8,y:(a.y+3*b.y+3*c.y+d.y)/8}; }
+  if(P.length===3) return {x:P[1].x,y:P[1].y}; return {x:(P[0].x+P[P.length-1].x)/2,y:(P[0].y+P[P.length-1].y)/2}; }
 function shiftWaypoints(L,dx,dy){ if(L.waypoints) L.waypoints=L.waypoints.map(q=>({x:r2(q.x+dx),y:r2(q.y+dy)})); }
 function pathD(kind,p,corner){
   const f=q=>r2(q.x)+' '+r2(q.y);
@@ -3897,6 +3909,7 @@ function renderOverlay(){
     out.push(sv('g',{class:'ov-add','data-addchild':s.id},sv('title',null,mm?'Add topic (Tab)':'Add report (Tab)'),sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(r)}),
       sv('path',{d:`M${r2(cx-r*0.5)} ${r2(cy)}H${r2(cx+r*0.5)}M${r2(cx)} ${r2(cy-r*0.5)}V${r2(cy+r*0.5)}`,'stroke-width':r2(2/z)})));
   }
+  const lineHandlesAt=out.length;
   if(sel.length===1&&isLine(sel[0])&&!sel[0].locked&&!S.editing){
     const L=sel[0], R=routeLine(L), ends={from:R.pts[0],to:R.pts[R.pts.length-1]};
     if((L.route||'orthogonal')==='orthogonal'&&!(op&&op.type==='seg')||(op&&op.type==='seg')){
@@ -3907,8 +3920,12 @@ function renderOverlay(){
         out.push(sv('rect',{x:r2(mx-lw/2),y:r2(my-lh/2),width:r2(lw),height:r2(lh),rx:r2(2/z),class:'ov-seg '+(hz?'hz':'vt'),'data-seg':String(i),'data-lid':L.id,'stroke-width':r2(1.2/z)}));
       }
     }
+    if(L.route==='straight'||L.route==='curved'){ const m=lineMid(L), r=6*uiK()/z;
+      out.push(sv('g',{class:'ov-bend','data-bend':L.id},sv('title',null,'Drag to bend the line. Double-click to straighten it again.'),
+        sv('rect',{x:r2(m.x-r),y:r2(m.y-r),width:r2(2*r),height:r2(2*r),rx:r2(1.5/z),transform:`rotate(45 ${r2(m.x)} ${r2(m.y)})`,'stroke-width':r2(1.5/z)}))); }
     for(const k in ends) out.push(sv('circle',{cx:r2(ends[k].x),cy:r2(ends[k].y),r:r2(5.5*uiK()/z),class:'ov-end '+(L[k].id?'attached':'free'),'data-handle':k,'data-lid':L.id,'stroke-width':r2(1.5/z)}));
   }
+  const portsAt=out.length;
   const hovId=S.pen?null:S.hover||(isCoarse()&&sel.length===1&&isShape(sel[0])&&!sel[0].locked?sel[0].id:null);
   if(!busy&&!S.editing&&hovId){
     const s=byId(hovId);
@@ -3923,13 +3940,16 @@ function renderOverlay(){
       for(const side of SIDE_KEYS){
         const s0=s.ang?Object.assign({},s,{ang:0}):s, p=portPoint(s0,side), d=SIDES[side], extra=side==='E'?s.x+s.w-p.x:side==='W'?p.x-s.x:side==='N'?p.y-s.y:s.y+s.h-p.y;
         const fb=s.family&&side===(s.family==='mindmap'?'E':'S')&&hasKids(s)?26/z:0;
-        const pc=rotPt(s,{x:p.x+d.x*(off+extra+fb),y:p.y+d.y*(off+extra+fb)}), cx=pc.x, cy=pc.y;
+        const plusSide=s.family&&sel.length===1&&sel[0]===s&&!s.locked?({R:'E',L:'W',D:'S'})[famDir(s)]:null, pb=side===plusSide?(hasKids(s)&&side!=='W'?18:30)/z:0;
+        const pc=rotPt(s,{x:p.x+d.x*(off+extra+fb+pb),y:p.y+d.y*(off+extra+fb+pb)}), cx=pc.x, cy=pc.y;
         out.push(sv('g',{class:'ov-port','data-port':side,'data-sid':s.id},
           sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(11*uiK()/z),class:'pad'}),
           sv('circle',{cx:r2(cx),cy:r2(cy),r:r2(5/z),class:'vis','stroke-width':r2(1.5/z)})));
       }
     }
   }
+  // Connection dots go under the selected line's handles, so a bend or end handle is never covered.
+  if(out.length>portsAt){ const ports=out.splice(portsAt); out.splice(lineHandlesAt,0,...ports); }
   if(op&&(op.type==='connect'||op.type==='endpoint')){
     if(op.type==='connect'){ const tmp={from:connFrom(op),to:op.target?endOf(op.target):{x:op.cur.x,y:op.cur.y},route:S.prefs.route}; const R=routeLine(tmp); out.push(sv('path',{d:pathD(R.kind,R.pts),class:'ov-temp','stroke-width':r2(1.5/z)})); }
     if(op.target){ const t=byId(op.target.id); if(t){ const p=4/z; out.push(sv('rect',{x:r2(t.x-p),y:r2(t.y-p),width:r2(t.w+2*p),height:r2(t.h+2*p),class:'ov-target','stroke-width':r2(1.5/z),rx:r2(3/z),transform:angXf(t)}));
@@ -3938,6 +3958,7 @@ function renderOverlay(){
       else for(const side of SIDE_KEYS){ const q=portPoint(t,side); out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2(4.5/z),class:'ov-dot'+(op.target.side===side&&op.target.pos==null?' on':''),'stroke-width':r2(1.5/z)})); }
       if(op.target.pos!=null){ const q=portPoint(t,op.target.side,op.target.pos); out.push(sv('circle',{cx:r2(q.x),cy:r2(q.y),r:r2(5/z),class:'ov-dot on','stroke-width':r2(1.5/z)})); } } }
   }
+  if(op&&op.type==='paintbox'&&op.moved){ const a=op.start,b=op.cur; out.push(sv('rect',{x:r2(Math.min(a.x,b.x)),y:r2(Math.min(a.y,b.y)),width:r2(Math.abs(a.x-b.x)),height:r2(Math.abs(a.y-b.y)),class:'ov-marquee paint','stroke-width':r2(1/z)})); }
   if(op&&op.type==='marquee'){ const a=op.start,b=op.cur; out.push(sv('rect',{x:r2(Math.min(a.x,b.x)),y:r2(Math.min(a.y,b.y)),width:r2(Math.abs(a.x-b.x)),height:r2(Math.abs(a.y-b.y)),class:'ov-marquee','stroke-width':r2(1/z)})); }
   for(const gd of S.guides) out.push(sv('line',{x1:r2(gd.x1),y1:r2(gd.y1),x2:r2(gd.x2),y2:r2(gd.y2),class:'ov-guide','stroke-width':r2(1/z)}));
   if(op&&op.type==='ink'){ const hl=!!S.prefs.penHl; out.push(sv('path',{d:inkPath(op.pts,false),fill:'none',stroke:hl?(S.prefs.penColor==='#1f2430'?'#facc15':S.prefs.penColor):S.prefs.penColor,'stroke-opacity':hl?0.4:1,'stroke-width':hl?Math.max(10,S.prefs.penWidth*4):S.prefs.penWidth,'stroke-linecap':'round','stroke-linejoin':'round',class:'ov-ink'})); }
@@ -4129,7 +4150,23 @@ function flipSel(axis){
 // Wires get no arrowheads; instrument signal lines are dashed with no arrowheads (ISA-5.1 electric signal).
 const connFrom=op=>op.port?{id:op.from,side:op.side,port:op.port}:{id:op.from,side:op.side};
 // Lines from a device port take the port's media: blue copper, orange fiber, dotted serial and USB.
+function lineLook(L){ return {route:L.route,startArrow:L.startArrow,endArrow:L.endArrow,style:JSON.parse(JSON.stringify(L.style)),...(L.signal?{signal:L.signal}:{})}; }
+// A line drawn from or to a mind map topic or org chart box takes that map's connector look.
+function famLineFor(aId,bId){
+  const s=[aId,bId].map(id=>id&&byId(id)).find(x=>x&&isShape(x)&&x.family); if(!s) return null;
+  const tree=subtreeIds(familyRoot(s)), par=familyParent(s);
+  const model=(par&&items().find(L=>isLine(L)&&L.from.id===par.id&&L.to.id===s.id))||items().find(L=>isLine(L)&&L.from.id===s.id&&tree.has(L.to.id))
+    ||items().find(L=>isLine(L)&&tree.has(L.from.id)&&tree.has(L.to.id));
+  if(model) return lineLook(model);
+  return s.family==='mindmap'?{route:'curved',endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{stroke:s.style.stroke&&s.style.stroke!=='none'?s.style.stroke:'#3a7bec',sw:2})}
+    :{route:'orthogonal',endArrow:'none',style:Object.assign({},DEF_LINE_STYLE,{stroke:'#6b7280'})};
+}
 function lineDefaults(aId,bId,aPort,bPort){
+  const pd=page().lineDef; if(pd) return JSON.parse(JSON.stringify(pd));
+  const fam=famLineFor(aId,bId); if(fam) return fam;
+  return deviceLineDefaults(aId,bId,aPort,bPort);
+}
+function deviceLineDefaults(aId,bId,aPort,bPort){
   const ts=[aId,bId].map(id=>{ const s=id&&byId(id); return s&&s.type||''; });
   const kinds=[[aId,aPort],[bId,bPort]].map(([id,pid])=>{ const s=id&&pid&&byId(id); const q=s&&raPort(s,pid); return q?q.k:null; }).filter(Boolean);
   if(kinds.length){ const pick=kinds.find(k=>k==='sfp'||k==='fib')||kinds.find(k=>RA_LINE[k]&&!RA_LINE[k].dash&&k!=='dp')||kinds[0];
@@ -4477,13 +4514,18 @@ function onPointerDown(e){
   if(react){ const it=byId(react.closest('[data-id]').getAttribute('data-id')); if(it&&it.reactions){ it.reactions=it.reactions.filter(x=>x!==react.getAttribute('data-react')); if(!it.reactions.length) delete it.reactions; commit(); invalidate(); } return; }
   const port=t&&t.closest('[data-port]'), handle=t&&t.closest('[data-handle]'), itemEl=t&&t.closest('[data-id]'), labEl=t&&t.closest('[data-label]'), segEl=t&&t.closest('[data-seg]');
   const addEl=t&&t.closest('[data-addchild]');
-  if(S.painter&&e.button===0){ e.preventDefault(); const pid=itemEl&&itemEl.getAttribute('data-id'), pit=pid&&byId(pid); if(pit&&pid!==S.painter.from){ applyPainter(pit); setSel([pid]); if(!S.painter.sticky) endPainter(); } else if(!pit) endPainter(); return; }
+  if(S.painter&&e.button===0){ e.preventDefault(); const pid=itemEl&&itemEl.getAttribute('data-id'), pit=pid&&byId(pid); if(pit&&pid!==S.painter.from&&!pit.locked){ applyPainter(pit); if(!S.painter.sticky) endPainter(); invalidate({overlay:true}); return; }
+    S.op={type:'paintbox',start:w,cur:w,sx:e.clientX,sy:e.clientY,moved:false}; return; }
   const foldEl=t&&t.closest('[data-fold]'); if(foldEl&&!e.button){ e.preventDefault(); setFold(foldEl.getAttribute('data-fold'),'toggle'); return; }
   const pinEl=t&&t.closest('[data-cmtpin]'); if(pinEl){ e.preventDefault(); openComments(pinEl.getAttribute('data-cmtpin')); return; }
   const actEl=t&&t.closest('[data-act]'); if(actEl){ e.preventDefault(); runAction(byId(actEl.getAttribute('data-act'))); return; }
   const rotEl=t&&t.closest('[data-rotate]');
   if(rotEl){ const sh=unlockedSel().filter(isShape); if(selItems().length===1&&sh.length===1){ S.op={type:'rotate',id:sh[0].id,sx:e.clientX,sy:e.clientY,moved:false,shift:e.shiftKey}; return; } rotateSel(e.shiftKey); return; }
   if(addEl){ addFamilyChild(byId(addEl.getAttribute('data-addchild')),false); return; }
+  const bendEl=t&&t.closest('[data-bend]');
+  if(bendEl&&!e.button){ e.preventDefault(); const L=byId(bendEl.getAttribute('data-bend')); if(L&&!L.locked){ const now=Date.now();
+      if(S.lastBend&&S.lastBend.id===L.id&&now-S.lastBend.t<400){ S.lastBend=null; delete L.bend; commit(); invalidate(); toast('Line straightened'); return; }
+      S.lastBend={id:L.id,t:now}; S.op={type:'bend',id:L.id,base:lineMid(L,true),sx:e.clientX,sy:e.clientY,moved:false}; } return; }
   if(segEl){ const L=byId(segEl.getAttribute('data-lid')); if(L&&!L.locked){ const R=routeLine(L); S.op={type:'seg',id:L.id,base:segDragBase(R.pts,+segEl.getAttribute('data-seg')),start:w,sx:e.clientX,sy:e.clientY,moved:false}; S.lastTap=null; } return; }
   if(port){ S.op={type:'connect',from:port.getAttribute('data-sid'),side:port.getAttribute('data-port'),port:port.getAttribute('data-devport')||null,cur:w,target:null,sx:e.clientX,sy:e.clientY}; S.lastTap=null; invalidate({overlay:true}); return; }
   if(handle){
@@ -4566,6 +4608,8 @@ function onPointerMove(e){
       setAngle(it,A); invalidate({content:true,overlay:true}); break; }
     case 'resize': { op.moved=true; const it=byId(op.id); op.shift=it&&it.type==='image'?!e.shiftKey:e.shiftKey; op.noSnap=e.shiftKey||e.altKey; applyResize(op,w); invalidate({content:true,overlay:true}); break; }
     case 'gresize': op.moved=true; op.shift=e.shiftKey; applyGroupResize(op,w); invalidate({content:true,overlay:true}); break;
+    case 'paintbox': op.cur=w; if(Math.hypot(e.clientX-op.sx,e.clientY-op.sy)>4) op.moved=true; invalidate({overlay:true}); break;
+    case 'bend': { if(!op.moved&&Math.hypot(e.clientX-op.sx,e.clientY-op.sy)<3) return; op.moved=true; const L=byId(op.id); if(L){ const dx=r2(w.x-op.base.x), dy=r2(w.y-op.base.y); if(Math.hypot(dx,dy)<3/V.z) delete L.bend; else L.bend={dx,dy}; } invalidate({content:true,overlay:true}); break; }
     case 'seg': if(!op.moved&&Math.hypot(e.clientX-op.sx,e.clientY-op.sy)<3) return; op.moved=true; op.noSnap=e.shiftKey||e.altKey; applySegDrag(op,w); invalidate({content:true,overlay:true}); break;
     case 'label': {
       if(op.locked) return;
@@ -4617,6 +4661,8 @@ function onPointerUp(e){
     case 'pan': if(!op.moved&&op.clear&&e.type==='pointerup'){ if(S.sel.size) setSel([]); hideFtb(); } invalidate({overlay:true}); break;
     case 'endpoint': { if(op.moved){ const L=byId(op.id); if(L) delete L.waypoints; commit(); } invalidate(); break; }
     case 'seg': if(op.moved) commit(); invalidate({overlay:true,props:true}); break;
+    case 'paintbox': { if(op.moved){ const n=paintBox(op.start,w); if(n&&S.painter&&!S.painter.sticky) endPainter(); else if(!n) toast('Nothing to paint there'); } else if(S.painter&&!S.painter.sticky) endPainter(); invalidate({overlay:true}); break; }
+    case 'bend': if(op.moved){ S.lastBend=null; commit(); } invalidate({overlay:true,props:true}); break;
     case 'gresize': if(op.moved) commit(); invalidate({overlay:true,props:true}); break;
     case 'connect': {
       if(e.type==='pointercancel'){ invalidate({overlay:true}); break; }
@@ -6067,6 +6113,7 @@ function renderProps(){
       row('Type',selIn('signal',fl.signal||'',[['','Plain line'],...Object.keys(SIGNALS).map(k=>[k,SIGNALS[k].n])],'Line type')),
       fl.signal?el('p',{class:'muted small',style:{marginTop:'2px'},text:(SIGNALS[fl.signal].verified?'':'[Unverified drawing] ')+(SIGNALS[fl.signal].verified?SIG_BASIS_V:SIG_BASIS_U)}):null,
       lines.length===1&&(fl.from.port||fl.to.port)?row('Ports',el('span',{class:'small',text:[fl.from,fl.to].map(e=>{ const s=e.id&&byId(e.id); return s?(s.text||(devDef(s.type)?devDef(s.type).cat:'')||TYPE_NAMES[s.type]||'Shape').split('\n')[0]+(e.port?(ioParse(s.type)?(e.port[0]==='C'?' COM'+(ioParse(s.type).com>1?' '+e.port.slice(1):''):' '+IO_KINDS[ioParse(s.type).kind].lab+' '+e.port):' port '+e.port):''):'Free end'; }).join(' to ')})):null,
+      lines.length===1?row('Default',el('button',{class:'btn','data-cmd':'setDefaultLine',text:'Use for new lines',title:'New lines on this page will look like this one'})):null,
       row('Corners',seg('corner',fl.style.corner>0?'r':'s',[{v:'s',l:'Square',t:'Square corners'},{v:'r',l:'Rounded',t:'Rounded corners'}])),
       lines.length===1?row('Text',el('span',{class:'muted',text:(fl.labels||[]).length+' on line'}),el('button',{class:'btn','data-cmd':'addLineText',text:'Add text'})):null));
   }
@@ -6204,7 +6251,7 @@ function applyProp(prop,v,final){
     case 'valign': if(VALIGNS.includes(v)) shapes.forEach(s=>{s.style.valign=v;}); break;
     case 'textLevel': shapes.forEach(s=>{s.style.textLevel=v===true||v==='true';}); break;
     case 'radius': shapes.forEach(s=>{s.style.radius=clamp(num(v,0),0,500);}); break;
-    case 'route': if(ROUTES.includes(v)){ lines.forEach(l=>{ if(l.route!==v) delete l.waypoints; l.route=v; }); S.prefs.route=v; savePrefs(); } break;
+    case 'route': if(ROUTES.includes(v)){ lines.forEach(l=>{ if(l.route!==v){ delete l.waypoints; delete l.bend; } l.route=v; }); S.prefs.route=v; savePrefs(); } break;
     case 'startArrow': case 'endArrow': if(ARROWS.includes(v)) lines.forEach(l=>{l[prop]=v;}); break;
     case 'corner': lines.forEach(l=>{l.style.corner=clamp(num(v,0),0,60);}); break;
     case 'signal': lines.forEach(l=>{ if(SIGNALS[v]){ l.signal=v; l.style.dash=SIGNALS[v].dash||'solid'; } else delete l.signal; }); if(final) invalidate({props:true}); break;
@@ -6734,44 +6781,51 @@ function loadFamilySample(){
 
 /* ============================== paint format, select by type, pages ============================== */
 const STYLE_SHARED=['stroke','sw','dash','opacity','fontSize','fontColor','font','bold','italic','underline'];
-function copyStyle(){ const f=selItems()[0]; if(!f){ toast('Select something to copy its style.'); return; }
-  S.styleClip={kind:f.kind,style:JSON.parse(JSON.stringify(f.style)),route:f.route,startArrow:f.startArrow,endArrow:f.endArrow}; toast('Style copied'); }
+function copyStyle(){ const f=selItems()[0]; if(!f){ toast('Select something to copy its look.'); return; }
+  S.styleClip=painterSnap(f); toast('Format copied. Select other items and press Ctrl+Shift+V to paste it.'); }
 function pasteStyle(){
-  const c=S.styleClip; if(!c){ toast('Copy a style first (Ctrl+Alt+C).'); return; }
-  const sel=unlockedSel(); if(!sel.length) return;
-  for(const it of sel){
-    if(it.kind===c.kind){ Object.assign(it.style,JSON.parse(JSON.stringify(c.style))); if(isLine(it)){ it.route=c.route; it.startArrow=c.startArrow; it.endArrow=c.endArrow; } }
-    else STYLE_SHARED.forEach(k=>{ if(k in c.style) it.style[k]=c.style[k]; });
-  }
-  commit(); invalidate(); toast('Style pasted');
+  const c=S.styleClip; if(!c){ toast('Copy a format first (Ctrl+Shift+C).'); return; }
+  const sel=unlockedSel(); if(!sel.length) return; let n=0;
+  for(const it of sel) if(paintLook(it,c,true)) n++;
+  if(n){ commit(); invalidate(); } toast(n===1?'Format pasted':'Format pasted to '+n+' items');
 }
-/* Format painter: pick up the look of the selected item, then click other items to give them that look.
-   One click on the button paints once; double-click keeps it on until Esc or a click on empty canvas.
-   Shapes take colours, line, text formatting and corner; a basic shape also takes the outline (rectangle,
-   rounded, ellipse and so on); mind map and org boxes also take the size. Lines take colour, width,
-   pattern, routing and arrowheads. */
+/* Format painter, modelled on Microsoft Office (support.microsoft.com, "Use the Format Painter"):
+   select the item whose look you want, click Format painter, then click or drag over the items to change.
+   One click on the button paints once; double-click keeps it on for several items until Esc or the button
+   is clicked again. Ctrl+Shift+C / Ctrl+Shift+V (and Ctrl+Alt+C / Ctrl+Alt+V) copy and paste a look onto
+   everything selected. Shapes take colours, line, text formatting and corners; a basic shape also takes the
+   outline; mind map and org boxes also take the size. Lines take colour, width, pattern, routing and arrowheads. */
 const PAINT_BASIC=new Set(['rect','text','terminator','ellipse','diamond','triangle','hexagon','parallelogram','document','cylinder','predefined','manualInput','delay','trapezoid','offpage','note','star','pentagon','octagon','cross','arrow','cloud','callout','mm_sub']);
 function painterSnap(f){ return {kind:f.kind,type:f.type,style:JSON.parse(JSON.stringify(f.style)),route:f.route,startArrow:f.startArrow,endArrow:f.endArrow,signal:f.signal,
   family:f.family,w:f.fitMin?f.fitMin.w:f.w,h:f.fitMin?f.fitMin.h:f.h,fit:f.fit}; }
 function startPainter(sticky){
-  const f=selItems()[0]; if(!f||S.sel.size!==1){ toast('Select one shape or line to copy its look, then choose Format painter.'); return false; }
+  const f=selItems()[0]; if(!f){ toast('Select the shape or line whose look you want, then choose Format painter.'); return false; }
   if(S.editing) finishEdit(); S.painter={src:painterSnap(f),sticky:!!sticky,from:f.id,t:Date.now()}; stage.classList.add('painting'); syncPainterBtn();
-  toast(sticky?'Format painter on: click shapes or lines to paint them. Esc or a click on empty canvas stops.':'Click a shape or line to give it this look. Double-click Format painter to paint several.'); return true;
+  toast(sticky?'Format painter stays on: click or drag over shapes and lines. Esc or the Format button stops.':'Click or drag over shapes or lines to give them this look. Double-click Format to paint more than once.'); return true;
 }
 function endPainter(){ if(!S.painter) return; S.painter=null; stage.classList.remove('painting'); syncPainterBtn(); }
 function syncPainterBtn(){ document.querySelectorAll('[data-cmd="formatPainter"]').forEach(b=>{ b.classList.toggle('on',!!S.painter); b.setAttribute('aria-pressed',String(!!S.painter)); }); }
-function applyPainter(it){
-  const c=S.painter&&S.painter.src; if(!c||!it||it.locked) return false;
-  if(isLine(it)){ if(c.kind==='line'){ Object.assign(it.style,JSON.parse(JSON.stringify(c.style))); it.route=c.route; it.startArrow=c.startArrow; it.endArrow=c.endArrow; if(c.signal) it.signal=c.signal; else delete it.signal; }
+function paintLook(it,c,noCommit){
+  if(!c||!it||it.locked) return false;
+  if(isLine(it)){ if(c.kind==='line'){ Object.assign(it.style,JSON.parse(JSON.stringify(c.style))); if(it.route!==c.route){ delete it.waypoints; delete it.bend; } it.route=c.route; it.startArrow=c.startArrow; it.endArrow=c.endArrow; if(c.signal) it.signal=c.signal; else delete it.signal; }
     else STYLE_SHARED.forEach(k=>{ if(k in c.style) it.style[k]=c.style[k]; }); }
   else if(c.kind==='shape'){ Object.assign(it.style,JSON.parse(JSON.stringify(c.style)));
-    if(PAINT_BASIC.has(c.type)&&PAINT_BASIC.has(it.type)&&!it.family===!c.family) it.type=c.type;
-    if(it.family&&c.family===it.family){ const cx=it.x+it.w/2, cy=it.y+it.h/2, par=familyParent(it), left=par&&it.family==='mindmap'&&cx<par.x+par.w/2;
+    if(c.type&&PAINT_BASIC.has(c.type)&&PAINT_BASIC.has(it.type)&&!it.family===!c.family) it.type=c.type;
+    if(it.family&&c.family===it.family&&c.w){ const cx=it.x+it.w/2, cy=it.y+it.h/2, par=familyParent(it), left=par&&it.family==='mindmap'&&cx<par.x+par.w/2;
       const right=it.x+it.w; it.w=c.w; it.h=c.h; it.fitMin={w:c.w,h:c.h}; if(c.fit===false) it.fit=false; else delete it.fit;
       it.x=r2(par&&it.family==='mindmap'?(left?right-it.w:it.x):cx-it.w/2); it.y=r2(it.family==='org'?it.y:cy-it.h/2); fitText(it); } }
   else STYLE_SHARED.forEach(k=>{ if(k in c.style) it.style[k]=c.style[k]; });
-  commit(); invalidate(); return true;
+  if(!noCommit){ commit(); invalidate(); } return true;
 }
+function applyPainter(it){ return paintLook(it,S.painter&&S.painter.src); }
+// Paint everything a drag box touches (like dragging the brush across text in Word).
+function paintBox(a,b){
+  const c=S.painter&&S.painter.src; if(!c) return 0; const x0=Math.min(a.x,b.x), x1=Math.max(a.x,b.x), y0=Math.min(a.y,b.y), y1=Math.max(a.y,b.y), hid=foldedIds()||new Set(); let n=0;
+  for(const it of items()){ if(it.id===S.painter.from||hid.has(it.id)||it.locked||layerOf(it).visible===false||layerOf(it).locked) continue; const bb=isShape(it)?it:lineBBox(it);
+    if(bb&&bb.x<x1&&bb.x+bb.w>x0&&bb.y<y1&&bb.y+bb.h>y0&&paintLook(it,c,true)) n++; }
+  if(n){ commit(); invalidate(); } return n;
+}
+function lineBBox(L){ const P=routeLine(L).pts; const xs=P.map(q=>q.x), ys=P.map(q=>q.y); return {x:Math.min(...xs),y:Math.min(...ys),w:Math.max(1,Math.max(...xs)-Math.min(...xs)),h:Math.max(1,Math.max(...ys)-Math.min(...ys))}; }
 function selectWhere(fn,label){ const ids=pickList().filter(fn).map(i=>i.id); setSel(ids); toast(ids.length+' '+label+' selected'); }
 function selectSameFill(){ const f=selItems().find(isShape); if(!f){ toast('Select a shape first.'); return; } selectWhere(i=>isShape(i)&&i.style.fill===f.style.fill,'shapes with that fill'); }
 function duplicatePage(id){
@@ -6944,7 +6998,7 @@ async function exportPdf(all){
 /* ============================== menus & context menu ============================== */
 const MENUS={
   file:[['New diagram','newDoc'],['New from template...','templates'],['Duplicate page','duplicatePage'],['Open...','openJson','Ctrl+O'],['Save','save','Ctrl+S'],['Save as...','saveAs','Ctrl+Shift+S'],['Import Visio or Lucid file...','openJson'],['Import device pictures from Visio...','devpic:visio'],'-',['Export SVG','exportSvg'],['Export PNG','exportPng'],['Export PDF (this page)','exportPdf'],['Export PDF (all pages)','exportPdfAll'],'-',['Load sample diagram','loadSample'],['Load sample: motor control and P&ID','loadSample2'],['Load sample: mind map and org chart','loadSample3'],['Import CSV data...','importData'],['Version history...','versions']],
-  edit:[['Undo','undo','Ctrl+Z'],['Redo','redo','Ctrl+Shift+Z'],'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',['Select all','selectAll','Ctrl+A'],['Select all shapes','selectShapes'],['Select all lines','selectLines'],['Select same fill color','selectSameFill'],'-',['Edit text','editText','Enter'],['Add text to line','addLineText'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],'-',['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],'-',['Find and replace','find','Ctrl+F']],
+  edit:[['Undo','undo','Ctrl+Z'],['Redo','redo','Ctrl+Shift+Z'],'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',['Select all','selectAll','Ctrl+A'],['Select all shapes','selectShapes'],['Select all lines','selectLines'],['Select same fill color','selectSameFill'],'-',['Edit text','editText','Enter'],['Add text to line','addLineText'],['Copy format','copyStyle','Ctrl+Shift+C'],['Paste format','pasteStyle','Ctrl+Shift+V'],'-',['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],'-',['Find and replace','find','Ctrl+F']],
   insert:[['Template pages...','templates'],['Picture...','insertImage'],['Text box','insertText'],['Sticky note','insertNote'],['Page','addPage'],'-',['Icons...','showIcons'],['Freehand drawing (pen)','pen']],
   arrange:[['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',['Group','group','Ctrl+G'],['Ungroup','ungroup','Ctrl+Shift+G'],'-',['Align left','alignL'],['Align center','alignC'],['Align right','alignR'],['Align top','alignT'],['Align middle','alignM'],['Align bottom','alignB'],'-',['Distribute horizontally','distH'],['Distribute vertically','distV'],'-',['Rotate 90\u00b0 clockwise','rotate','Alt+R'],['Rotate 90\u00b0 counterclockwise','rotateCcw','Alt+Shift+R'],['Flip horizontal','flipH'],['Flip vertical','flipV'],'-',['Match width','matchW'],['Match height','matchH'],['Match size','matchSize'],'-',['Lock / unlock','toggleLock','Ctrl+Shift+L'],['Swap line endpoints','swapEnds']],
   view:[['Zoom in','zoomIn','Ctrl+='],['Zoom out','zoomOut','Ctrl+-'],['Actual size','zoom100','Ctrl+0'],['Zoom to fit','zoomFit','Shift+1'],'-',['Show grid','toggleGrid',null,false,()=>S.prefs.grid],['Snap to grid','toggleSnap',null,false,()=>S.prefs.snap],['Smart guides','toggleGuides',null,false,()=>S.prefs.guides],'-',['Shape library','toggleLeft',null,false,()=>S.prefs.left],['Manage libraries...','lib:manage'],['Properties panel','toggleRight',null,false,()=>S.prefs.right],['Dark mode','toggleTheme',null,false,()=>S.prefs.theme==='dark'],['Fullscreen','fullscreen'],'-',['Mini map','toggleMinimap',null,false,()=>S.prefs.minimap],'-',['Fold all branches','foldAll'],['Unfold all branches','unfoldAll'],['Present','present','F5'],['Comments','comments','Ctrl+Alt+M',false,()=>CMT.open]],
@@ -6979,12 +7033,12 @@ function showCtx(x,y){
   const list=has?[['Edit text','editText','F2'],oneLine?['Add text to line','addLineText']:null,fam?['Add '+(si[0].family==='mindmap'?'topic':'report'),'addChild','Tab']:null,fam&&familyParent(si[0])?['Add sibling','addSibling','Enter']:null,fam?['Tidy layout','tidyFamily']:null,fam&&hasKids(si[0])?[si[0].collapsed?'Unfold branch':'Fold branch','foldSel','Alt+.']:null,fam?['Fold all branches','foldAll']:null,fam?['Unfold all branches','unfoldAll']:null,'-',['Cut','cut','Ctrl+X'],['Copy','copy','Ctrl+C'],['Paste','paste','Ctrl+V'],['Duplicate','duplicate','Ctrl+D'],['Delete','delete','Del'],'-',
       ['Bring to front','front','Ctrl+Shift+]'],['Bring forward','forward','Ctrl+]'],['Send backward','backward','Ctrl+['],['Send to back','back','Ctrl+Shift+['],'-',
       anyShape?['Rotate 90\u00b0','rotate']:null,anyShape?['Flip horizontal','flipH']:null,anyShape?['Flip vertical','flipV']:null,
-      oneLine?['Swap endpoints','swapEnds']:null,oneLine&&si[0].waypoints?['Reset line path','resetPath']:null,'-',
+      oneLine?['Swap endpoints','swapEnds']:null,oneLine&&(si[0].waypoints||si[0].bend)?['Reset line path','resetPath']:null,oneLine?['Set as default line for this page','setDefaultLine']:null,'-',
       S.sel.size>1?['Group','group','Ctrl+G']:null,si.some(i=>i.groupId)?['Ungroup','ungroup','Ctrl+Shift+G']:null,
       S.sel.size>1?['Align left','alignL']:null,S.sel.size>1?['Align center','alignC']:null,S.sel.size>1?['Align top','alignT']:null,'-',
       ['Attach link','openLink','Ctrl+K'],['Add reaction','openReactions'],si.length===1&&libKeyOf(si[0])?((S.prefs.libFav||[]).includes(libKeyOf(si[0]))?['Remove from Favorites','lib:unfav:'+libKeyOf(si[0])]:['Add to Favorites','lib:fav:'+libKeyOf(si[0])]):null].filter(Boolean)
     :[['Paste','paste','Ctrl+V'],['Select all','selectAll','Ctrl+A'],'-',['Zoom to fit','zoomFit'],['Add page','addPage']];
-  if(has) list.push('-',['Format painter','formatPainter'],['Copy style','copyStyle','Ctrl+Alt+C'],['Paste style','pasteStyle','Ctrl+Alt+V'],['Lock / unlock','toggleLock','Ctrl+Shift+L']);
+  if(has) list.push('-',['Format painter','formatPainter'],['Copy format','copyStyle','Ctrl+Shift+C'],['Paste format','pasteStyle','Ctrl+Shift+V'],['Lock / unlock','toggleLock','Ctrl+Shift+L']);
   for(let i=list.length-1;i>0;i--) if(list[i]==='-'&&list[i-1]==='-') list.splice(i,1);
   if(list[0]==='-') list.shift(); if(list[list.length-1]==='-') list.pop();
   ctxEl=buildMenu(list); ctxEl.classList.add('ctx'); document.body.appendChild(ctxEl);
@@ -7134,10 +7188,11 @@ function showTextModal(name,text){
 }
 function showHelp(){
   const sc=[['Drag from library','Add a shape where you drop it'],['Click or tap a shape tile','Add it in the middle of the view'],['Double-click / double-tap','Edit shape text, or add a text box on a line where you click'],['Click a line','Open the editing bar (right-click a shape for its bar)'],['Type with a shape selected','Add to its text (Ctrl+A in the editor selects all to replace it)'],['Double-click inside text','Place the cursor there to edit'],['Ctrl+Enter or Esc','Finish editing text'],['Shift+click','Add to or remove from selection'],['Drag on empty canvas','Pan the view (Select mode: box-select)'],['Shift+drag on empty canvas','Box-select'],['Shift while dragging','Turn off grid and alignment snapping'],['Tab / Enter on a topic or org box','Add a child / add a sibling'],['Alt+. on a topic or org box','Fold or unfold its branch (animated)'],['Space+drag, middle-drag, scroll','Pan the canvas'],['Ctrl+scroll, pinch','Zoom'],['Shift while resizing','Keep proportions'],['Arrow keys (Shift for 10)','Nudge selection'],['Ctrl+Z / Ctrl+Shift+Z','Undo / redo'],['Ctrl+C / X / V / D','Copy, cut, paste, duplicate'],['Ctrl+G / Ctrl+Shift+G','Group / ungroup'],['Ctrl+] / Ctrl+[','Bring forward / send backward (add Shift for front / back)'],['Ctrl+= / Ctrl+- / Ctrl+0','Zoom in, out, actual size'],['Shift+1','Zoom to fit'],['Ctrl+O','Open a diagram, Visio or Lucid file'],['Delete or Backspace','Delete selection'],['Ctrl+K','Attach a link'],['Ctrl+Alt+C / Ctrl+Alt+V','Copy style / paste style'],['Ctrl+Shift+L','Lock or unlock'],['Alt+R / Alt+Shift+R','Rotate selection 90\u00b0 clockwise / counterclockwise'],['Drag the round arrow above a shape','Rotate to any angle (snaps to 15\u00b0, Shift for free)'],['Ctrl+F','Find and replace'],['Ctrl+S / Ctrl+Shift+S','Save / Save as'],['Ctrl+Alt+M','Comments'],['F5','Present'],['R while dragging a library tile','Turn the shape 90\u00b0 before you drop it (Shift+R the other way)'],['F1 or ?','Open this help']];
-  const soon=['Sharing and real-time collaboration (live co-editing)','Line jumps where lines cross','Page tab colors and master pages','Embedded links','Free-form bends on straight and curved lines','Live data sources (Google Sheets, Excel) and auto-refresh','Import of older binary Visio .vsd and draw.io files','Slides that frame part of a page in Present mode','Eraser for freehand strokes'];
+  const soon=['Sharing and real-time collaboration (live co-editing)','Line jumps where lines cross','Page tab colors and master pages','Embedded links','More than one bend point on straight and curved lines','Live data sources (Google Sheets, Excel) and auto-refresh','Import of older binary Visio .vsd and draw.io files','Slides that frame part of a page in Present mode','Eraser for freehand strokes'];
   openModal('Getting started with Linework',
     el('h3',{text:'Add shapes'}),el('p',{text:'Drag any shape from the library on the left onto the canvas, or click or tap a tile to drop it in the middle of the view. Use the search box to filter shapes.'}),
     el('h3',{text:'Connect shapes'}),el('p',{text:'Hover a shape to show four blue dots. Drag a dot onto another shape. Drop it on one of the green side dots to pin the line to that side, or anywhere on the shape body for a floating connection that picks the best side as shapes move. Release on empty canvas to choose a new shape to create at the end of the line.'}),
+    el('h3',{text:'Bend a line and set the default line'}),el('p',{text:'Select a straight or curved line to see a white diamond in its middle: drag it to bend the line, double-click it (or choose Reset line path) to straighten it again. Elbow lines show small bars on each segment instead; drag those. Drag either end to move it to another side or shape. To make every new line on a page look like one you have styled, select it and choose Use for new lines (in the Connector section or the right-click menu); clear it from the Page panel. Lines drawn from or to a mind map topic or org chart box take that map\'s own connector style, with no arrowhead, unless the page has its own default line.'}),
     el('p',{text:'Select a line to restyle it: straight, elbow or curved routing, arrowheads at either end, color, width and pattern. Drag a line end handle to reconnect it. The toolbar Lines buttons set the style for new lines and change any selected lines.'}),
     el('h3',{text:'Edit text'}),el('p',{text:'Double-click (or double-tap) a shape to edit its text: the cursor lands where you clicked and the existing text is kept. Selecting a shape and typing adds to the end of its text. To replace everything, press Ctrl+A in the editor and type. Double-click anywhere on a line to add a text box there; a line can hold several. Drag a text box to move it along the line, or pull it off the line (it snaps back when close). Press Ctrl+Enter, Esc, or click elsewhere to finish. Empty text boxes are removed.'}),
     el('h3',{text:'Editing bar'}),el('p',{text:'Click a line, or click an already-selected shape again, to open the floating editing bar. Right-click any item to open its menu (the same as the More button on the bar) along with the bar. For lines: line shape, color and width, left and right endpoints (each a menu of pictures, with Swap between them and More to choose which of the 28 endings appear), and Add text. For shapes: change shape, fill, border, and the Text menu (font, size, text color, highlight, bulleted or numbered list, bold, italic, underline, strikethrough, horizontal and vertical alignment). Both have reactions, a link, lock, the right panel and a More menu. The color picker has a palette, your recent colors, a custom color (+), style presets and, in Chrome and Edge, an eyedropper. Locked items keep their position, size, style and text until unlocked. Right-click a page tab to rename, duplicate or delete it.'}),
@@ -7164,7 +7219,7 @@ function showHelp(){
     el('p',{text:'Double-click a topic to edit it; all of its text is selected, so typing replaces it. The edit box takes the topic\'s own colours, so light text on a dark topic stays readable. Mind map topics and org chart boxes grow with their text as you type, up to 280 px wide, then wrap and grow taller; they never shrink below the size they were given (resize one by hand to set a new size). A topic that grows toward its branch pushes the branch along. Turn this off, or on for any other shape, with Resize to fit text in the Text section.'}),
     el('p',{text:'Select a topic to see a blue + beside it: it adds a child that copies the topic\'s other children (shape, size, colours and connector). If the topic has no children yet, the new one copies the closest relatives at the same depth (counted along the lines from the central topic): cousins in the same branch first, even folded ones, then topics in other branches, and failing that the topic itself. It starts at the smallest size of the topics it copies and fits its own text, the same as the topics already there. If it would land on another box, the map makes room: branches after it move down just enough, and if a long branch above hangs past its own topic, the new topic and everything after it move down below that branch. The same happens when a topic grows as you type. It then opens for typing. On a page with a dark background colour, text that has no colour of its own is shown light so it stays readable. Tab and Enter do the same for a child and a sibling. Adding a topic no longer rearranges the map; use Tidy layout when you want it rearranged.'}),
     el('p',{text:'Folding and unfolding a branch keeps your arrangement: the branch comes back exactly where it was. If you move a folded topic, its hidden branch moves with it. A branch that an older version left sitting on top of its topic is put back beside it the next time you open that topic.'}),
-    el('h3',{text:'Format painter'}),el('p',{text:'Select the shape or line whose look you want, then click Format painter on the toolbar (also in the right-click menu and the Arrange panel). The cursor changes; click another shape or line to give it the same look. Click the button twice quickly, or double-click it, to keep painting several items; press Esc or click empty canvas to stop. Shapes take fill, border, text formatting and corners; a basic shape also takes the outline (rectangle, rounded, ellipse and so on); mind map and org boxes also take the size. Lines take colour, width, pattern, routing and arrowheads. Ctrl+Alt+C and Ctrl+Alt+V still copy and paste a style.'}),
+    el('h3',{text:'Format painter'}),el('p',{text:'It works like the Format Painter in Word and PowerPoint. Select the shape or line whose look you want (with several selected, the first one counts), then click Format on the toolbar (also in the right-click menu and the Arrange panel). The pointer becomes a brush: click a shape or line, or drag the brush across several to paint them all at once. One click on Format paints once; double-click Format to keep painting, then press Esc or click Format again to stop. Shapes take fill, border, text formatting and corners; a basic shape also takes the outline (rectangle, rounded, ellipse and so on); mind map and org boxes also take the size. Lines take colour, width, pattern, routing and arrowheads. Keyboard: Ctrl+Shift+C copies the format of the selection and Ctrl+Shift+V pastes it onto everything selected (Ctrl+Alt+C and Ctrl+Alt+V do the same).'}),el('p',{text:'Select the shape or line whose look you want, then click Format painter on the toolbar (also in the right-click menu and the Arrange panel). The cursor changes; click another shape or line to give it the same look. Click the button twice quickly, or double-click it, to keep painting several items; press Esc or click empty canvas to stop. Shapes take fill, border, text formatting and corners; a basic shape also takes the outline (rectangle, rounded, ellipse and so on); mind map and org boxes also take the size. Lines take colour, width, pattern, routing and arrowheads. Ctrl+Alt+C and Ctrl+Alt+V still copy and paste a style.'}),
     el('h3',{text:'Device pictures from a Visio file'}),
     el('p',{text:'File, Import device pictures from Visio (or the button under Device picture) reads the pictures in a .vsdx file, such as a page of Rockwell stencil drawings, and lists each one with its shape or master name. A name that matches a catalog number, like CMS20DP for 1783-CMS20DP, is picked for you; pick the device for the others or leave them on Skip. EMF and WMF pictures cannot be shown in a browser and are skipped. With Pictures fill the device shape on, the drawing becomes the whole device shape (no title bar), sized to the drawing, with the port pins still along the edges and the catalog number below. Turn this on or off per device under Device picture. The pictures are saved in the diagram and, with Remember on, used for new diagrams in this browser.'}),
     el('h3',{text:'Editing wire terminals'}),
@@ -7230,12 +7285,14 @@ const CMDS={
   duplicate, delete:deleteSel, selectAll:()=>setSel(pickList().map(i=>i.id)),
   editText:()=>{ const s=selItems(); if(s.length===1) startEdit(s[0].id); },
   front:()=>reorder('front'), back:()=>reorder('back'), forward:()=>reorder('forward'), backward:()=>reorder('backward'),
+  setDefaultLine:()=>{ const L=selItems().find(isLine); if(!L){ toast('Select a line first.'); return; } page().lineDef=lineLook(L); commit(); invalidate({props:true}); toast('New lines on this page will look like this one'); },
+  clearDefaultLine:()=>{ delete page().lineDef; commit(); invalidate({props:true}); toast('New lines use the normal defaults again'); },
   toggleLock, copyStyle, pasteStyle, formatPainter:()=>{ if(S.painter){ if(!S.painter.sticky&&Date.now()-S.painter.t<450){ S.painter.sticky=true; toast('Format painter stays on: click shapes or lines to paint them. Esc or a click on empty canvas stops.'); return; } endPainter(); } else startPainter(false); }, swapEnds, present:startPresent, find:openFind, versions:showVersions,
   matchW:()=>matchSize('w'), matchH:()=>matchSize('h'), matchSize:()=>matchSize('wh'),
   addChild:()=>{ const s=selItems()[0]; addFamilyChild(s,false); }, addSibling:()=>{ const s=selItems()[0]; addFamilyChild(s,true); }, tidyFamily, loadSample3:loadFamilySample,
   modePan:()=>{ S.prefs.dragMode='pan'; savePrefs(); invalidate({chrome:true}); toast('Drag empty canvas to pan. Shift+drag draws a selection box.'); },
   modeSelect:()=>{ S.prefs.dragMode='select'; savePrefs(); invalidate({chrome:true}); toast('Drag empty canvas to select. Space+drag or middle-drag pans.'); },
-  resetPath:()=>{ const ls=unlockedSel().filter(isLine).filter(l=>l.waypoints); ls.forEach(l=>{ delete l.waypoints; }); if(ls.length){ commit(); invalidate(); toast('Line path reset'); } }, duplicatePage:()=>duplicatePage(), fullscreen:toggleFullscreen,
+  resetPath:()=>{ const ls=unlockedSel().filter(isLine).filter(l=>l.waypoints||l.bend); ls.forEach(l=>{ delete l.waypoints; delete l.bend; }); if(ls.length){ commit(); invalidate(); toast('Line path reset'); } }, duplicatePage:()=>duplicatePage(), fullscreen:toggleFullscreen,
   selectShapes:()=>selectWhere(isShape,'shapes'), selectLines:()=>selectWhere(isLine,'lines'), selectSameFill,
   addLineText:()=>{ const l=selItems().find(isLine); if(l) addLineText(l.id,null); else toast('Select a line first.'); },
   openLink:()=>{ if(!S.sel.size){ toast('Select something to link.'); return; } showFtb(); ftb.kind='link'; buildFtbBar(); renderFtbPop(); invalidate({ftb:true}); },
@@ -7347,6 +7404,7 @@ function wireKeys(){
     if(e.key==='F1'){ e.preventDefault(); showHelp(); return; }
     if(e.key==='F5'&&!mod){ e.preventDefault(); startPresent(); return; }
     if(mod&&!e.shiftKey&&!e.altKey&&(k==='f'||k==='h')){ e.preventDefault(); openFind(); return; }
+    if(mod&&e.shiftKey&&!e.altKey&&(e.code==='KeyC'||e.code==='KeyV')&&!typing){ e.preventDefault(); runCmd(e.code==='KeyC'?'copyStyle':'pasteStyle'); return; }
     if(mod&&e.altKey&&(e.code==='KeyC'||e.code==='KeyV')){ e.preventDefault(); runCmd(e.code==='KeyC'?'copyStyle':'pasteStyle'); return; }
     if(mod&&e.shiftKey&&(e.code==='KeyL')){ e.preventDefault(); runCmd('toggleLock'); return; }
     if(e.altKey&&!mod&&(e.key==='.'||e.code==='Period')){ e.preventDefault(); runCmd('foldSel'); return; }
@@ -7408,7 +7466,7 @@ window.__app={
     layerCmd, moveSelToLayer, rotateSel, rotateShapes, pageSizePx, renderList, pickList, activeLayerId, PAGE_SIZES, elecGeom, ELEC_GEOM_TYPES, SYMBOL_INFO,
     devDef, addIo, setIo, ioParse, ioSize, IO_FAMS, IO_KINDS, promptIo, textBox, turnXf, ROBO_FAMS, robotData, robotSpecLine, robotGeom, changeShape, PORT_KINDS, RA_LINE,
     SCALES, pgScale, mmPerPx, setPageScale, realSize, CV_KINDS, CV_VENDORS_BUILTIN, CV_SRC, cvVendors, cvUserVendors, sanCvVendors, placeConveyor, setCv, cvSizeMm, cvCurvePts, conveyorGeom, showCvVendors,
-    famDepth, famStock, unstackKids, famPeers, famLca, famBase, famClear, famMakeRoom, startPainter, endPainter, applyPainter, painterSnap, fitText, fitsText, editorInk, famDir, addKidPos, unfoldInPlace, addFamilyChild, setFold, visioPictures, guessDevice, importVisioPics, applyVisioPics, setPicFill, devPicFull, fitPicShape, picFillLib, KEY_PICFILL,
+    famDepth, famStock, lineMid, famLineFor, lineDefaults, paintBox, paintLook, unstackKids, famPeers, famLca, famBase, famClear, famMakeRoom, startPainter, endPainter, applyPainter, painterSnap, fitText, fitsText, editorInk, famDir, addKidPos, unfoldInPlace, addFamilyChild, setFold, visioPictures, guessDevice, importVisioPics, applyVisioPics, setPicFill, devPicFull, fitPicShape, picFillLib, KEY_PICFILL,
     applyTerm, sanTerm, termCmd, terminalSection, geomBase, loadPrefs, LIB_GROUPS, libGroups, libFavs, libMostUsed, libUse, libPlace, libFavToggle, libFavMove, libKeyOf, libCmd, showLibManager, buildLibrary, refreshPinned, libCtxShow, libScore,
     parseDxf, dxfToSvg, svgMm, importCad, cadCmd, cadLib, setRobotView, robotPlanGeom, planRadius, cardKey, planKey, KEY_CVV, KEY_CADLIB },
   LIB, LIB_MAP, KEYS:{doc:KEY_DOC,schema:KEY_SCHEMA,prefs:KEY_PREFS,legacy:LEGACY_KEYS}
